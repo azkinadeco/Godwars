@@ -25,12 +25,12 @@ window.ModelFactory = {
     if (!this._loader || this._glbCache[assetName] || this._glbLoading[assetName]) return;
     this._glbLoading[assetName] = [];
     this._loader.load(
-      `assets/models/${assetName}.glb`,
+      `assets/models/${assetName}.glb?v=20261123a`,
       (gltf) => {
-        this._glbCache[assetName] = gltf.scene;
+        this._glbCache[assetName] = { scene: gltf.scene, animations: gltf.animations || [] };
         const callbacks = this._glbLoading[assetName] || [];
         delete this._glbLoading[assetName];
-        callbacks.forEach(cb => cb(gltf.scene.clone(true)));
+        callbacks.forEach(cb => cb(this._glbCache[assetName]));
       },
       undefined,
       () => {
@@ -46,17 +46,40 @@ window.ModelFactory = {
       this._loadSingleGLB(assetName);
     }
 
-    const applyClone = (clonedScene) => {
+    const applyClone = (cached) => {
+      const clonedScene = cached.scene.clone(true);
       if (onLoadedTransform) onLoadedTransform(clonedScene);
       if (fallbackToHide) {
         if (Array.isArray(fallbackToHide)) fallbackToHide.forEach(m => { if (m) m.visible = false; });
         else fallbackToHide.visible = false;
       }
       targetGroup.add(clonedScene);
+
+      // P0-1 FIXED: Attach real THREE.AnimationMixer for Skeletal-Rigged Blender GLB Heroes!
+      if (cached.animations && cached.animations.length > 0 && typeof THREE.AnimationMixer === 'function') {
+        const mixer = new THREE.AnimationMixer(clonedScene);
+        const actions = {};
+        cached.animations.forEach(clip => {
+          actions[clip.name] = mixer.clipAction(clip);
+        });
+        targetGroup.userData.mixer = mixer;
+        targetGroup.userData.actions = actions;
+        targetGroup.userData.currentAnim = null;
+        targetGroup.userData.playAnim = (animName) => {
+          const next = actions[animName] || actions.Idle || Object.values(actions)[0];
+          if (!next || targetGroup.userData.currentAnim === next) return;
+          if (targetGroup.userData.currentAnim) {
+            targetGroup.userData.currentAnim.fadeOut(0.16);
+          }
+          next.reset().fadeIn(0.16).play();
+          targetGroup.userData.currentAnim = next;
+        };
+        targetGroup.userData.playAnim('Idle');
+      }
     };
 
     if (this._glbCache[assetName]) {
-      applyClone(this._glbCache[assetName].clone(true));
+      applyClone(this._glbCache[assetName]);
       return true;
     }
     if (this._glbLoading[assetName]) {

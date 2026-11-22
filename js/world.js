@@ -781,6 +781,7 @@ class AsgardWorld {
     this.addWalkableFloor(14, 9.2, 0, 3.8, 34, 0.4, this.mats.brightGold);
 
     // Central Elevated Odin Allfather Altar (with 4 wide walkable royal staircases!)
+    this.buildValhallaShowcaseArchitecture();
     this.addWalkableFloor(0, 1.8, 0, 12, 12, 1.8, this.mats.gold);
     this.addStairRamp(0, 7.8, 5.0, 4.0, 0, 1.8, 'N', this.mats.brightGold);
     this.addStairRamp(0, -7.8, 5.0, 4.0, 0, 1.8, 'S', this.mats.brightGold);
@@ -1792,6 +1793,50 @@ class AsgardWorld {
     }
 
     return { x: nx, z: nz };
+  }
+
+  // =========================================================================
+  // AAA SHOWCASE ARENA: SCULPTED EUPHORIA ASGARD & CITADEL GLB ARCHITECTURE
+  // Places 12 high-detail sculpted Blender GLBs into Valhalla Citadel!
+  // =========================================================================
+  buildValhallaShowcaseArchitecture() {
+    const placeSculpted = (name, x, y, z, scale = 1.0, rotY = 0) => {
+      const grp = new THREE.Group();
+      grp.position.set(x, y, z);
+      grp.rotation.y = rotY;
+      grp.scale.setScalar(scale);
+      this.scene.add(grp);
+      if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
+        window.ModelFactory.attachBlenderGLB(`euphoria/${name}`, grp, (glb) => {
+          glb.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+        });
+      }
+      return grp;
+    };
+
+    // 4 Corner Sculpted Citadel Watchtowers framing Valhalla Arena
+    [[-44, -40], [44, -40], [-44, 40], [44, 40]].forEach(([tx, tz]) => {
+      placeSculpted('citadel_tower', tx, 0, tz, 1.55, Math.atan2(-tx, -tz));
+    });
+
+    // 2 Monumental North & South Royal Gate Towers
+    placeSculpted('citadel_gatetower', 0, 0, -48, 1.5, 0);
+    placeSculpted('citadel_gatetower', 0, 0, 48, 1.5, Math.PI);
+
+    // 8 Ornate Sculpted Asgard Columns lining the Valhalla Grand Plaza
+    [[-18, -12], [18, -12], [-18, 12], [18, 12], [-34, -14], [34, -14], [-34, 14], [34, 14]].forEach(([cx, cz]) => {
+      placeSculpted('asgard_column', cx, 0, cz, 1.35, 0);
+    });
+
+    // 6 Sculpted Flame Braziers & Fire Pillars illuminating the Citadel Arena
+    [[-10, -14], [10, -14], [-10, 14], [10, 14], [-22, 0], [22, 0]].forEach(([bx, bz]) => {
+      placeSculpted('brazier', bx, 0, bz, 1.35, 0);
+    });
+
+    // Grand Central Aurora Shrine + Giant Mythic Sword Landmark
+    placeSculpted('aurora_shrine', 0, 0.1, -36, 1.25, 0);
+    placeSculpted('giant_sword', 36, 0, 0, 1.6, -Math.PI / 2);
+    placeSculpted('frost_arch', -36, 0, 0, 1.4, Math.PI / 2);
   }
 }
 

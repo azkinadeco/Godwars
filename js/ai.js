@@ -367,11 +367,17 @@ class AIContender {
       this.position.x += moveVec.x * speed * dt;
       this.position.z += moveVec.z * speed * dt;
 
-      const runCycle = performance.now() * 0.01;
-      if (this.mesh.userData.leftLeg) {
+      if (this.mesh.userData.mixer) {
+        this.mesh.userData.mixer.update(dt);
+        if (this.mesh.userData.playAnim) this.mesh.userData.playAnim('Run');
+      } else if (this.mesh.userData.leftLeg) {
+        const runCycle = performance.now() * 0.01;
         this.mesh.userData.leftLeg.rotation.x = Math.sin(runCycle + this.id) * 0.65;
         this.mesh.userData.rightLeg.rotation.x = -Math.sin(runCycle + this.id) * 0.65;
       }
+    } else if (this.mesh.userData.mixer) {
+      this.mesh.userData.mixer.update(dt);
+      if (this.mesh.userData.playAnim) this.mesh.userData.playAnim('Idle');
     }
 
     this.updatePhysicsAndGround(dt);
@@ -382,7 +388,7 @@ class AIContender {
       const targetCenter = this.currentEnemy.position.clone().add(new THREE.Vector3(0, 1.25, 0));
       const dist = eyeOrigin.distanceTo(targetCenter);
 
-      if (dist <= 70) {
+      if (dist <= 70 && this.hasLineOfSight(eyeOrigin, targetCenter)) {
         this.fireTimer -= dt;
         const wData = window.GODWARS_DATA.WEAPONS[this.weaponId] || window.GODWARS_DATA.WEAPONS.m4a1;
         const fireInterval = Math.max(0.14, (60 / wData.rpm) * 1.8);
@@ -465,6 +471,21 @@ class AIContender {
     }
 
     this.mesh.position.copy(this.position);
+  }
+
+  hasLineOfSight(origin, targetPos) {
+    const diff = targetPos.clone().sub(origin);
+    const dist = diff.length();
+    if (dist < 1.5) return true;
+    const ray = new THREE.Ray(origin, diff.normalize());
+    const pt = new THREE.Vector3();
+    for (const c of this.game.world.colliders) {
+      if (c.isDoor && !c.active) continue;
+      if (ray.intersectBox(new THREE.Box3(new THREE.Vector3(c.minX, c.minY, c.minZ), new THREE.Vector3(c.maxX, c.maxY, c.maxZ)), pt)) {
+        if (origin.distanceTo(pt) < dist - 0.6) return false;
+      }
+    }
+    return true;
   }
 
   findKnockedTeammate() {

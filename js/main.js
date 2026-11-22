@@ -149,6 +149,9 @@ class GodWarsGame {
     this.lobbyScene = new THREE.Scene();
     this.lobbyScene.background = new THREE.Color(0x070d1f);
     this.lobbyScene.fog = new THREE.FogExp2(0x070d1f, 0.035);
+    if (this.pmremEnvTexture) {
+      this.lobbyScene.environment = this.pmremEnvTexture;
+    }
 
     this.lobbyCamera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
     this.lobbyCamera.position.set(0, 1.55, 5.4);
@@ -849,6 +852,7 @@ class GodWarsGame {
     // P0-3 FIXED: Enable Real-Time Crisp Sun Shadows (Follow-Player 1024x1024 PCFSoftShadowMap!)
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.initPMREMEnvironment();
     this.applyQualityPreset();
 
     window.addEventListener('resize', () => {
@@ -871,6 +875,59 @@ class GodWarsGame {
 
     this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  // =========================================================================
+  // P0-2 FIXED: PROCEDURAL PMREM HDRI ENVIRONMENT MAP (TRUE GLEAMING AAA PBR!)
+  // Gives metallic gold, steel weapons, hero armor & marble realistic sky reflections!
+  // =========================================================================
+  initPMREMEnvironment() {
+    if (!this.renderer || typeof THREE.PMREMGenerator !== 'function') return;
+    try {
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      pmrem.compileEquirectangularShader();
+      const envScene = new THREE.Scene();
+      envScene.background = new THREE.Color(0x1e3a8a);
+
+      // Warm Golden Sun Panel + Cool Azure Sky Panel + Emerald Ground Bounce
+      const sunPanel = new THREE.Mesh(
+        new THREE.PlaneGeometry(32, 32),
+        new THREE.MeshBasicMaterial({ color: 0xfff3c4, side: THREE.DoubleSide })
+      );
+      sunPanel.position.set(18, 22, 16);
+      sunPanel.lookAt(0, 0, 0);
+      envScene.add(sunPanel);
+
+      const skyPanel = new THREE.Mesh(
+        new THREE.PlaneGeometry(45, 45),
+        new THREE.MeshBasicMaterial({ color: 0x60a5fa, side: THREE.DoubleSide })
+      );
+      skyPanel.position.set(-20, 26, -15);
+      skyPanel.lookAt(0, 0, 0);
+      envScene.add(skyPanel);
+
+      const rimPanel = new THREE.Mesh(
+        new THREE.PlaneGeometry(28, 16),
+        new THREE.MeshBasicMaterial({ color: 0xfbbf24, side: THREE.DoubleSide })
+      );
+      rimPanel.position.set(0, 8, -24);
+      rimPanel.lookAt(0, 0, 0);
+      envScene.add(rimPanel);
+
+      const groundBounce = new THREE.Mesh(
+        new THREE.PlaneGeometry(50, 50),
+        new THREE.MeshBasicMaterial({ color: 0x3f6212, side: THREE.DoubleSide })
+      );
+      groundBounce.position.set(0, -16, 0);
+      groundBounce.rotation.x = -Math.PI / 2;
+      envScene.add(groundBounce);
+
+      const rt = pmrem.fromScene(envScene, 0.04);
+      this.pmremEnvTexture = rt.texture;
+      this.scene.environment = this.pmremEnvTexture;
+      if (this.lobbyScene) this.lobbyScene.environment = this.pmremEnvTexture;
+      pmrem.dispose();
+    } catch (e) {}
   }
 
   // =========================================================================
@@ -2956,8 +3013,13 @@ class GodWarsGame {
       }
       if (this.lobbyScene && this.lobbyCamera) {
         if (this.lobbyStargate) this.lobbyStargate.rotation.z += dt * 0.45;
-        if (this.lobbyPedestals && this.lobbyPedestals[0]) {
-          this.lobbyPedestals[0].charMount.rotation.y = this.lobbyOrbitYaw + Math.sin(now * 0.0008) * 0.25;
+        if (this.lobbyPedestals) {
+          this.lobbyPedestals.forEach((ped, idx) => {
+            if (idx === 0) ped.charMount.rotation.y = this.lobbyOrbitYaw + Math.sin(now * 0.0008) * 0.25;
+            ped.charMount.children.forEach(ch => {
+              if (ch.userData && ch.userData.mixer) ch.userData.mixer.update(dt);
+            });
+          });
         }
         this.renderer.render(this.lobbyScene, this.lobbyCamera);
       }
@@ -3322,9 +3384,16 @@ class GodWarsGame {
         p.thirdPersonMesh.rotation.set(p.isSliding ? -0.48 : 0, p.yaw + Math.PI, 0);
         p.thirdPersonMesh.scale.y = p.isSliding ? 0.72 : 1.0;
 
-        // Animate 3rd-Person Hero Legs & Arms while running!
+        // Animate Rigged 3rd-Person Hero via Skeletal AnimationMixer (Idle / Run / Slide)!
         const ud = p.thirdPersonMesh.userData;
-        if (ud && ud.leftLeg && ud.rightLeg) {
+        if (ud && ud.mixer) {
+          ud.mixer.update(dt);
+          if (ud.playAnim) {
+            if (p.isSliding) ud.playAnim('Slide');
+            else if (inputLen > 0.1 && p.onGround) ud.playAnim('Run');
+            else ud.playAnim('Idle');
+          }
+        } else if (ud && ud.leftLeg && ud.rightLeg) {
           const swing = (inputLen > 0.1 && p.onGround && !p.isSliding) ? Math.sin(this.matchTime * 14) * 0.68 : 0;
           ud.leftLeg.rotation.x = swing;
           ud.rightLeg.rotation.x = -swing;
