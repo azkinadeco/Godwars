@@ -647,6 +647,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: width 0.08s ease, height 0.08s ease;
 }
 .ch-dot { width: 4px; height: 4px; background: #fff; border-radius: 50%; box-shadow: 0 0 6px #38bdf8; }
 .ch-line { position: absolute; background: rgba(255, 255, 255, 0.85); }
@@ -1251,7 +1252,150 @@ html, body {
 .end-stat-box span { font-size: 10px; color: var(--text-muted); }
 .end-stat-box b { font-size: 16px; color: var(--gold); }
 
+/* Lobby Music Pill & Live 6-Bar Beat Visualizer */
+.lobby-music-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+#lobby-music-viz {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+}
+
+#lobby-music-viz span {
+  width: 3px;
+  height: 35%;
+  background: linear-gradient(180deg, #38bdf8, #fbbf24);
+  border-radius: 2px;
+  transition: height 0.08s ease;
+}
+
+.btn-music-toggle {
+  background: transparent;
+  border: none;
+  color: var(--gold-bright);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.6px;
+  cursor: pointer;
+}
+.btn-music-toggle.muted { color: var(--text-muted); }
+
+/* Pre-Match Apex Legend Select Screen */
+.ls-squad-row {
+  display: flex;
+  justify-content: space-around;
+  gap: 8px;
+  background: rgba(7, 11, 25, 0.85);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.ls-squad-row b { color: var(--gold); }
+
+.ls-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+.ls-hero-tile {
+  background: rgba(15, 23, 42, 0.92);
+  border: 2px solid rgba(148, 163, 184, 0.25);
+  border-bottom: 4px solid var(--hero-color, #fbbf24);
+  padding: 12px 6px;
+  color: #fff;
+  cursor: pointer;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  transition: all 0.14s ease;
+}
+.ls-hero-tile.active, .ls-hero-tile:hover {
+  border-color: var(--hero-color, #fbbf24);
+  background: rgba(30, 41, 59, 0.98);
+  transform: translateY(-3px);
+  box-shadow: 0 0 16px rgba(251, 191, 36, 0.35);
+}
+.ls-icon { font-size: 24px; }
+.ls-name { font-size: 13px; font-weight: 900; margin-top: 4px; }
+.ls-role { font-size: 9px; color: var(--text-muted); }
+
+/* Apex 4-Quadrant Radial Heal Wheel */
+.radial-wheel-container {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(15, 23, 42, 0.94), rgba(7, 11, 25, 0.88));
+  border: 2px solid rgba(251, 191, 36, 0.55);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.85);
+}
+.radial-center-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: rgba(7, 11, 25, 0.96);
+  border: 2px solid var(--gold);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 900;
+  color: var(--gold);
+  text-align: center;
+}
+.radial-center-badge span { font-size: 9px; color: var(--text-muted); }
+
+.radial-heal-btn {
+  position: absolute;
+  width: 112px;
+  height: 62px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 2px solid var(--r-color, #38bdf8);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 10.5px;
+  font-weight: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.radial-heal-btn:hover { transform: scale(1.08); background: rgba(30, 41, 59, 0.98); }
+.radial-heal-btn b { color: var(--r-color, #38bdf8); font-size: 13px; }
+.radial-heal-btn.pos-top { top: 14px; left: 50%; transform: translateX(-50%); }
+.radial-heal-btn.pos-bottom { bottom: 14px; left: 50%; transform: translateX(-50%); }
+.radial-heal-btn.pos-left { left: 8px; top: 50%; transform: translateY(-50%); }
+.radial-heal-btn.pos-right { right: 8px; top: 50%; transform: translateY(-50%); }
+
+/* Death Box Pills */
+.db-pill {
+  background: rgba(7, 11, 25, 0.9);
+  border: 1.5px solid var(--gold);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 @media (max-width: 920px) {
+  .ls-hero-grid { grid-template-columns: repeat(3, 1fr); }
   .stage-squad-tags { gap: 16px; }
   #tab-legends { flex-direction: column; }
   .legends-left-col, .legends-right-col { width: 100%; }

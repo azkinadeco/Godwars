@@ -21,6 +21,7 @@ class AsgardWorld {
     this.groundLoot = [];       // 3D Floor Loot items inside buildings
     this.replicators = [];      // Apex Replicator Crafting terminals
     this.surveyBeacons = [];    // Recon Survey Beacons on rooftops
+    this.respawnBeacons = [];   // Apex Green Respawn Beacons for fallen Squadmates
     this.supplyBins = [];
     this.jumpPads = [];
     this.ziplines = [];
@@ -340,9 +341,36 @@ class AsgardWorld {
     hemiLight.position.set(0, 180, 0);
     this.scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.28);
+    const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.32);
     sunLight.position.set(110, 180, 95);
     this.scene.add(sunLight);
+
+    // Regional Atmospheric POI Point Lights (Apex World's Edge / Olympus Color Mood!)
+    const poiLights = [
+      [0, 18, 0, 0xfbbf24, 1.8, 95],       // Valhalla Golden Citadel Glow
+      [0, 16, 135, 0x38bdf8, 1.8, 85],     // Bifrost Observatory Cyan Glow
+      [-115, 16, 35, 0xf97316, 2.0, 90],   // Mjölnir Forge Lava Orange Glow
+      [115, 18, 30, 0x10b981, 1.6, 85],    // Yggdrasil Sanctuary Emerald Glow
+      [-85, 16, -105, 0x14b8a6, 1.8, 85],  // Helheim Crypts Necro Glow
+      [90, 18, -100, 0xe879f9, 1.5, 85]    // Valkyrie Sky Docks Violet-Gold Glow
+    ];
+    poiLights.forEach(([lx, ly, lz, color, intensity, dist]) => {
+      const pl = new THREE.PointLight(color, intensity, dist);
+      pl.position.set(lx, ly, lz);
+      this.scene.add(pl);
+    });
+
+    // Drifting Volumetric Cosmic Clouds high above Asgard Island
+    const cloudMat = new THREE.MeshBasicMaterial({ color: 0xfef3c7, transparent: true, opacity: 0.14 });
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const r = 90 + (i % 3) * 65;
+      const cloud = new THREE.Mesh(new THREE.DodecahedronGeometry(18 + (i % 4) * 5, 1), cloudMat);
+      cloud.scale.set(2.2, 0.45, 1.4);
+      cloud.position.set(Math.cos(a) * r, 78 + (i % 3) * 14, Math.sin(a) * r);
+      this.scene.add(cloud);
+      this.animatedProps.push({ mesh: cloud, rotY: 0.04 });
+    }
 
     const starGeo = new THREE.BufferGeometry();
     const starCount = 800;
@@ -945,10 +973,36 @@ class AsgardWorld {
       );
       holo.position.y = 3.6;
       repGroup.add(base, pillar, holo);
+      if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
+        window.ModelFactory.attachBlenderGLB('prop_replicator', repGroup);
+      }
       this.scene.add(repGroup);
       this.animatedProps.push({ mesh: holo, rotY: 2.0 });
 
       this.replicators.push({ x: rx, y: ry, z: rz, name, used: false, mesh: repGroup });
+    });
+
+    // 2b. Build 3 Interactive Apex Green Respawn Beacons (Valhalla Soul Altars)
+    const respawnCoords = [
+      [0, 0, -48, 'Valhalla North Respawn Beacon'],
+      [-74, 0, 35, 'Mjölnir Forge Respawn Beacon'],
+      [74, 0, 30, 'Yggdrasil Sanctuary Respawn Beacon']
+    ];
+    respawnCoords.forEach(([bx, by, bz, name]) => {
+      const rGroup = new THREE.Group();
+      rGroup.position.set(bx, by, bz);
+      const ped = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.6, 1.1, 8), this.mats.darkSteel);
+      ped.position.y = 0.55;
+      const spire = new THREE.Mesh(new THREE.BoxGeometry(0.65, 3.2, 0.65), this.mats.gold);
+      spire.position.y = 2.1;
+      const greenBeacon = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18, 0.18, 35, 10, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.35 })
+      );
+      greenBeacon.position.y = 18;
+      rGroup.add(ped, spire, greenBeacon);
+      this.scene.add(rGroup);
+      this.respawnBeacons.push({ x: bx, y: by, z: bz, name, used: false, mesh: rGroup, beam: greenBeacon });
     });
 
     // 3. Build 2 Rooftop Recon Survey Beacons (Valhalla Roof & Bifrost Observatory Roof)

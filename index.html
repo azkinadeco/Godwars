@@ -35,8 +35,15 @@
         <button class="lobby-tab-btn" data-target="tab-settings">SETTINGS</button>
       </nav>
 
-      <div id="career-rank-badge">⚔️ EINHERJAR SILVER <b>160 RP</b> • 🏆 0 WINS</div>
-      <button id="btn-fullscreen" class="btn-icon" title="Fullscreen Mode">⛶ FULLSCREEN</button>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <div id="career-rank-badge">⚔️ EINHERJAR SILVER <b>160 RP</b> • 🏆 0 WINS</div>
+        <div class="lobby-music-pill">
+          <div id="lobby-music-viz"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <button id="btn-lobby-music" class="btn-music-toggle" title="Toggle Lobby Music">🎵 ZHU - VILLAIN</button>
+          <input type="range" id="slider-music-volume" min="0" max="1" step="0.05" value="0.55" style="width:58px;accent-color:#fbbf24;" title="Lobby Music Volume" />
+        </div>
+        <button id="btn-fullscreen" class="btn-icon" title="Fullscreen Mode">⛶ FULLSCREEN</button>
+      </div>
     </header>
 
     <!-- TAB 1: APEX LEGENDS "PLAY" FULL-SCREEN 3D TRIO SQUAD STAGE -->
@@ -378,6 +385,56 @@
       <button id="btn-touch-loot" class="touch-btn hidden">📦 OPEN / LOOT</button>
     </div>
   </section>
+
+  <!-- Pre-Match Apex Legends "LEGEND SELECT" Pick Screen -->
+  <div id="legend-select-overlay" class="modal-overlay hidden">
+    <div class="modal-box" style="max-width:740px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:12px;color:#38bdf8;font-weight:900;letter-spacing:2px;">⚡ SELECT YOUR LEGEND</span>
+        <span id="ls-timer-count" style="font-size:20px;color:#fbbf24;font-weight:900;">6s</span>
+      </div>
+      <div id="ls-squad-picks" class="ls-squad-row"></div>
+      <div id="ls-hero-quote" style="font-size:13px;color:#fde047;font-style:italic;margin:4px 0;"></div>
+      <div id="legend-select-grid" class="ls-hero-grid"></div>
+      <button id="btn-legend-lockin" class="btn-apex-ready" style="margin-top:6px;">⚡ LOCK IN & LAUNCH DROPSHIP</button>
+    </div>
+  </div>
+
+  <!-- Apex 4-Quadrant Radial Healing Wheel [4 / Tap Heal Box] -->
+  <div id="heal-wheel-modal" class="modal-overlay hidden" onclick="window.GAME && window.GAME.toggleHealWheel()">
+    <div class="radial-wheel-container" onclick="event.stopPropagation()">
+      <div class="radial-center-badge">HEAL WHEEL<br/><span>TAP TO USE</span></div>
+      <button class="radial-heal-btn pos-top" data-heal="phoenix_kit" style="--r-color:#a855f7">
+        <span>🔥 PHOENIX KIT</span>
+        <b id="wheel-cnt-phoenix_kit">x1</b>
+      </button>
+      <button class="radial-heal-btn pos-right" data-heal="shield_battery" style="--r-color:#38bdf8">
+        <span>⚡ SHIELD BATTERY</span>
+        <b id="wheel-cnt-shield_battery">x3</b>
+      </button>
+      <button class="radial-heal-btn pos-bottom" data-heal="shield_cell" style="--r-color:#e2e8f0">
+        <span>🔹 SHIELD CELL</span>
+        <b id="wheel-cnt-shield_cell">x6</b>
+      </button>
+      <button class="radial-heal-btn pos-left" data-heal="medkit" style="--r-color:#10b981">
+        <span>➕ MEDKIT</span>
+        <b id="wheel-cnt-medkit">x2</b>
+      </button>
+    </div>
+  </div>
+
+  <!-- Apex Death Box Instant Armor Swap & Quick-Loot Modal -->
+  <div id="deathbox-modal" class="modal-overlay hidden">
+    <div class="modal-box" style="max-width:480px;">
+      <h2 id="db-victim-title" style="color:#fbbf24;letter-spacing:1.4px;">☠️ DEATH BOX</h2>
+      <div id="db-loot-details" style="display:flex;flex-direction:column;gap:8px;margin:6px 0;"></div>
+      <button id="btn-db-armor-swap" class="btn-apex-ready" style="background:linear-gradient(135deg,#0284c7,#2563eb);border-color:#38bdf8;font-size:15px;">⚡ INSTANT ARMOR SWAP (100% SHIELD)</button>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button id="btn-db-loot-all" class="btn-apex-play" style="flex:1;">📦 LOOT WEAPON & ALL</button>
+        <button id="btn-db-close" class="btn-apex-secondary">CLOSE</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Pre-Match Apex Legends "CHAMPION SQUAD" Broadcast Intro Overlay -->
   <div id="champion-intro-overlay" class="hidden">

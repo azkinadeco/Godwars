@@ -12,6 +12,13 @@ class SoundEngine {
     this.enabled = true;
     this.voiceEnabled = true;
     this.masterVolume = 0.44;
+    this.musicEnabled = true;
+    this.musicVolume = 0.55;
+    this.lobbyAudio = null;
+    this.lobbySource = null;
+    this.analyser = null;
+    this.freqData = null;
+    this.fadeInterval = null;
   }
 
   init() {
@@ -22,6 +29,102 @@ class SoundEngine {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
     this.ctx = new AudioCtx();
+    this.setupLobbyMusicAnalyser();
+  }
+
+  initLobbyMusic() {
+    if (this.lobbyAudio) return;
+    this.lobbyAudio = new Audio('ZHU%20-%20Villain%20(HUD%20Loby).mp3');
+    this.lobbyAudio.loop = true;
+    this.lobbyAudio.volume = this.musicEnabled ? this.musicVolume : 0;
+    this.lobbyAudio.preload = 'auto';
+  }
+
+  setupLobbyMusicAnalyser() {
+    if (!this.ctx || !this.lobbyAudio || this.lobbySource) return;
+    try {
+      this.lobbySource = this.ctx.createMediaElementSource(this.lobbyAudio);
+      this.analyser = this.ctx.createAnalyser();
+      this.analyser.fftSize = 64;
+      this.freqData = new Uint8Array(this.analyser.frequencyBinCount);
+      this.lobbySource.connect(this.analyser);
+      this.analyser.connect(this.ctx.destination);
+    } catch (e) {}
+  }
+
+  playLobbyMusic() {
+    this.initLobbyMusic();
+    if (!this.musicEnabled || !this.lobbyAudio) return;
+    clearInterval(this.fadeInterval);
+    this.lobbyAudio.volume = this.musicVolume;
+    const p = this.lobbyAudio.play();
+    if (p && p.catch) {
+      p.catch(() => {
+        // Browser autoplay blocked until first gesture; handled by global unlock listener
+      });
+    }
+  }
+
+  fadeOutLobbyMusic(durationMs = 1000) {
+    if (!this.lobbyAudio || this.lobbyAudio.paused) return;
+    clearInterval(this.fadeInterval);
+    const startVol = this.lobbyAudio.volume;
+    const steps = 20;
+    let step = 0;
+    this.fadeInterval = setInterval(() => {
+      step++;
+      const t = step / steps;
+      if (this.lobbyAudio) {
+        this.lobbyAudio.volume = Math.max(0, startVol * (1 - t));
+      }
+      if (step >= steps) {
+        clearInterval(this.fadeInterval);
+        if (this.lobbyAudio) this.lobbyAudio.pause();
+      }
+    }, durationMs / steps);
+  }
+
+  toggleLobbyMusic() {
+    this.musicEnabled = !this.musicEnabled;
+    this.initLobbyMusic();
+    if (this.musicEnabled) {
+      this.playLobbyMusic();
+    } else if (this.lobbyAudio) {
+      this.lobbyAudio.pause();
+    }
+    return this.musicEnabled;
+  }
+
+  setLobbyMusicVolume(vol) {
+    this.musicVolume = Math.max(0, Math.min(1, vol));
+    if (this.lobbyAudio && this.musicEnabled) {
+      this.lobbyAudio.volume = this.musicVolume;
+    }
+  }
+
+  getMusicSpectrum() {
+    if (!this.analyser || !this.freqData || !this.lobbyAudio || this.lobbyAudio.paused) return null;
+    this.analyser.getByteFrequencyData(this.freqData);
+    return this.freqData;
+  }
+
+  playSquadWipe() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    [392.0, 523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, now + i * 0.06);
+      gain.gain.setValueAtTime(this.masterVolume * 0.45, now + i * 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.35);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now + i * 0.06);
+      osc.stop(now + i * 0.06 + 0.38);
+    });
   }
 
   announce(text) {

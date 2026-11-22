@@ -45,12 +45,23 @@ var hud_center_label: Label
 
 func _ready() -> void:
 	print("[GODOT 4.7] Initializing GOD WARS: ASGARD ROYALE 3D Scene...")
+	_setup_lobby_music()
 	_preload_blender_glb_assets()
 	_build_lighting_and_environment()
 	_build_asgard_island_arena()
 	_spawn_player_and_contenders()
 	_build_apex_hud()
 	print("[GODOT 4.7] Asgard Royale initialized with ", loaded_models.size(), " Blender GLB assets.")
+
+func _setup_lobby_music() -> void:
+	var mp3_path = "res://ZHU - Villain (HUD Loby).mp3"
+	if ResourceLoader.exists(mp3_path):
+		var bgm = AudioStreamPlayer.new()
+		bgm.stream = load(mp3_path)
+		bgm.volume_db = -6.0
+		add_child(bgm)
+		bgm.play()
+		print("[GODOT 4.7] Lobby BGM Playing: ", mp3_path)
 
 func _preload_blender_glb_assets() -> void:
 	var all_files = [

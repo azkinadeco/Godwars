@@ -48,11 +48,28 @@ class GodWarsGame {
     this.initLobby3DStage();
     this.initLobbyUI();
     this.initInputHandlers();
+    this.initLobbyMusicAutoUnlock();
 
     this.lastTime = performance.now();
     this.fpsFrames = 0;
     this.fpsTimer = 0;
     requestAnimationFrame((t) => this.loop(t));
+  }
+
+  initLobbyMusicAutoUnlock() {
+    window.SFX.initLobbyMusic();
+    window.SFX.playLobbyMusic();
+
+    const unlock = () => {
+      window.SFX.init();
+      if (!this.matchActive && window.SFX.musicEnabled) {
+        window.SFX.playLobbyMusic();
+      }
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
   }
 
   detectMobile() {
@@ -357,15 +374,88 @@ class GodWarsGame {
       });
     });
 
-    // Main READY / DEPLOY Buttons
+    // Main READY / DEPLOY Buttons -> Opens Apex Legend Select Screen first!
     const startBtn = document.getElementById('btn-start-match');
     if (startBtn) {
       startBtn.addEventListener('click', () => {
         window.SFX.init();
         window.SFX.playAbility('ultimate');
-        const isFR = this.gameMode === 'firing_range';
-        this.startBattleRoyaleMatch(isFR, isFR);
+        if (this.gameMode === 'firing_range') {
+          this.startBattleRoyaleMatch(true, true);
+        } else {
+          this.openLegendSelectSequence();
+        }
       });
+    }
+
+    const lockInBtn = document.getElementById('btn-legend-lockin');
+    if (lockInBtn) {
+      lockInBtn.addEventListener('click', () => {
+        this.confirmLegendSelectAndLaunch();
+      });
+    }
+
+    // Lobby Music Mute/Unmute & Volume Controls (ZHU - Villain)
+    const musicBtn = document.getElementById('btn-lobby-music');
+    if (musicBtn) {
+      musicBtn.addEventListener('click', () => {
+        window.SFX.init();
+        const isOn = window.SFX.toggleLobbyMusic();
+        musicBtn.textContent = isOn ? '🎵 ZHU - VILLAIN' : '🔇 BGM MUTED';
+        musicBtn.classList.toggle('muted', !isOn);
+      });
+    }
+
+    const musicVol = document.getElementById('slider-music-volume');
+    if (musicVol) {
+      musicVol.addEventListener('input', (e) => {
+        window.SFX.setLobbyMusicVolume(parseFloat(e.target.value));
+      });
+    }
+
+    // Apex 4-Quadrant Radial Heal Wheel Buttons
+    document.querySelectorAll('.radial-heal-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const hid = btn.dataset.heal;
+        this.selectedHealId = hid;
+        document.getElementById('heal-wheel-modal').classList.add('hidden');
+        if (!this.forceMobileUI) {
+          const canvas = document.getElementById('game-canvas');
+          if (canvas.requestPointerLock) canvas.requestPointerLock();
+        }
+        this.startHealing();
+      });
+    });
+
+    // Death Box Quick Armor Swap & Loot All Buttons
+    const btnArmorSwap = document.getElementById('btn-db-armor-swap');
+    const btnLootAll = document.getElementById('btn-db-loot-all');
+    const btnCloseDb = document.getElementById('btn-db-close');
+    if (btnArmorSwap) {
+      btnArmorSwap.addEventListener('click', () => {
+        if (!this.activeDeathBox || !this.player) return;
+        const loot = this.activeDeathBox.loot;
+        if (loot.shieldTier > this.player.shieldTier) {
+          this.player.shieldTier = loot.shieldTier;
+          this.player.maxShield = window.GODWARS_DATA.EVO_TIERS[loot.shieldTier].maxShield;
+        }
+        this.player.shield = this.player.maxShield;
+        window.SFX.playEvoUpgrade();
+        this.closeDeathBoxModal();
+        this.showBanner(`⚡ INSTANT ARMOR SWAP COMPLETE (100% LV${this.player.shieldTier} SHIELD)!`, '#38bdf8');
+      });
+    }
+    if (btnLootAll) {
+      btnLootAll.addEventListener('click', () => {
+        if (!this.activeDeathBox) return;
+        this.applyLootPackage(this.activeDeathBox.loot, `DEATH BOX (${this.activeDeathBox.victimName})`);
+        this.activeDeathBox.opened = true;
+        this.closeDeathBoxModal();
+      });
+    }
+    if (btnCloseDb) {
+      btnCloseDb.addEventListener('click', () => this.closeDeathBoxModal());
     }
 
     const quickDropBtn = document.getElementById('btn-instant-drop');
@@ -513,9 +603,126 @@ class GodWarsGame {
   }
 
   // =========================================================================
+  // APEX PRE-MATCH LEGEND SELECT SEQUENCE + HEAL WHEEL + DEATH BOX ARMOR SWAP
+  // =========================================================================
+  openLegendSelectSequence() {
+    const modal = document.getElementById('legend-select-overlay');
+    const roster = document.getElementById('legend-select-grid');
+    if (!modal || !roster) {
+      this.startBattleRoyaleMatch(false, false);
+      return;
+    }
+
+    roster.innerHTML = '';
+    Object.values(window.GODWARS_DATA.HEROES).forEach(h => {
+      const tile = document.createElement('button');
+      tile.className = `ls-hero-tile ${h.id === this.selectedHeroId ? 'active' : ''}`;
+      tile.style.setProperty('--hero-color', h.color);
+      tile.innerHTML = `<div class="ls-icon">${h.classIcon}</div><div class="ls-name">${h.name}</div><div class="ls-role">${h.role.split('/')[0]}</div>`;
+      tile.addEventListener('click', () => {
+        window.SFX.playHitmarker(true, true, false);
+        this.selectHero(h.id);
+        roster.querySelectorAll('.ls-hero-tile').forEach(t => t.classList.remove('active'));
+        tile.classList.add('active');
+        this.updateLegendSelectBanner();
+      });
+      roster.appendChild(tile);
+    });
+
+    this.updateLegendSelectBanner();
+    modal.classList.remove('hidden');
+
+    let countdown = 6;
+    const timerEl = document.getElementById('ls-timer-count');
+    if (timerEl) timerEl.textContent = `${countdown}s`;
+    clearInterval(this.lsInterval);
+    this.lsInterval = setInterval(() => {
+      countdown--;
+      if (timerEl) timerEl.textContent = `${countdown}s`;
+      if (countdown <= 0) {
+        this.confirmLegendSelectAndLaunch();
+      }
+    }, 1000);
+  }
+
+  updateLegendSelectBanner() {
+    const h = window.GODWARS_DATA.HEROES[this.selectedHeroId];
+    const [a1, a2] = this.getSquadAllyHeroes();
+    const elQuote = document.getElementById('ls-hero-quote');
+    const elSquad = document.getElementById('ls-squad-picks');
+    if (elQuote) elQuote.textContent = `${h.name}: ${h.quote}`;
+    if (elSquad) {
+      elSquad.innerHTML = this.gameMode === 'trios'
+        ? `<span>PICK 1: <b>YOU (${h.name})</b></span><span>PICK 2: <b>ALLY (${a1.toUpperCase()})</b></span><span>PICK 3: <b>ALLY (${a2.toUpperCase()})</b></span>`
+        : `<span>SOLO CONTENDER: <b>YOU (${h.name})</b> • 16 PLAYERS FFA</span>`;
+    }
+  }
+
+  confirmLegendSelectAndLaunch() {
+    clearInterval(this.lsInterval);
+    const modal = document.getElementById('legend-select-overlay');
+    if (modal) modal.classList.add('hidden');
+    this.startBattleRoyaleMatch(false, false);
+  }
+
+  toggleHealWheel() {
+    const modal = document.getElementById('heal-wheel-modal');
+    if (!modal || !this.player) return;
+    const opening = modal.classList.contains('hidden');
+    if (opening) {
+      if (document.exitPointerLock) document.exitPointerLock();
+      Object.keys(window.GODWARS_DATA.HEAL_ITEMS).forEach(hid => {
+        const el = document.getElementById(`wheel-cnt-${hid}`);
+        if (el) el.textContent = `x${this.player.heals[hid] || 0}`;
+      });
+      modal.classList.remove('hidden');
+    } else {
+      modal.classList.add('hidden');
+      if (!this.forceMobileUI) {
+        const canvas = document.getElementById('game-canvas');
+        if (canvas.requestPointerLock) canvas.requestPointerLock();
+      }
+    }
+  }
+
+  openDeathBoxModal(bin) {
+    this.activeDeathBox = bin;
+    const modal = document.getElementById('deathbox-modal');
+    if (!modal) {
+      this.applyLootPackage(bin.loot, `DEATH BOX (${bin.victimName})`);
+      return;
+    }
+    if (document.exitPointerLock) document.exitPointerLock();
+    const wData = window.GODWARS_DATA.WEAPONS[bin.loot.weaponId];
+    const tInfo = window.GODWARS_DATA.EVO_TIERS[bin.loot.shieldTier] || window.GODWARS_DATA.EVO_TIERS[2];
+    const titleEl = document.getElementById('db-victim-title');
+    const detailsEl = document.getElementById('db-loot-details');
+    if (titleEl) titleEl.textContent = `☠️ ${bin.victimName}’S DEATH BOX`;
+    if (detailsEl) {
+      detailsEl.innerHTML = `
+        <div class="db-pill" style="border-color:${tInfo.color};color:${tInfo.color}">🛡️ ${tInfo.name} (${tInfo.maxShield} FRESH SHIELD)</div>
+        <div class="db-pill" style="border-color:${wData.color};color:${wData.color}">🔫 ${wData.divineName} (LV${bin.loot.attachmentTier || 2} ATTACHMENTS)</div>
+        <div class="db-pill" style="border-color:#38bdf8;color:#38bdf8">⚡ 2x Shield Battery • ➕ 1x Medkit • 💥 2x God Bombs</div>
+      `;
+    }
+    modal.classList.remove('hidden');
+  }
+
+  closeDeathBoxModal() {
+    this.activeDeathBox = null;
+    const modal = document.getElementById('deathbox-modal');
+    if (modal) modal.classList.add('hidden');
+    if (!this.forceMobileUI) {
+      const canvas = document.getElementById('game-canvas');
+      if (canvas.requestPointerLock) canvas.requestPointerLock();
+    }
+  }
+
+  // =========================================================================
   // START 16-PLAYER ASGARD BATTLE ROYALE (TRIOS / SOLOS / FIRING RANGE)
   // =========================================================================
   startBattleRoyaleMatch(instantGroundDrop = false, isFiringRange = false) {
+    window.SFX.fadeOutLobbyMusic(1100);
     this.isFiringRange = isFiringRange;
     this.isSpectating = false;
     this.killLeader = null;
@@ -869,7 +1076,7 @@ class GodWarsGame {
       } else if (code === 'KeyH') {
         this.startHealing();
       } else if (code === 'Digit4') {
-        this.cycleHealType();
+        this.toggleHealWheel();
       } else if (code === 'KeyM') {
         e.preventDefault();
         this.toggleFullMap();
@@ -1056,7 +1263,7 @@ class GodWarsGame {
     const hudBag = document.getElementById('hud-bag-box');
     if (hudTac) hudTac.addEventListener('click', () => this.useTacticalAbility());
     if (hudUlt) hudUlt.addEventListener('click', () => this.useUltimateAbility());
-    if (hudHeal) hudHeal.addEventListener('click', () => this.cycleHealType());
+    if (hudHeal) hudHeal.addEventListener('click', () => this.toggleHealWheel());
     if (hudBomb) hudBomb.addEventListener('click', () => this.cycleGrenadeType());
     if (hudBag) hudBag.addEventListener('click', () => this.toggleInventoryModal());
 
@@ -1247,10 +1454,47 @@ class GodWarsGame {
       return;
     }
 
+    // 10b. Respawn Fallen Squadmate at Green Respawn Beacon!
+    if (this.nearestRespawnBeacon) {
+      this.useRespawnBeacon(this.nearestRespawnBeacon);
+      return;
+    }
+
     // 11. Open Divine Supply Bin / Care Package / Death Box
     if (this.nearestBin) {
       this.interactWithLootBin();
     }
+  }
+
+  useRespawnBeacon(beacon) {
+    const fallenAllies = this.allies.filter(a => !a.alive);
+    if (fallenAllies.length === 0) {
+      this.showBanner('ALL SQUADMATES ARE STILL ALIVE!', '#10b981');
+      return;
+    }
+    beacon.used = true;
+    if (beacon.beam) beacon.beam.visible = false;
+    window.SFX.playAbility('ultimate');
+    window.SFX.announce('Dropship inbound. Squadmate respawned.');
+
+    fallenAllies.forEach((ally, idx) => {
+      ally.alive = true;
+      ally.knocked = false;
+      ally.hp = ally.maxHp;
+      ally.shield = ally.maxShield;
+      ally.inDropship = false;
+      ally.skydiving = true;
+      ally.position.set(beacon.x + (idx - 0.5) * 6, 65, beacon.z);
+      ally.dropTarget.set(beacon.x + (idx - 0.5) * 6, 0, beacon.z);
+      if (ally.mesh) {
+        ally.mesh.visible = true;
+        ally.mesh.scale.y = 1.0;
+        if (ally.mesh.userData.kdShield) ally.mesh.userData.kdShield.visible = false;
+      }
+      if (ally.diveTrail) ally.diveTrail.visible = true;
+    });
+
+    this.showBanner(`⚡ BIFROST DROPSHIP RESPAWNED ${fallenAllies.length} SQUADMATE(S)!`, '#10b981');
   }
 
   pickupGroundLoot(item) {
@@ -1611,6 +1855,11 @@ class GodWarsGame {
     if (!this.player || !this.player.alive || !this.nearestBin) return;
     const bin = this.nearestBin;
 
+    if (bin.isDeathBox) {
+      this.openDeathBoxModal(bin);
+      return;
+    }
+
     if (!bin.opened) {
       bin.opened = true;
       if (!bin.isDeathBox && !bin.isCarePackage && bin.lid) {
@@ -1719,8 +1968,11 @@ class GodWarsGame {
     document.getElementById('match-end-modal').classList.add('hidden');
     document.getElementById('spectate-bar').classList.add('hidden');
     document.getElementById('inventory-modal').classList.add('hidden');
+    document.getElementById('heal-wheel-modal').classList.add('hidden');
+    document.getElementById('deathbox-modal').classList.add('hidden');
     document.getElementById('lobby-screen').classList.remove('hidden');
     this.updateLobby3DSquad(null);
+    window.SFX.playLobbyMusic();
   }
 
   // =========================================================================
@@ -1741,8 +1993,16 @@ class GodWarsGame {
       this.fpsTimer = 0;
     }
 
-    // Render Full-Screen 3D Trio Squad Lobby Stage when in Lobby!
+    // Render Full-Screen 3D Trio Squad Lobby Stage + Music Beat Visualizer when in Lobby!
     if (!this.matchActive) {
+      const vizBars = document.querySelectorAll('#lobby-music-viz span');
+      if (vizBars.length > 0) {
+        const spec = window.SFX.getMusicSpectrum();
+        vizBars.forEach((bar, i) => {
+          const val = spec ? (spec[i * 2 + 1] / 255) : (window.SFX.musicEnabled ? (0.25 + Math.abs(Math.sin(now * 0.005 + i)) * 0.5) : 0.1);
+          bar.style.height = `${Math.max(15, Math.round(val * 100))}%`;
+        });
+      }
       if (this.lobbyScene && this.lobbyCamera) {
         if (this.lobbyStargate) this.lobbyStargate.rotation.z += dt * 0.45;
         if (this.lobbyPedestals && this.lobbyPedestals[0]) {
@@ -2255,6 +2515,14 @@ class GodWarsGame {
       }
     }
 
+    this.nearestRespawnBeacon = null;
+    for (const rb of (this.world.respawnBeacons || [])) {
+      if (!rb.used && Math.hypot(p.position.x - rb.x, p.position.z - rb.z) < 4.0) {
+        this.nearestRespawnBeacon = rb;
+        break;
+      }
+    }
+
     this.nearestBin = null;
     let bestBinDist = 4.2;
     for (const bin of this.world.supplyBins) {
@@ -2535,6 +2803,19 @@ class GodWarsGame {
     const activeWep = p.weapons[p.activeSlot];
     setTxt('crosshair-ammo', activeWep.reloading ? 'RLD' : `${activeWep.mag}`);
 
+    // Dynamic Velocity & Recoil Crosshair Bloom (Apex Legends Feel!)
+    const chWrap = document.getElementById('crosshair-wrapper');
+    if (chWrap) {
+      let chSize = 36;
+      if (p.isADS) chSize = 20;
+      else if (!p.onGround) chSize = 54;
+      else if (p.isSprinting) chSize = 48;
+      else if (p.isSliding) chSize = 30;
+      if (p.fireCooldown > 0) chSize += 10;
+      chWrap.style.width = `${chSize}px`;
+      chWrap.style.height = `${chSize}px`;
+    }
+
     const adsOverlay = document.getElementById('ads-optic-overlay');
     if (adsOverlay) {
       adsOverlay.classList.toggle('active', p.isADS && !p.knocked);
@@ -2583,6 +2864,9 @@ class GodWarsGame {
     } else if (this.nearestBeacon) {
       promptHtml = `<b style="color:#38bdf8">[E / TAP] ${this.nearestBeacon.name.toUpperCase()}: SCAN ALL HOSTILES ON MAP</b>`;
       mobileBtnText = `📡 SCAN MAP`;
+    } else if (this.nearestRespawnBeacon) {
+      promptHtml = `<b style="color:#10b981">[E / TAP] ${this.nearestRespawnBeacon.name.toUpperCase()}: RESPAWN FALLEN SQUADMATES</b>`;
+      mobileBtnText = `🟢 RESPAWN ALLY`;
     } else if (this.nearestBin) {
       const binWep = window.GODWARS_DATA.WEAPONS[this.nearestBin.loot.weaponId];
       const title = this.nearestBin.isCarePackage

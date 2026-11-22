@@ -435,6 +435,12 @@ class CombatManager {
         if (kt.mesh) kt.mesh.visible = false;
         this.spawnDeathBox(kt);
       });
+
+      if (killer && killer.isPlayer && victim.teamId !== killer.teamId && this.game.gameMode === 'trios') {
+        killer.damageDealt += 50;
+        window.SFX.playSquadWipe();
+        this.game.showBanner(`☠️ SQUAD WIPED! (+50 EVO BONUS)`, '#fbbf24');
+      }
     }
 
     if (killer && killer !== victim) {
