@@ -21,7 +21,11 @@ window.ModelFactory = {
     const assetList = [
       'weapon_p90', 'weapon_kriss', 'weapon_m4a1', 'weapon_uzi', 'weapon_ak47', 'weapon_magnum',
       'hero_loki', 'hero_thor', 'hero_hades', 'hero_zeus', 'hero_hela', 'hero_valkyrie',
-      'prop_dropship', 'prop_carepackage', 'prop_supplybin', 'prop_replicator'
+      'prop_dropship', 'prop_carepackage', 'prop_supplybin', 'prop_replicator',
+      'bomb_solar', 'bomb_flash', 'bomb_arc', 'loot_evoshield',
+      'prop_jumppad', 'prop_respawn_beacon', 'prop_survey_beacon',
+      'prop_odin_statue', 'prop_bifrost_gate', 'prop_yggdrasil_tree',
+      'prop_asgard_tree', 'prop_forge_anvil'
     ];
 
     assetList.forEach(name => {
@@ -43,12 +47,16 @@ window.ModelFactory = {
     });
   },
 
-  attachBlenderGLB(assetName, targetGroup, onLoadedTransform = null) {
+  attachBlenderGLB(assetName, targetGroup, onLoadedTransform = null, fallbackToHide = null) {
     if (typeof THREE === 'undefined' || !THREE.GLTFLoader) return false;
     this.initGLBPreload();
 
     const applyClone = (clonedScene) => {
       if (onLoadedTransform) onLoadedTransform(clonedScene);
+      if (fallbackToHide) {
+        if (Array.isArray(fallbackToHide)) fallbackToHide.forEach(m => { if (m) m.visible = false; });
+        else fallbackToHide.visible = false;
+      }
       targetGroup.add(clonedScene);
     };
 

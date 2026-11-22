@@ -508,8 +508,14 @@ class AsgardWorld {
     this.addStairRamp(6.8, 0, 3.6, 4.2, 0, 1.8, 'W', this.mats.brightGold);
     this.addStairRamp(-6.8, 0, 3.6, 4.2, 0, 1.8, 'E', this.mats.brightGold);
 
-    // Golden Odin Gungnir Obelisk Spire on top of the Central Altar
-    this.addSolidWall(0, 1.8, 0, 2.2, 9.5, 2.2, this.mats.brightGold, false);
+    // Golden Odin Gungnir Obelisk Monument on top of the Central Altar (Blender GLB!)
+    const odinGroup = new THREE.Group();
+    odinGroup.position.set(0, 1.8, 0);
+    const fallbackObelisk = this.addSolidWall(0, 1.8, 0, 2.2, 9.5, 2.2, this.mats.brightGold, false);
+    this.scene.add(odinGroup);
+    if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
+      window.ModelFactory.attachBlenderGLB('prop_odin_statue', odinGroup, null, fallbackObelisk);
+    }
     const crownRing = new THREE.Mesh(new THREE.TorusGeometry(4.2, 0.3, 8, 24), this.mats.brightGold);
     crownRing.position.set(0, 9.5, 0);
     this.scene.add(crownRing);
@@ -542,17 +548,22 @@ class AsgardWorld {
     // 2-Story Enterable Heimdall Observatory Main Building
     this.buildApexCompoundBuilding(cx, cz, 20, 16, this.mats.darkSteel, this.mats.bifrostWater, true);
 
-    // Giant Spinning Bifrost Stargate Portal behind the Observatory at (0, 162)
+    // Giant Spinning Bifrost Stargate Portal behind the Observatory (Blender GLB!)
     const portalGroup = new THREE.Group();
-    portalGroup.position.set(0, 11, 164);
+    portalGroup.position.set(0, 0, 164);
     const outerGate = new THREE.Mesh(new THREE.TorusGeometry(10, 0.9, 10, 32), this.mats.gold);
+    outerGate.position.y = 11;
     const innerPortal = new THREE.Mesh(
       new THREE.CircleGeometry(9.2, 32),
       new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.38, side: THREE.DoubleSide })
     );
+    innerPortal.position.y = 11;
     portalGroup.add(outerGate, innerPortal);
     this.scene.add(portalGroup);
-    this.animatedProps.push({ mesh: outerGate, rotZ: 0.9 });
+    if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
+      window.ModelFactory.attachBlenderGLB('prop_bifrost_gate', portalGroup, null, outerGate);
+    }
+    this.animatedProps.push({ mesh: innerPortal, rotZ: 0.9 });
   }
 
   // =========================================================================
@@ -584,7 +595,13 @@ class AsgardWorld {
     this.addSolidWall(cx - 2.3, 4.5, cz, 0.35, 1.1, 18, this.mats.darkSteel);
     this.addSolidWall(cx + 2.3, 4.5, cz, 0.35, 1.1, 18, this.mats.darkSteel);
 
-    // Animated Giant Dwarven Forge Hammer on the West Platform
+    // Animated Giant Dwarven Forge Hammer + Blender Star-Metal Anvil on West Platform
+    const anvilGroup = new THREE.Group();
+    anvilGroup.position.set(cx - 26, 0, cz + 3.2);
+    this.scene.add(anvilGroup);
+    if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
+      window.ModelFactory.attachBlenderGLB('prop_forge_anvil', anvilGroup);
+    }
     const hammerGroup = new THREE.Group();
     hammerGroup.position.set(cx - 26, 6, cz);
     const arm = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.4, 8), this.mats.gold);
@@ -608,10 +625,16 @@ class AsgardWorld {
       roughness: 0.4
     });
 
-    // Colossal Yggdrasil Tree Trunk
+    // Colossal Yggdrasil World Tree (Blender GLB!)
+    const yggGroup = new THREE.Group();
+    yggGroup.position.set(cx, 0, cz);
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(5.2, 8.2, 34, 14), barkMat);
-    trunk.position.set(cx, 17, cz);
-    this.scene.add(trunk);
+    trunk.position.set(0, 17, 0);
+    yggGroup.add(trunk);
+    this.scene.add(yggGroup);
+    if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
+      window.ModelFactory.attachBlenderGLB('prop_yggdrasil_tree', yggGroup, null, trunk);
+    }
     this.colliders.push({
       minX: cx - 5.2, maxX: cx + 5.2,
       minZ: cz - 5.2, maxZ: cz + 5.2,
@@ -726,6 +749,9 @@ class AsgardWorld {
       );
       foliage.position.y = 6.2;
       tree.add(trunk, foliage);
+      if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
+        window.ModelFactory.attachBlenderGLB('prop_asgard_tree', tree, null, [trunk, foliage]);
+      }
       this.scene.add(tree);
 
       this.colliders.push({
@@ -762,6 +788,9 @@ class AsgardWorld {
       ring.position.y = 0.45;
 
       group.add(base, inner, ring);
+      if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
+        window.ModelFactory.attachBlenderGLB('prop_jumppad', group, null, [base, inner]);
+      }
       this.scene.add(group);
       this.jumpPads.push({ x, z, radius: 2.6, mesh: group, ring });
     });
@@ -926,13 +955,19 @@ class AsgardWorld {
       wepMesh.position.set(0, 0.65, 0);
       group.add(wepMesh);
 
-      // Floating Evo Shield Crystal beside it
+      // Floating Evo Shield Armor Core beside weapon (Blender GLB!)
+      const armorGroup = new THREE.Group();
+      armorGroup.position.set(0.65, 0.35, 0);
       const armorCore = new THREE.Mesh(
         new THREE.OctahedronGeometry(0.24, 0),
         new THREE.MeshBasicMaterial({ color: tierColors[shieldTier] || 0x38bdf8 })
       );
-      armorCore.position.set(0.55, 0.65, 0);
-      group.add(armorCore);
+      armorCore.position.y = 0.3;
+      armorGroup.add(armorCore);
+      if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
+        window.ModelFactory.attachBlenderGLB('loot_evoshield', armorGroup, null, armorCore);
+      }
+      group.add(armorGroup);
 
       this.scene.add(group);
       this.animatedProps.push({ mesh: wepMesh, rotY: 1.4 });
@@ -1001,6 +1036,9 @@ class AsgardWorld {
       );
       greenBeacon.position.y = 18;
       rGroup.add(ped, spire, greenBeacon);
+      if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
+        window.ModelFactory.attachBlenderGLB('prop_respawn_beacon', rGroup, null, [ped, spire]);
+      }
       this.scene.add(rGroup);
       this.respawnBeacons.push({ x: bx, y: by, z: bz, name, used: false, mesh: rGroup, beam: greenBeacon });
     });
@@ -1019,6 +1057,9 @@ class AsgardWorld {
       dish.position.y = 1.8;
       dish.rotation.x = Math.PI / 3;
       bGroup.add(stand, dish);
+      if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
+        window.ModelFactory.attachBlenderGLB('prop_survey_beacon', bGroup, null, [stand, dish]);
+      }
       this.scene.add(bGroup);
       this.animatedProps.push({ mesh: dish, rotY: 1.6 });
 
@@ -1084,6 +1125,9 @@ class AsgardWorld {
       const strip = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.14, 1.5), glowMat.clone());
       strip.position.set(0, 0.85, 0);
       binGroup.add(box, lid, strip);
+      if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
+        window.ModelFactory.attachBlenderGLB('prop_supplybin', binGroup, null, [box, strip]);
+      }
 
       this.scene.add(binGroup);
 

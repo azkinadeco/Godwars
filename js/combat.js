@@ -502,12 +502,18 @@ class CombatManager {
 
   throwGrenade(thrower, origin, dir, grenadeId) {
     const gData = window.GODWARS_DATA.GRENADES[grenadeId] || window.GODWARS_DATA.GRENADES.solar_bomb;
-    const mesh = new THREE.Mesh(
+    const gGroup = new THREE.Group();
+    const fallback = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.22, 1),
       new THREE.MeshBasicMaterial({ color: gData.hexColor })
     );
-    mesh.position.copy(origin);
-    this.scene.add(mesh);
+    gGroup.add(fallback);
+    const glbMap = { solar_bomb: 'bomb_solar', apollo_flash: 'bomb_flash', yggdrasil_arc: 'bomb_arc' };
+    if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
+      window.ModelFactory.attachBlenderGLB(glbMap[grenadeId] || 'bomb_solar', gGroup, null, fallback);
+    }
+    gGroup.position.copy(origin);
+    this.scene.add(gGroup);
 
     const vel = dir.clone().multiplyScalar(28);
     vel.y += 6.5;
@@ -515,7 +521,7 @@ class CombatManager {
     this.grenades.push({
       thrower,
       data: gData,
-      mesh,
+      mesh: gGroup,
       velocity: vel,
       fuse: gData.fuseTime,
       stuck: false
