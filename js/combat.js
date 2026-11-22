@@ -1,10 +1,12 @@
 /**
- * GOD WARS: ASGARD ROYALE
+ * GOD WARS: ASGARD ROYALE (APEX LEGENDS EDITION - 10-BATCH FULL UPGRADE)
  * Combat System:
- * - Hitscan & Ballistic Divine Weapon Firing + 3D Glowing Tracers
+ * - Hitscan & Ballistic Divine Weapon Firing + 3D Glowing Tracers + 3D Ejected Brass/Rune Shell Casings
  * - 3 Divine Bombs (Ragnarok Solar Bomb, Apollo Flashbang, Yggdrasil Arc Star)
  * - 6 Hero Tactical (Q) & Ultimate (Z) 3D Abilities & VFX
- * - Apex Legends Floating Damage Numbers & Shield Shatter feedback
+ * - Heirloom Quick Melee (V) + Apex Knockdown Shield (DBNO) + Mythic Finisher Execution (Refills 100% Shield!)
+ * - 5-Tier Evo Shield Progression (White Lv1 -> Blue Lv2 -> Purple Lv3 -> Gold Lv4 -> Red Mythic Lv5)
+ * - Kill Leader Live Announcer & 3D Arena Banner Updater
  */
 
 class CombatManager {
@@ -12,10 +14,24 @@ class CombatManager {
     this.game = game;
     this.scene = game.scene;
     this.tracers = [];
+    this.shells = [];
     this.grenades = [];
     this.vfxList = [];
     this.decoys = [];
-    this.activeZones = []; // e.g. Hades Tartarus Dome, Zeus Aegis Wall, Hela Necroswords
+    this.activeZones = [];
+  }
+
+  spawnShellCasing(origin, rightDir) {
+    const shell = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.008, 0.008, 0.032, 6),
+      new THREE.MeshBasicMaterial({ color: 0xfde047 })
+    );
+    shell.position.copy(origin);
+    this.scene.add(shell);
+
+    const vel = rightDir.clone().multiplyScalar(2.2 + Math.random() * 1.4);
+    vel.y += 2.0 + Math.random() * 1.2;
+    this.shells.push({ mesh: shell, velocity: vel, age: 0, maxAge: 0.55 });
   }
 
   spawnTracer(startPos, endPos, colorHex, thickness = 1) {
@@ -30,7 +46,6 @@ class CombatManager {
     const line = new THREE.Line(geo, mat);
     this.scene.add(line);
 
-    // Impact spark mesh
     const spark = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.16, 0),
       new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 1 })
@@ -47,8 +62,7 @@ class CombatManager {
       new THREE.MeshBasicMaterial({
         color: colorHex,
         transparent: true,
-        opacity: 0.78,
-        wireframe: false
+        opacity: 0.78
       })
     );
     sphere.position.copy(pos);
@@ -97,14 +111,48 @@ class CombatManager {
     this.vfxList.push({ type: 'bolt', mesh: bolt, age: 0, maxAge: duration });
   }
 
-  fireWeapon(shooter, origin, dir, weaponData) {
+  performMelee(actor, origin, lookDir) {
+    window.SFX.playMelee();
+    const hData = window.GODWARS_DATA.HEROES[actor.heroId] || window.GODWARS_DATA.HEROES.thor;
+    const endPt = origin.clone().addScaledVector(lookDir, 3.5);
+    this.spawnTracer(origin.clone().addScaledVector(lookDir, 0.5), endPt, hData.hexColor, 3);
+
+    const candidates = [...this.game.bots];
+    if (this.game.player && this.game.player.alive) candidates.push(this.game.player);
+
+    for (const target of candidates) {
+      if (!target.alive || target === actor) continue;
+      const tCenter = target.position.clone().add(new THREE.Vector3(0, 1.0, 0));
+      const dist = origin.distanceTo(tCenter);
+      if (dist <= 3.85) {
+        const toTarget = tCenter.clone().sub(origin).normalize();
+        if (toTarget.dot(lookDir) > 0.45) {
+          let dmg = 35;
+          if (actor.heroId === 'thor' && actor.thunderCharge >= 50) {
+            dmg = 50;
+            actor.thunderCharge = 0;
+            this.spawnLightningBolt(origin, tCenter, 0x38bdf8, 0.4);
+          }
+          // Knockback
+          if (target.velocity) {
+            target.velocity.x += lookDir.x * 11;
+            target.velocity.y += 5.5;
+            target.velocity.z += lookDir.z * 11;
+          }
+          this.applyDamage(actor, target, dmg, hData.meleeName, false, tCenter, true);
+          break;
+        }
+      }
+    }
+  }
+
+  fireWeapon(shooter, origin, dir, weaponData, isMythicGold = false) {
     const range = weaponData.range || 160;
     let bestDist = range;
     let hitTarget = null;
     let isHeadshot = false;
     let hitPoint = origin.clone().addScaledVector(dir, range);
 
-    // Check intersection with map colliders first
     for (const c of this.game.world.colliders) {
       const boxMin = new THREE.Vector3(c.minX, c.minY, c.minZ);
       const boxMax = new THREE.Vector3(c.maxX, c.maxY, c.maxZ);
@@ -119,7 +167,6 @@ class CombatManager {
       }
     }
 
-    // Check intersection with ground plane (y = 0)
     if (dir.y < -0.001) {
       const tGround = -origin.y / dir.y;
       if (tGround > 0 && tGround < bestDist) {
@@ -128,7 +175,6 @@ class CombatManager {
       }
     }
 
-    // Check intersection with all living combatants (Bots + Player)
     const candidates = [...this.game.bots];
     if (this.game.player && this.game.player.alive) {
       candidates.push(this.game.player);
@@ -137,8 +183,9 @@ class CombatManager {
     for (const target of candidates) {
       if (!target.alive || target === shooter) continue;
       const tPos = target.position;
-      const boxMin = new THREE.Vector3(tPos.x - 0.52, tPos.y, tPos.z - 0.52);
-      const boxMax = new THREE.Vector3(tPos.x + 0.52, tPos.y + 2.15, tPos.z + 0.52);
+      const height = target.knocked ? 1.15 : 2.15;
+      const boxMin = new THREE.Vector3(tPos.x - 0.55, tPos.y, tPos.z - 0.55);
+      const boxMax = new THREE.Vector3(tPos.x + 0.55, tPos.y + height, tPos.z + 0.55);
       const ray = new THREE.Ray(origin, dir);
       const pt = new THREE.Vector3();
 
@@ -148,32 +195,30 @@ class CombatManager {
           bestDist = d;
           hitPoint.copy(pt);
           hitTarget = target;
-          isHeadshot = (pt.y - tPos.y) >= 1.52;
+          isHeadshot = !target.knocked && (pt.y - tPos.y) >= 1.52;
         }
       }
     }
 
-    // Spawn 3D divine bullet tracer from barrel to hitPoint
     const startTracer = origin.clone().addScaledVector(dir, 0.7);
     startTracer.y -= 0.08;
-    this.spawnTracer(startTracer, hitPoint, weaponData.hexColor);
+    this.spawnTracer(startTracer, hitPoint, isMythicGold ? 0xfde047 : weaponData.hexColor);
 
     if (hitTarget) {
-      let dmg = weaponData.damage;
+      let dmg = weaponData.damage * (isMythicGold ? 1.2 : 1.0);
       if (isHeadshot) dmg = Math.round(dmg * weaponData.headshotMult);
 
-      // Hero Passive & Ultimate Damage Modifiers
       if (shooter.heroId === 'zeus' && hitTarget.shield > 0) {
-        dmg = Math.round(dmg * 1.15); // Zeus Olympian Overcharge +15% shield dmg
+        dmg = Math.round(dmg * 1.15);
       }
       if (shooter.heroId === 'hela' && hitTarget.hp < 60) {
-        dmg = Math.round(dmg * 1.15); // Hela Death Seeker +15% execution dmg
+        dmg = Math.round(dmg * 1.15);
       }
       if (shooter.ultBuffTimer && shooter.ultBuffTimer > 0 && shooter.heroId === 'loki') {
-        dmg = Math.round(dmg * 1.35); // Loki Mirror Realm +35% crit
+        dmg = Math.round(dmg * 1.35);
       }
       if (shooter.ampedWallBonus) {
-        dmg = Math.round(dmg * 1.2); // Zeus Aegis Wall +20%
+        dmg = Math.round(dmg * 1.2);
       }
       if (shooter.heroId === 'thor' && shooter.thunderCharge >= 100) {
         shooter.thunderCharge = 0;
@@ -181,16 +226,53 @@ class CombatManager {
         this.spawnLightningBolt(startTracer, hitPoint, 0x38bdf8, 0.35);
       }
 
-      this.applyDamage(shooter, hitTarget, dmg, weaponData.divineName, isHeadshot, hitPoint);
+      this.applyDamage(
+        shooter,
+        hitTarget,
+        Math.round(dmg),
+        isMythicGold ? `MYTHIC ${weaponData.divineName}` : weaponData.divineName,
+        isHeadshot,
+        hitPoint
+      );
     }
   }
 
-  applyDamage(attacker, victim, amount, sourceName, isHeadshot = false, hitWorldPos = null) {
+  applyDamage(attacker, victim, amount, sourceName, isHeadshot = false, hitWorldPos = null, bypassKnockShield = false) {
     if (!victim || !victim.alive) return;
 
     let remaining = Math.round(amount);
     let hitShield = false;
     let shieldBroken = false;
+
+    // BATCH 7: If victim is Knocked Down (DBNO) and has an active Knockdown Shield
+    if (victim.knocked) {
+      if (!bypassKnockShield && victim.knockdownShieldHp > 0) {
+        hitShield = true;
+        if (victim.knockdownShieldHp >= remaining) {
+          victim.knockdownShieldHp -= remaining;
+          remaining = 0;
+        } else {
+          remaining -= victim.knockdownShieldHp;
+          victim.knockdownShieldHp = 0;
+          shieldBroken = true;
+          if (victim.mesh && victim.mesh.userData.kdShield) {
+            victim.mesh.userData.kdShield.visible = false;
+          }
+        }
+      }
+      if (remaining > 0) {
+        victim.knockedHp = Math.max(0, (victim.knockedHp || 65) - remaining);
+      }
+      if (attacker && attacker.isPlayer) {
+        window.SFX.playHitmarker(false, hitShield, shieldBroken);
+        const worldPt = hitWorldPos || victim.position.clone().add(new THREE.Vector3(0, 0.8, 0));
+        this.game.spawnFloatingDamageNumber(worldPt, amount, false, hitShield, shieldBroken, victim.shieldTier, victim);
+      }
+      if (victim.knockedHp <= 0) {
+        this.handleElimination(attacker, victim, sourceName);
+      }
+      return;
+    }
 
     if (victim.shield > 0) {
       hitShield = true;
@@ -209,59 +291,96 @@ class CombatManager {
       victim.hp = Math.max(0, victim.hp - remaining);
     }
 
-    // Track Evo Shield damage progression for attacker
+    // Track 5-Tier Evo Shield Damage Progression for Attacker
     if (attacker && attacker !== victim) {
       attacker.damageDealt = (attacker.damageDealt || 0) + amount;
       attacker.ultCharge = Math.min(100, (attacker.ultCharge || 0) + amount * 0.25);
 
-      // Upgrade Evo Shield Tier on damage thresholds (150 -> Blue, 350 -> Purple, 600 -> Gold/Red Mythic)
-      if (attacker.damageDealt >= 600 && attacker.shieldTier < 4) {
-        attacker.shieldTier = 4;
-        attacker.maxShield = 125;
-        attacker.shield = Math.min(125, attacker.shield + 25);
-        if (attacker.isPlayer) this.game.showBanner('EVO SHIELD UPGRADED: MYTHIC GOLD (125)', '#fbbf24');
-      } else if (attacker.damageDealt >= 320 && attacker.shieldTier < 3) {
-        attacker.shieldTier = 3;
-        attacker.maxShield = 100;
-        attacker.shield = Math.min(100, attacker.shield + 25);
-        if (attacker.isPlayer) this.game.showBanner('EVO SHIELD UPGRADED: LEVEL 3 PURPLE (100)', '#a855f7');
-      } else if (attacker.damageDealt >= 140 && attacker.shieldTier < 2) {
-        attacker.shieldTier = 2;
-        attacker.maxShield = 75;
-        attacker.shield = Math.min(75, attacker.shield + 25);
-        if (attacker.isPlayer) this.game.showBanner('EVO SHIELD UPGRADED: LEVEL 2 BLUE (75)', '#38bdf8');
+      const tiers = window.GODWARS_DATA.EVO_TIERS;
+      for (let tLvl = 5; tLvl >= 2; tLvl--) {
+        const prevThreshold = tiers[tLvl - 1] ? tiers[tLvl - 1].nextThreshold : 9999;
+        if (attacker.damageDealt >= prevThreshold && attacker.shieldTier < tLvl) {
+          attacker.shieldTier = tLvl;
+          attacker.maxShield = tiers[tLvl].maxShield;
+          attacker.shield = Math.min(attacker.maxShield, attacker.shield + 25);
+          if (attacker.isPlayer) {
+            window.SFX.playEvoUpgrade();
+            this.game.showBanner(`EVO SHIELD UPGRADED: ${tiers[tLvl].name} (${attacker.maxShield})`, tiers[tLvl].color);
+          }
+          break;
+        }
       }
     }
 
-    // Player attacker feedback: Apex floating damage numbers & hitmarker SFX
     if (attacker && attacker.isPlayer) {
       window.SFX.playHitmarker(isHeadshot, hitShield, shieldBroken);
       const worldPt = hitWorldPos || victim.position.clone().add(new THREE.Vector3(0, 1.5, 0));
-      this.game.spawnFloatingDamageNumber(worldPt, amount, isHeadshot, hitShield, shieldBroken, victim.shieldTier);
+      this.game.spawnFloatingDamageNumber(worldPt, amount, isHeadshot, hitShield, shieldBroken, victim.shieldTier, victim);
     }
 
-    // Player victim feedback: Directional Damage Indicator
     if (victim.isPlayer && attacker && attacker !== victim) {
       this.game.triggerDamageIndicator(attacker.position);
     }
 
-    // Check elimination
+    // Check Knockdown (DBNO) vs Elimination
     if (victim.hp <= 0 && victim.alive) {
-      this.handleElimination(attacker, victim, sourceName);
+      const aliveBots = this.game.bots.filter(b => b.alive && !b.knocked).length;
+      const canEnterKnockdown = !victim.isDummy && sourceName !== 'Ragnarok Storm Ring' && aliveBots > 1;
+
+      if (!victim.isPlayer && canEnterKnockdown && !victim.knocked) {
+        // Enter Apex Knocked Down (DBNO) State with 3D Knockdown Shield!
+        victim.knocked = true;
+        victim.knockedHp = 70;
+        victim.knockdownShieldHp = victim.shieldTier >= 3 ? 120 : 75;
+        victim.bleedoutTimer = 18.0;
+        if (victim.mesh) {
+          victim.mesh.scale.y = 0.58;
+          if (victim.mesh.userData.kdShield) {
+            const tierInfo = window.GODWARS_DATA.EVO_TIERS[victim.shieldTier] || window.GODWARS_DATA.EVO_TIERS[2];
+            victim.mesh.userData.kdShield.material.color.setHex(tierInfo.hex);
+            victim.mesh.userData.kdShield.visible = true;
+          }
+        }
+        if (attacker && attacker.isPlayer) {
+          window.SFX.playKillSound();
+          this.game.showBanner(`KNOCKED DOWN ${victim.name} • APPROACH & PRESS [E] FOR FINISHER!`, '#fbbf24');
+        }
+      } else if (victim.isPlayer && victim.shieldTier >= 4 && !victim.usedSelfRevive && sourceName !== 'Ragnarok Storm Ring') {
+        // Player Gold/Red Evo Shield Self-Revive (Guardian Angel)!
+        victim.knocked = true;
+        victim.usedSelfRevive = true;
+        victim.knockedHp = 85;
+        victim.hp = 1;
+        this.game.showBanner('KNOCKED DOWN! GOLD EVO GUARDIAN ANGEL: PRESS [E / TAP] TO SELF-REVIVE!', '#fbbf24');
+      } else {
+        this.handleElimination(attacker, victim, sourceName);
+      }
     }
   }
 
   handleElimination(killer, victim, weaponName) {
+    // Firing Range Dummy Respawn
+    if (victim.isDummy) {
+      if (killer && killer.isPlayer) {
+        window.SFX.playKillSound();
+        killer.kills = (killer.kills || 0) + 1;
+        this.game.showEliminationPopup(victim.name, victim.heroId, killer.kills);
+      }
+      victim.hp = victim.maxHp;
+      victim.shield = victim.maxShield;
+      victim.knocked = false;
+      return;
+    }
+
     victim.alive = false;
+    victim.knocked = false;
     if (victim.mesh) victim.mesh.visible = false;
 
-    // Spawn glowing Golden Death Box at victim position
     this.spawnDeathBox(victim);
 
     if (killer && killer !== victim) {
       killer.kills = (killer.kills || 0) + 1;
 
-      // Hades Passive: Soul Siphon restores 45 Shield & 30 HP on kill!
       if (killer.heroId === 'hades') {
         killer.shield = Math.min(killer.maxShield, killer.shield + 45);
         killer.hp = Math.min(killer.maxHp, killer.hp + 30);
@@ -272,6 +391,8 @@ class CombatManager {
         window.SFX.playKillSound();
         this.game.showEliminationPopup(victim.name, victim.heroId, killer.kills);
       }
+
+      this.game.updateKillLeader(killer);
     }
 
     const killerName = killer ? killer.name : 'RAGNAROK RING';
@@ -281,10 +402,11 @@ class CombatManager {
 
   spawnDeathBox(victim) {
     const boxGeo = new THREE.BoxGeometry(1.3, 0.85, 0.9);
+    const tierInfo = window.GODWARS_DATA.EVO_TIERS[Math.max(2, victim.shieldTier || 2)];
     const boxMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      emissive: 0xb45309,
-      emissiveIntensity: 0.45,
+      color: tierInfo.hex,
+      emissive: tierInfo.hex,
+      emissiveIntensity: 0.35,
       metalness: 0.85,
       roughness: 0.2
     });
@@ -351,16 +473,14 @@ class CombatManager {
       if (dist <= g.data.radius) {
         const falloff = 1 - (dist / g.data.radius) * 0.65;
         const dmg = Math.round(g.data.damage * falloff);
-        this.applyDamage(g.thrower, t, dmg, g.data.name, false, t.position);
+        this.applyDamage(g.thrower, t, dmg, g.data.name, false, t.position, true);
 
         if (isFlash) {
-          // Apollo Celestial Flashbang blinds & stuns!
           t.flashBlindTimer = 4.2 * falloff;
           if (t.isPlayer) {
             this.game.triggerFlashbangOverlay(falloff);
           }
         } else {
-          // Knockback blast wave
           const push = t.position.clone().sub(pos).normalize();
           if (t.velocity) {
             t.velocity.x += push.x * 11 * falloff;
@@ -380,7 +500,6 @@ class CombatManager {
     window.SFX.playAbility('tactical');
 
     if (heroId === 'loki') {
-      // LOKI TACTICAL: Spawn Running Hologram Decoy + 3.5s Phase Stealth & Speed
       const decoyMesh = window.ModelFactory.createHeroModel('loki');
       decoyMesh.position.copy(actor.position);
       const forwardYaw = Math.atan2(lookDir.x, lookDir.z);
@@ -401,7 +520,6 @@ class CombatManager {
       if (actor.isPlayer) this.game.showBanner('LOKI: PHANTOM DECOY & PHASE CLOAK ACTIVE', '#10b981');
 
     } else if (heroId === 'thor') {
-      // THOR TACTICAL: Mjölnir Chain Lightning Bolt
       const targetPt = origin.clone().addScaledVector(lookDir, 28);
       targetPt.y = Math.max(0.5, targetPt.y);
       this.spawnLightningBolt(origin.clone().addScaledVector(lookDir, 1), targetPt, 0x38bdf8, 0.45);
@@ -418,7 +536,6 @@ class CombatManager {
       if (actor.isPlayer) this.game.showBanner('THOR: MJÖLNIR ARC BOLT UNLEASHED', '#38bdf8');
 
     } else if (heroId === 'hades') {
-      // HADES TACTICAL: Stygian Soul Wave (Damages enemies & heals Hades)
       const waveCenter = origin.clone().addScaledVector(lookDir, 10);
       waveCenter.y = actor.position.y + 1.0;
       this.spawnExplosionVFX(waveCenter, 10, 0xa855f7, 0.5);
@@ -437,7 +554,6 @@ class CombatManager {
       if (actor.isPlayer) this.game.showBanner(`HADES: STYGIAN DRAIN (+${Math.round(healAmt)} HP/SHIELD)`, '#a855f7');
 
     } else if (heroId === 'zeus') {
-      // ZEUS TACTICAL: Aegis Thunder Wall (Amped Barrier in front)
       const wallPos = actor.position.clone().addScaledVector(new THREE.Vector3(lookDir.x, 0, lookDir.z).normalize(), 3.2);
       const wallMesh = new THREE.Mesh(
         new THREE.BoxGeometry(4.4, 2.6, 0.25),
@@ -453,7 +569,6 @@ class CombatManager {
       if (actor.isPlayer) this.game.showBanner('ZEUS: AEGIS THUNDER WALL DEPLOYED (+20% AMPED SHOTS)', '#facc15');
 
     } else if (heroId === 'hela') {
-      // HELA TACTICAL: 3 Fan-Shaped Piercing Necroswords
       [-0.12, 0, 0.12].forEach(angleOffset => {
         const dir = lookDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angleOffset).normalize();
         const endPt = origin.clone().addScaledVector(dir, 36);
@@ -474,7 +589,6 @@ class CombatManager {
       if (actor.isPlayer) this.game.showBanner('HELA: NECROSWORD VOLLEY FIRED', '#14b8a6');
 
     } else if (heroId === 'valkyrie') {
-      // VALKYRIE TACTICAL: Celestial Spear Missile Swarm (6 micro-rockets)
       const aimCenter = origin.clone().addScaledVector(lookDir, 22);
       aimCenter.y = this.game.world.getGroundHeight(aimCenter.x, aimCenter.z, 0);
 
@@ -509,7 +623,6 @@ class CombatManager {
     window.SFX.playAbility('ultimate');
 
     if (heroId === 'loki') {
-      // LOKI ULTIMATE: Ragnarok Mirror Realm (5 clones + 10s +35% crit buff)
       actor.ultBuffTimer = 10.0;
       actor.cloakTimer = 4.0;
       for (let i = 0; i < 5; i++) {
@@ -531,7 +644,6 @@ class CombatManager {
       if (actor.isPlayer) this.game.showBanner('ULTIMATE: RAGNAROK MIRROR REALM (+35% CRIT DMG)', '#10b981');
 
     } else if (heroId === 'thor') {
-      // THOR ULTIMATE: Bifrost Sky Slam!
       if (actor.velocity) {
         actor.velocity.y = 21;
         actor.velocity.x += lookDir.x * 16;
@@ -557,7 +669,6 @@ class CombatManager {
       if (actor.isPlayer) this.game.showBanner('ULTIMATE: BIFROST SKY SLAM!', '#38bdf8');
 
     } else if (heroId === 'hades') {
-      // HADES ULTIMATE: Domain of Tartarus (14m Underworld Soul Dome for 11s)
       const domeMesh = new THREE.Mesh(
         new THREE.SphereGeometry(14, 24, 18, 0, Math.PI * 2, 0, Math.PI / 2),
         new THREE.MeshBasicMaterial({
@@ -582,7 +693,6 @@ class CombatManager {
       if (actor.isPlayer) this.game.showBanner('ULTIMATE: DOMAIN OF TARTARUS DEPLOYED', '#a855f7');
 
     } else if (heroId === 'zeus') {
-      // ZEUS ULTIMATE: Wrath of Olympus (6 Sky-to-Ground Orbital Lightning Pillars)
       const targetCenter = origin.clone().addScaledVector(lookDir, 24);
       targetCenter.y = 0;
 
@@ -610,7 +720,6 @@ class CombatManager {
       if (actor.isPlayer) this.game.showBanner('ULTIMATE: WRATH OF OLYMPUS ORBITAL BARRAGE!', '#facc15');
 
     } else if (heroId === 'hela') {
-      // HELA ULTIMATE: Empress of Helheim (+75 Shield, Infinite Mag Ammo & +25% Fire Rate for 10s)
       actor.ultBuffTimer = 10.0;
       actor.shield = Math.min(actor.maxShield + 50, actor.shield + 75);
       actor.hp = Math.min(actor.maxHp, actor.hp + 40);
@@ -618,14 +727,13 @@ class CombatManager {
       if (actor.isPlayer) this.game.showBanner('ULTIMATE: EMPRESS OF HELHEIM (INFINITE AMMO & DEATH ARMOR)', '#14b8a6');
 
     } else if (heroId === 'valkyrie') {
-      // VALKYRIE ULTIMATE: Skyward Ascension (Launches 85m up into Skydive Redeploy + Enemy Scan!)
       window.SFX.playJumpPad();
       actor.position.y += 3.0;
       if (actor.velocity) {
         actor.velocity.y = 42;
       }
       actor.skydiving = true;
-      actor.ultBuffTimer = 12.0; // Scan active while gliding
+      actor.ultBuffTimer = 12.0;
       if (actor.isPlayer) this.game.showBanner('ULTIMATE: SKYWARD ASCENSION & VALHALLA AERIAL SCAN!', '#f97316');
     }
   }
@@ -646,13 +754,27 @@ class CombatManager {
       }
     }
 
-    // 2. Update thrown Divine Bombs / Flashbangs
+    // 2. Update ejected brass/rune shell casings
+    for (let i = this.shells.length - 1; i >= 0; i--) {
+      const s = this.shells[i];
+      s.age += dt;
+      s.velocity.y -= 18 * dt;
+      s.mesh.position.addScaledVector(s.velocity, dt);
+      s.mesh.rotation.x += 14 * dt;
+      s.mesh.rotation.z += 11 * dt;
+      if (s.age >= s.maxAge) {
+        this.scene.remove(s.mesh);
+        this.shells.splice(i, 1);
+      }
+    }
+
+    // 3. Update thrown Divine Bombs / Flashbangs
     for (let i = this.grenades.length - 1; i >= 0; i--) {
       const g = this.grenades[i];
       g.fuse -= dt;
 
       if (!g.stuck) {
-        g.velocity.y -= 22 * dt; // Gravity
+        g.velocity.y -= 22 * dt;
         g.mesh.position.addScaledVector(g.velocity, dt);
         g.mesh.rotation.x += 8 * dt;
         g.mesh.rotation.y += 6 * dt;
@@ -676,7 +798,7 @@ class CombatManager {
       }
     }
 
-    // 3. Update explosion & lightning VFX
+    // 4. Update explosion & lightning VFX
     for (let i = this.vfxList.length - 1; i >= 0; i--) {
       const v = this.vfxList[i];
       v.age += dt;
@@ -701,7 +823,7 @@ class CombatManager {
       }
     }
 
-    // 4. Update Loki holographic decoys
+    // 5. Update Loki holographic decoys
     for (let i = this.decoys.length - 1; i >= 0; i--) {
       const d = this.decoys[i];
       d.ttl -= dt;
@@ -712,7 +834,6 @@ class CombatManager {
       d.position.y = this.game.world.getGroundHeight(d.position.x, d.position.z, d.position.y);
       d.mesh.position.copy(d.position);
 
-      // Animate decoy legs running
       const t = performance.now() * 0.012;
       if (d.mesh.userData.leftLeg) {
         d.mesh.userData.leftLeg.rotation.x = Math.sin(t) * 0.7;
@@ -725,7 +846,7 @@ class CombatManager {
       }
     }
 
-    // 5. Update Active Ability Zones (Hades Tartarus Dome, Zeus Aegis Wall)
+    // 6. Update Active Ability Zones
     for (let i = this.activeZones.length - 1; i >= 0; i--) {
       const z = this.activeZones[i];
       z.ttl -= dt;
@@ -733,7 +854,6 @@ class CombatManager {
         z.tickTimer += dt;
         if (z.tickTimer >= 0.5) {
           z.tickTimer = 0;
-          // Heal owner inside dome & damage enemies inside dome
           if (z.owner && z.owner.alive && z.owner.position.distanceTo(z.position) <= z.radius) {
             z.owner.shield = Math.min(z.owner.maxShield, z.owner.shield + 8);
           }

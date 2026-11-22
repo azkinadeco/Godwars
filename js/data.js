@@ -1,21 +1,77 @@
 /**
- * GOD WARS: ASGARD ROYALE
- * Game Data: 6 Mythological Heroes, 6 Divine Weapons (P90, Kriss, M4A1, Uzi, AK47, Magnum),
- * 3 Divine Bombs (Ragnarok Bomb, Apollo Flashbang, Yggdrasil Arc Star), and Asgard POIs.
+ * GOD WARS: ASGARD ROYALE (APEX LEGENDS EDITION - 10-BATCH FULL UPGRADE)
+ * Complete Data Configuration:
+ * - 6 Mythological Heroes (Loki, Thor, Hades, Zeus, Hela, Valkyrie) + Unique Melee Weapons & Finishers
+ * - 6 Divine Custom Firearms (P90, Kriss Vector, M4A1, Uzi, AK-47, Magnum) + Rarity Tiers (Common -> Mythic Gold)
+ * - 3 Divine Bombs (Ragnarok Solar Bomb, Apollo Flashbang, Yggdrasil Arc Star)
+ * - 4 Apex Healing Items (Shield Cell, Shield Battery, Ambrosia Medkit, Phoenix Nectar)
+ * - 6 Asgard POIs + 6 Bifrost Ziplines + Care Package Drops + Rank Progression
  */
 
 window.GODWARS_DATA = {
   MATCH_CONFIG: {
     totalPlayers: 16,
     islandRadius: 240,
-    dropshipHeight: 115,
+    dropshipHeight: 118,
     dropshipSpeed: 34,
+    carePackageInterval: 38, // Spawn Odin Care Package every 38s
     ringPhases: [
       { round: 1, waitTime: 35, shrinkTime: 30, targetRadius: 175, damagePerSec: 4 },
       { round: 2, waitTime: 28, shrinkTime: 25, targetRadius: 110, damagePerSec: 8 },
       { round: 3, waitTime: 22, shrinkTime: 22, targetRadius: 55,  damagePerSec: 15 },
       { round: 4, waitTime: 18, shrinkTime: 20, targetRadius: 12,  damagePerSec: 25 }
     ]
+  },
+
+  EVO_TIERS: {
+    1: { level: 1, name: 'LV1 WHITE EVO',  maxShield: 50,  cells: 2, color: '#e2e8f0', hex: 0xe2e8f0, nextThreshold: 120 },
+    2: { level: 2, name: 'LV2 BLUE EVO',   maxShield: 75,  cells: 3, color: '#38bdf8', hex: 0x38bdf8, nextThreshold: 280 },
+    3: { level: 3, name: 'LV3 PURPLE EVO', maxShield: 100, cells: 4, color: '#a855f7', hex: 0xa855f7, nextThreshold: 500 },
+    4: { level: 4, name: 'LV4 GOLD EVO',   maxShield: 100, cells: 4, color: '#fbbf24', hex: 0xfbbf24, nextThreshold: 750, selfRevive: true },
+    5: { level: 5, name: 'LV5 MYTHIC RED', maxShield: 125, cells: 5, color: '#f43f5e', hex: 0xf43f5e, nextThreshold: null, selfRevive: true }
+  },
+
+  HEAL_ITEMS: {
+    shield_cell: {
+      id: 'shield_cell',
+      name: 'Bifrost Shield Cell',
+      shortName: 'SHIELD CELL',
+      castTime: 1.2,
+      shieldRestore: 25,
+      hpRestore: 0,
+      color: '#38bdf8',
+      icon: '🔹'
+    },
+    shield_battery: {
+      id: 'shield_battery',
+      name: 'Asgard Shield Battery',
+      shortName: 'SHIELD BATTERY',
+      castTime: 2.1,
+      shieldRestore: 999,
+      hpRestore: 0,
+      color: '#0284c7',
+      icon: '⚡'
+    },
+    medkit: {
+      id: 'medkit',
+      name: 'Ambrosia Medkit',
+      shortName: 'MEDKIT',
+      castTime: 2.4,
+      shieldRestore: 0,
+      hpRestore: 999,
+      color: '#10b981',
+      icon: '➕'
+    },
+    phoenix_kit: {
+      id: 'phoenix_kit',
+      name: 'Phoenix Idunn Nectar',
+      shortName: 'PHOENIX KIT',
+      castTime: 3.4,
+      shieldRestore: 999,
+      hpRestore: 999,
+      color: '#a855f7',
+      icon: '🔥'
+    }
   },
 
   HEROES: {
@@ -31,6 +87,8 @@ window.GODWARS_DATA = {
       hexAccent: 0xfbbf24,
       speedMult: 1.08,
       maxHp: 100,
+      meleeName: 'Jötunheim Frost Daggers',
+      finisherName: 'Illusion Backstab Execution',
       passiveName: 'Shadow Trickster',
       passiveDesc: '+15% slide speed & silent footsteps. Highlights nearby enemies within 25m when aiming.',
       tacticalName: 'Phantom Decoy & Cloak',
@@ -54,10 +112,12 @@ window.GODWARS_DATA = {
       hexAccent: 0xf59e0b,
       speedMult: 1.0,
       maxHp: 110,
+      meleeName: 'Mjölnir Thunder Crusher',
+      finisherName: 'Mjölnir Sky Verdict',
       passiveName: 'Mjölnir Static Core',
-      passiveDesc: 'Sprinting builds Thunder Charge. Fully charged shots trigger chain lightning for +12 bonus arc damage.',
+      passiveDesc: 'Sprinting builds Thunder Charge. Fully charged shots trigger chain lightning for +14 bonus arc damage.',
       tacticalName: 'Mjölnir Arc Bolt',
-      tacticalDesc: 'Hurls a bolt of Asgardian lightning that chains between enemies in an 10m radius for 38 shield/HP damage and slows them.',
+      tacticalDesc: 'Hurls a bolt of Asgardian lightning that chains between enemies in an 11m radius for 38 shield/HP damage and slows them.',
       tacticalCooldown: 13,
       ultimateName: 'Bifrost Sky Slam',
       ultimateDesc: 'Leaps high into the storm clouds and crashes down with Mjölnir, dealing up to 90 AoE thunder damage and knocking enemies back.',
@@ -77,13 +137,15 @@ window.GODWARS_DATA = {
       hexAccent: 0xef4444,
       speedMult: 1.0,
       maxHp: 105,
+      meleeName: 'Bident of Tartarus',
+      finisherName: 'Soul Harvest Reaping',
       passiveName: 'Soul Siphon',
       passiveDesc: 'Every elimination immediately restores 45 Evo Shield and 30 Health from fallen souls.',
       tacticalName: 'Stygian Wave',
       tacticalDesc: 'Unleashes a dark spectral surge forward that deals 35 damage to enemies and heals Hades for 100% of damage dealt.',
       tacticalCooldown: 15,
       ultimateName: 'Domain of Tartarus',
-      ultimateDesc: 'Deploys a 14m Underworld Soul Dome for 11s that drains enemy shields (12/s) while rapidly regenerating your own armor.',
+      ultimateDesc: 'Deploys a 14m Underworld Soul Dome for 11s that drains enemy shields (14/s) while rapidly regenerating your own armor.',
       ultimateChargeTime: 75,
       defaultWeapons: ['ak47', 'kriss'],
       lore: 'Every soul spilled on Asgard’s golden soil only strengthens the Sovereign of Tartarus.'
@@ -100,6 +162,8 @@ window.GODWARS_DATA = {
       hexAccent: 0x38bdf8,
       speedMult: 1.02,
       maxHp: 105,
+      meleeName: 'Olympian Thunderbolt Fist',
+      finisherName: 'Judgment of Olympus',
       passiveName: 'Olympian Overcharge',
       passiveDesc: '+20% faster weapon reload speed and golden thunder rounds that deal +15% extra damage to Evo Shields.',
       tacticalName: 'Aegis Thunder Wall',
@@ -123,6 +187,8 @@ window.GODWARS_DATA = {
       hexAccent: 0x22c55e,
       speedMult: 1.06,
       maxHp: 100,
+      meleeName: 'Obsidian Necroblade',
+      finisherName: 'Helheim Skewering',
       passiveName: 'Death Seeker Vision',
       passiveDesc: 'Damaged enemies below 60 HP glow bright emerald-crimson and take +15% execution damage.',
       tacticalName: 'Necrosword Volley',
@@ -146,6 +212,8 @@ window.GODWARS_DATA = {
       hexAccent: 0xfde047,
       speedMult: 1.05,
       maxHp: 100,
+      meleeName: 'Dragonfang Spear Thrust',
+      finisherName: 'Wings of Valhalla Strike',
       passiveName: 'VTOL Einherjar Wings',
       passiveDesc: 'Hold or double-tap JUMP in mid-air to ignite golden Valkyrie jetpack wings for high-ground repositioning.',
       tacticalName: 'Celestial Spear Swarm',
@@ -164,6 +232,7 @@ window.GODWARS_DATA = {
       id: 'p90',
       baseName: 'P90',
       divineName: 'BIFROST P90 • HEIMDALL PDW',
+      ammoType: 'LIGHT RUNE ROUNDS',
       category: 'Divine Submachine Gun',
       desc: 'Bullpup P90 infused with a glowing rainbow-cyan Bifrost crystal top magazine. Massive 50-round capacity with laser hipfire.',
       damage: 14,
@@ -187,6 +256,7 @@ window.GODWARS_DATA = {
       id: 'kriss',
       baseName: 'KRISS VECTOR',
       divineName: 'FENRIR KRISS • FANG VECTOR',
+      ammoType: 'LIGHT RUNE ROUNDS',
       category: 'Mythic Hyper-SMG',
       desc: 'Kriss Vector engineered with Fenrir’s Super-V recoil mitigation and crimson rune fangs. Blistering 1050 RPM close-range shredder.',
       damage: 13,
@@ -210,6 +280,7 @@ window.GODWARS_DATA = {
       id: 'm4a1',
       baseName: 'M4A1',
       divineName: 'VALHALLA M4A1 • ODIN CARBINE',
+      ammoType: 'ENERGY RUNE ROUNDS',
       category: 'Divine Assault Rifle',
       desc: 'Tactical M4A1 forged in gold-titanium with Valkyrie wing guards and an Asgardian rune holographic sight. Pinpoint mid-to-long range precision.',
       damage: 19,
@@ -233,6 +304,7 @@ window.GODWARS_DATA = {
       id: 'uzi',
       baseName: 'UZI',
       divineName: 'HERMES UZI • ZEPHYR MICRO',
+      ammoType: 'LIGHT RUNE ROUNDS',
       category: 'Speedster Micro-SMG',
       desc: 'Ultra-compact Micro-Uzi adorned with winged golden Hermes stabilizers. Instant draw speed and lethal accuracy while sliding or flying.',
       damage: 13,
@@ -256,8 +328,9 @@ window.GODWARS_DATA = {
       id: 'ak47',
       baseName: 'AK-47',
       divineName: 'SURTR AK-47 • MUSPELHEIM WRATH',
+      ammoType: 'HEAVY MAGMA ROUNDS',
       category: 'Volcanic Heavy Rifle',
-      desc: 'Heavy AK-47 infused with theeternal magma of Surtr. Fires incendiary rune rounds that hit like a truck and sear through Evo Shields.',
+      desc: 'Heavy AK-47 infused with the eternal magma of Surtr. Fires incendiary rune rounds that hit like a truck and sear through Evo Shields.',
       damage: 25,
       headshotMult: 1.9,
       rpm: 560,
@@ -279,6 +352,7 @@ window.GODWARS_DATA = {
       id: 'magnum',
       baseName: 'MAGNUM .50',
       divineName: 'GUNGNIR MAGNUM • ALLFATHER CANNON',
+      ammoType: 'MYTHIC CALIBER .50',
       category: 'Mythic Handcannon (Wingman Class)',
       desc: 'Revolving heavy Magnum sculpted from Odin’s spear Gungnir. High-skill handcannon with devastating 46 body / 96 headshot damage.',
       damage: 46,
@@ -351,7 +425,7 @@ window.GODWARS_DATA = {
       radius: 45,
       tier: 'MYTHIC LOOT',
       color: '#fbbf24',
-      desc: 'The Golden Hall of Odin at the center of Asgard. High ground, golden pillars, and top-tier Supply Bins.'
+      desc: 'The Golden Hall of Odin at the center of Asgard. High ground, golden pillars, Champion Banners, and top-tier Supply Bins.'
     },
     {
       id: 'bifrost',
@@ -401,8 +475,17 @@ window.GODWARS_DATA = {
       radius: 38,
       tier: 'HIGH LOOT',
       color: '#e879f9',
-      desc: 'Elevated aerial launch rings connected by Bifrost Jump Pads.'
+      desc: 'Elevated aerial launch rings connected by Bifrost Jump Pads & Ziplines.'
     }
+  ],
+
+  ZIPLINES: [
+    { id: 'zip_bifrost',  name: 'Valhalla ⇄ Bifrost Bridge',   start: [0, 6.5, 22],    end: [0, 5.5, 118] },
+    { id: 'zip_forge',    name: 'Valhalla ⇄ Mjölnir Forge',    start: [-22, 6.5, 8],   end: [-95, 6.0, 32] },
+    { id: 'zip_ygg',      name: 'Valhalla ⇄ Yggdrasil Tree',   start: [22, 6.5, 8],    end: [95, 6.0, 28] },
+    { id: 'zip_helheim',  name: 'Valhalla ⇄ Helheim Crypts',   start: [-18, 6.5, -18], end: [-72, 6.0, -88] },
+    { id: 'zip_skydocks', name: 'Valhalla ⇄ Valkyrie Docks',   start: [18, 6.5, -18],  end: [76, 6.5, -86] },
+    { id: 'zip_north',    name: 'Helheim ⇄ Valkyrie Docks',    start: [-65, 5.5, -102], end: [68, 6.0, -98] }
   ],
 
   BOT_NAMES: [

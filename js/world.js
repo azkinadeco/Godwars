@@ -1,20 +1,23 @@
 /**
- * GOD WARS: ASGARD ROYALE
- * Asgard Floating Island 3D Battle Royale Environment
- * - 6 Mythological POIs (Valhalla Citadel, Bifrost Observatory, Mjölnir Forge,
- *   Yggdrasil Sanctuary, Helheim Crypts, Valkyrie Sky Docks)
- * - 8 Bifrost Jump Pads (Octane-style high vertical/horizontal launch!)
- * - 28 Interactive Divine Supply Bins (Apex-style loot chests)
- * - 3D Shrinking Ragnarok Storm Ring
+ * GOD WARS: ASGARD ROYALE (APEX LEGENDS EDITION - 10-BATCH FULL UPGRADE)
+ * Asgard Floating Island 3D Battle Royale Environment:
+ * - 6 Mythological POIs with Golden Marble & Rune Textures
+ * - 6 Golden Bifrost Ziplines connecting POIs + 1 Valhalla Vertical Jump Tower (Redeploy Balloon)
+ * - Giant 3D Holographic Arena Champion / Kill Leader Banners hanging from Valhalla Citadel
+ * - Odin Care Package Aerial Drop System
+ * - 8 Bifrost Jump Pads + 28 Interactive Supply Bins + Shrinking Ragnarok Storm Ring
  */
 
 class AsgardWorld {
   constructor(scene) {
     this.scene = scene;
-    this.colliders = []; // AABB boxes { minX, maxX, minZ, maxZ, maxY }
+    this.colliders = [];
     this.supplyBins = [];
     this.jumpPads = [];
-    this.groundLoot = [];
+    this.ziplines = [];
+    this.carePackages = [];
+    this.championBannerCanvases = [];
+    this.jumpTower = null;
     this.ringMesh = null;
     this.islandRadius = window.GODWARS_DATA.MATCH_CONFIG.islandRadius;
   }
@@ -30,25 +33,27 @@ class AsgardWorld {
     this.buildValkyrieSkyDocks();
     this.buildTacticalRocksAndCover();
     this.buildJumpPads();
+    this.buildZiplinesAndJumpTower();
+    this.buildArenaChampionBanners();
     this.buildSupplyBins();
     this.buildStormRing();
   }
 
   buildLightingAndSky() {
-    this.scene.background = new THREE.Color(0x0b132b);
-    this.scene.fog = new THREE.FogExp2(0x0f172a, 0.0022);
+    this.scene.background = new THREE.Color(0x091126);
+    this.scene.fog = new THREE.FogExp2(0x0c152c, 0.0021);
 
-    const hemiLight = new THREE.HemisphereLight(0xfef08a, 0x1e293b, 0.78);
+    const hemiLight = new THREE.HemisphereLight(0xfef08a, 0x1e293b, 0.84);
     hemiLight.position.set(0, 160, 0);
     this.scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.15);
-    sunLight.position.set(95, 160, 80);
+    const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.22);
+    sunLight.position.set(95, 165, 80);
     this.scene.add(sunLight);
 
-    // Cosmic Asgard Nebula Halo & Stars in the sky
+    // Starfield & Asgard Nebula
     const starGeo = new THREE.BufferGeometry();
-    const starCount = 750;
+    const starCount = 800;
     const positions = new Float32Array(starCount * 3);
     for (let i = 0; i < starCount; i++) {
       const theta = Math.random() * Math.PI * 2;
@@ -59,44 +64,66 @@ class AsgardWorld {
       positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
     }
     starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const starMat = new THREE.PointsMaterial({ color: 0xfef08a, size: 1.8 });
-    this.scene.add(new THREE.Points(starGeo, starMat));
+    this.scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xfef08a, size: 1.9 })));
 
-    // Distant cosmic Bifrost Ring in the sky
+    // Cosmic Bifrost Halo Ring & Floating Crystal Spires outside the island
     const skyRing = new THREE.Mesh(
-      new THREE.TorusGeometry(320, 3.5, 10, 64),
+      new THREE.TorusGeometry(320, 3.8, 10, 64),
       new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.35 })
     );
     skyRing.rotation.x = Math.PI / 3;
     skyRing.position.set(0, 95, 0);
     this.scene.add(skyRing);
+
+    // 8 Distant Floating Asgard Crystal Mountains + Golden Waterfalls at Island Edge
+    const spireMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.3 });
+    const fallMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.45 });
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const sx = Math.cos(a) * 310;
+      const sz = Math.sin(a) * 310;
+      const spire = new THREE.Mesh(new THREE.ConeGeometry(22, 68, 6), spireMat);
+      spire.position.set(sx, 20 + (i % 3) * 14, sz);
+      spire.rotation.x = Math.PI;
+      this.scene.add(spire);
+
+      // Waterfall cascading off the edge of Asgard Island
+      const wx = Math.cos(a + 0.3) * (this.islandRadius - 1);
+      const wz = Math.sin(a + 0.3) * (this.islandRadius - 1);
+      const waterfall = new THREE.Mesh(new THREE.BoxGeometry(8, 45, 1.2), fallMat);
+      waterfall.position.set(wx, -22, wz);
+      waterfall.rotation.y = -a;
+      this.scene.add(waterfall);
+    }
   }
 
   buildIslandTerrain() {
-    // Main Floating Asgard Island Platform
+    const runeFloorTex = window.ModelFactory.getRuneTexture('#d97706', '#162032');
+    runeFloorTex.repeat.set(18, 18);
+
     const islandGeo = new THREE.CylinderGeometry(this.islandRadius, this.islandRadius * 0.72, 26, 48);
     const islandMat = new THREE.MeshStandardMaterial({
       color: 0x1e293b,
-      roughness: 0.82,
-      metalness: 0.15
+      map: runeFloorTex,
+      roughness: 0.78,
+      metalness: 0.2
     });
     const island = new THREE.Mesh(islandGeo, islandMat);
     island.position.set(0, -13, 0);
     this.scene.add(island);
 
-    // Golden Asgard Outer Ring Rim
-    const rimGeo = new THREE.TorusGeometry(this.islandRadius - 2, 2.2, 10, 64);
-    const rimMat = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.85, roughness: 0.25 });
-    const rim = new THREE.Mesh(rimGeo, rimMat);
+    const rim = new THREE.Mesh(
+      new THREE.TorusGeometry(this.islandRadius - 2, 2.4, 10, 64),
+      new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.88, roughness: 0.2 })
+    );
     rim.rotation.x = Math.PI / 2;
     rim.position.set(0, 0.2, 0);
     this.scene.add(rim);
 
-    // Subtle glowing radial circuit lines on the Asgard floor
     for (let r of [45, 95, 155, 210]) {
       const ringLine = new THREE.Mesh(
-        new THREE.RingGeometry(r - 0.4, r + 0.4, 48),
-        new THREE.MeshBasicMaterial({ color: 0xf59e0b, side: THREE.DoubleSide, transparent: true, opacity: 0.25 })
+        new THREE.RingGeometry(r - 0.45, r + 0.45, 48),
+        new THREE.MeshBasicMaterial({ color: 0xf59e0b, side: THREE.DoubleSide, transparent: true, opacity: 0.28 })
       );
       ringLine.rotation.x = -Math.PI / 2;
       ringLine.position.y = 0.04;
@@ -119,14 +146,12 @@ class AsgardWorld {
   }
 
   buildValhallaCitadel() {
-    // Central POI (0, 0): Golden Hall of Odin
-    const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.85, roughness: 0.22 });
-    const marbleMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.35, metalness: 0.15 });
+    const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.88, roughness: 0.2 });
+    const marbleMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3, metalness: 0.18 });
     const floorPlinth = new THREE.Mesh(new THREE.CylinderGeometry(32, 35, 1.6, 24), marbleMat);
     floorPlinth.position.set(0, 0.8, 0);
     this.scene.add(floorPlinth);
 
-    // 10 Tall Golden Columns around Valhalla Citadel
     for (let i = 0; i < 10; i++) {
       const angle = (i / 10) * Math.PI * 2;
       const px = Math.cos(angle) * 24;
@@ -136,18 +161,15 @@ class AsgardWorld {
       this.addBoxCollider(pillar, 3.2, 14, 3.2);
     }
 
-    // Central Elevated Throne Platform & Cover Walls
     const throneBase = new THREE.Mesh(new THREE.BoxGeometry(14, 3.2, 14), goldMat);
     throneBase.position.set(0, 1.6, 0);
     this.addBoxCollider(throneBase, 14, 3.2, 14, true);
 
-    // Golden Roof Ring Crown
     const crown = new THREE.Mesh(new THREE.TorusGeometry(24, 1.4, 8, 32), goldMat);
     crown.rotation.x = Math.PI / 2;
     crown.position.set(0, 14.5, 0);
     this.scene.add(crown);
 
-    // 4 Tactical Cover Walls around the plaza
     [
       [14, 0, 2.2, 3.2, 8],
       [-14, 0, 2.2, 3.2, 8],
@@ -161,23 +183,20 @@ class AsgardWorld {
   }
 
   buildBifrostObservatory() {
-    // South POI (0, 135): Rainbow Bridge & Heimdall's Dome
     const cx = 0, cz = 135;
     const bridgeMat = new THREE.MeshStandardMaterial({
       color: 0x38bdf8,
       emissive: 0x0284c7,
-      emissiveIntensity: 0.55,
+      emissiveIntensity: 0.6,
       roughness: 0.15,
       metalness: 0.8
     });
     const goldMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.9, roughness: 0.2 });
 
-    // Glowing Bifrost Bridge Highway leading from Valhalla toward the Observatory
     const bridge = new THREE.Mesh(new THREE.BoxGeometry(12, 0.6, 85), bridgeMat);
     bridge.position.set(0, 0.3, 95);
     this.scene.add(bridge);
 
-    // Observatory Rotunda Walls
     for (let i = 0; i < 8; i++) {
       const angle = (i / 8) * Math.PI * 2;
       const wx = cx + Math.cos(angle) * 20;
@@ -187,30 +206,25 @@ class AsgardWorld {
       this.addBoxCollider(pylon, 3.4, 10, 3.4);
     }
 
-    // Heimdall Sword Altar in center
     const altar = new THREE.Mesh(new THREE.BoxGeometry(8, 2.8, 8), bridgeMat);
     altar.position.set(cx, 1.4, cz);
     this.addBoxCollider(altar, 8, 2.8, 8);
   }
 
   buildMjolnirForge() {
-    // West POI (-115, 35): Molten Dwarven Foundry
     const cx = -115, cz = 35;
     const ironMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.85, roughness: 0.35 });
     const lavaMat = new THREE.MeshBasicMaterial({ color: 0xf97316 });
 
-    // Lava Pool Ring
     const lavaPool = new THREE.Mesh(new THREE.CircleGeometry(22, 24), lavaMat);
     lavaPool.rotation.x = -Math.PI / 2;
     lavaPool.position.set(cx, 0.08, cz);
     this.scene.add(lavaPool);
 
-    // Giant Central Dwarven Anvil
     const anvilBase = new THREE.Mesh(new THREE.BoxGeometry(10, 4.5, 6), ironMat);
     anvilBase.position.set(cx, 2.25, cz);
     this.addBoxCollider(anvilBase, 10, 4.5, 6);
 
-    // 6 Foundry Furnace Towers
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
       const fx = cx + Math.cos(a) * 24;
@@ -222,22 +236,19 @@ class AsgardWorld {
   }
 
   buildYggdrasilSanctuary() {
-    // East POI (115, 30): Giant World Tree of Life
     const cx = 115, cz = 30;
     const barkMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.85 });
     const leafMat = new THREE.MeshStandardMaterial({
       color: 0x10b981,
       emissive: 0x059669,
-      emissiveIntensity: 0.35,
+      emissiveIntensity: 0.38,
       roughness: 0.4
     });
 
-    // Massive Tree Trunk
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(5.5, 8.5, 28, 12), barkMat);
     trunk.position.set(cx, 14, cz);
     this.addBoxCollider(trunk, 11, 28, 11, false);
 
-    // Glowing Canopy Spheres
     [
       [0, 29, 0, 18],
       [-11, 25, 8, 12],
@@ -250,7 +261,6 @@ class AsgardWorld {
       this.scene.add(canopy);
     });
 
-    // Sanctuary Stone Cover Arches around Yggdrasil
     const stoneMat = new THREE.MeshStandardMaterial({ color: 0xd1fae5, roughness: 0.5 });
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
@@ -263,7 +273,6 @@ class AsgardWorld {
   }
 
   buildHelheimCrypts() {
-    // North-West POI (-85, -105): Obsidian Pillars & Necro Crystals
     const cx = -85, cz = -105;
     const obsMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.8, roughness: 0.2 });
     const crystalMat = new THREE.MeshBasicMaterial({ color: 0x14b8a6 });
@@ -284,7 +293,6 @@ class AsgardWorld {
   }
 
   buildValkyrieSkyDocks() {
-    // North-East POI (90, -100): Elevated Aerial Launch Pads
     const cx = 90, cz = -100;
     const dockMat = new THREE.MeshStandardMaterial({ color: 0xfde047, metalness: 0.85, roughness: 0.2 });
     const darkMat = new THREE.MeshStandardMaterial({ color: 0x312e81, metalness: 0.7, roughness: 0.3 });
@@ -293,7 +301,6 @@ class AsgardWorld {
     mainDeck.position.set(cx, 1.5, cz);
     this.addBoxCollider(mainDeck, 22, 3.0, 22);
 
-    // 4 Corner Towers
     [[-14, -14], [14, -14], [-14, 14], [14, 14]].forEach(([ox, oz]) => {
       const tower = new THREE.Mesh(new THREE.BoxGeometry(4.5, 8, 4.5), dockMat);
       tower.position.set(cx + ox, 4, cz + oz);
@@ -302,7 +309,6 @@ class AsgardWorld {
   }
 
   buildTacticalRocksAndCover() {
-    // Scatter tactical cover blocks & golden shrines between POIs so there are no empty deadzones
     const rockMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7 });
     const goldTrim = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.8, roughness: 0.25 });
 
@@ -323,7 +329,6 @@ class AsgardWorld {
   }
 
   buildJumpPads() {
-    // 8 Bifrost Jump Pads (Launch players high across Asgard like Octane's Launch Pad!)
     const padCoords = [
       [0, 36], [0, -36], [-38, 0], [38, 0],
       [-90, 35], [88, 30], [-65, -80], [68, -78]
@@ -348,22 +353,165 @@ class AsgardWorld {
     });
   }
 
+  buildZiplinesAndJumpTower() {
+    // BATCH 3: 6 Golden Bifrost Ziplines connecting POIs + 1 Valhalla Jump Tower (Redeploy Balloon)
+    const pylonMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9, roughness: 0.2 });
+    const cableMat = new THREE.LineBasicMaterial({ color: 0xfde047, linewidth: 2 });
+
+    (window.GODWARS_DATA.ZIPLINES || []).forEach(z => {
+      const startVec = new THREE.Vector3(...z.start);
+      const endVec = new THREE.Vector3(...z.end);
+
+      // Build start & end zipline pylons
+      [startVec, endVec].forEach(pt => {
+        const pylon = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, pt.y, 10), pylonMat);
+        pylon.position.set(pt.x, pt.y / 2, pt.z);
+        const topOrb = new THREE.Mesh(new THREE.OctahedronGeometry(0.45, 0), new THREE.MeshBasicMaterial({ color: 0x38bdf8 }));
+        topOrb.position.set(pt.x, pt.y + 0.3, pt.z);
+        this.scene.add(pylon, topOrb);
+      });
+
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([startVec, endVec]);
+      const line = new THREE.Line(lineGeo, cableMat);
+      this.scene.add(line);
+
+      this.ziplines.push({
+        id: z.id,
+        name: z.name,
+        start: startVec,
+        end: endVec
+      });
+    });
+
+    // Central Valhalla Vertical Jump Tower (Redeploy Balloon) at (0, 0, -28)
+    const towerX = 0, towerZ = -28;
+    const basePole = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.6, 48, 12), pylonMat);
+    basePole.position.set(towerX, 24, towerZ);
+    const balloon = new THREE.Mesh(
+      new THREE.OctahedronGeometry(3.8, 1),
+      new THREE.MeshBasicMaterial({ color: 0xf43f5e })
+    );
+    balloon.position.set(towerX, 50, towerZ);
+    this.scene.add(basePole, balloon);
+    this.jumpTower = { x: towerX, z: towerZ, topY: 72, balloon };
+  }
+
+  buildArenaChampionBanners() {
+    // BATCH 6: Giant 3D Holographic Arena Champion / Kill Leader Banners hanging from Valhalla Citadel
+    const bannerPositions = [
+      { x: 0, y: 10.5, z: 24.5, ry: 0 },
+      { x: 0, y: 10.5, z: -24.5, ry: Math.PI },
+      { x: 24.5, y: 10.5, z: 0, ry: Math.PI / 2 },
+      { x: -24.5, y: 10.5, z: 0, ry: -Math.PI / 2 }
+    ];
+
+    bannerPositions.forEach(bp => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 512;
+      const tex = new THREE.CanvasTexture(canvas);
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.92
+      });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 11), mat);
+      mesh.position.set(bp.x, bp.y, bp.z);
+      mesh.rotation.y = bp.ry;
+      this.scene.add(mesh);
+      this.championBannerCanvases.push({ canvas, tex });
+    });
+
+    this.updateChampionBanners('ODIN_Allfather', 'THOR', 3);
+  }
+
+  updateChampionBanners(leaderName, heroName, kills) {
+    this.championBannerCanvases.forEach(({ canvas, tex }) => {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, 256, 512);
+
+      const grad = ctx.createLinearGradient(0, 0, 0, 512);
+      grad.addColorStop(0, 'rgba(15, 23, 42, 0.95)');
+      grad.addColorStop(0.5, 'rgba(30, 58, 138, 0.88)');
+      grad.addColorStop(1, 'rgba(15, 23, 42, 0.95)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(8, 8, 240, 496);
+
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 6;
+      ctx.strokeRect(8, 8, 240, 496);
+
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = 'bold 20px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('👑 KILL LEADER', 128, 56);
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = '900 34px sans-serif';
+      ctx.fillText(heroName.toUpperCase(), 128, 140);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 21px sans-serif';
+      ctx.fillText(leaderName.slice(0, 14), 128, 195);
+
+      ctx.fillStyle = '#f43f5e';
+      ctx.font = '900 68px sans-serif';
+      ctx.fillText(`${kills}`, 128, 315);
+
+      ctx.fillStyle = '#fde047';
+      ctx.font = 'bold 20px sans-serif';
+      ctx.fillText('ELIMINATIONS', 128, 355);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText('GOD WARS • ASGARD', 128, 455);
+
+      tex.needsUpdate = true;
+    });
+  }
+
+  spawnCarePackage(x, z) {
+    // BATCH 4: Odin Care Package Sky Drop
+    const podMesh = window.ModelFactory.createCarePackageModel();
+    podMesh.position.set(x, 125, z);
+    this.scene.add(podMesh);
+
+    const weaponKeys = Object.keys(window.GODWARS_DATA.WEAPONS);
+    const mythicWep = weaponKeys[Math.floor(Math.random() * weaponKeys.length)];
+
+    const pkg = {
+      id: 'carepkg_' + Date.now(),
+      x,
+      z,
+      y: 125,
+      targetY: this.getGroundHeight(x, z, 0),
+      landed: false,
+      opened: false,
+      isCarePackage: true,
+      mesh: podMesh,
+      loot: {
+        weaponId: mythicWep,
+        isMythicGold: true,
+        grenadeId: 'solar_bomb',
+        shieldTier: 5, // Level 5 Red Mythic Evo Shield (125 HP)!
+        shieldBattery: 3,
+        phoenixKit: 1
+      }
+    };
+    this.carePackages.push(pkg);
+    this.supplyBins.push(pkg);
+    return pkg;
+  }
+
   buildSupplyBins() {
-    // 28 Interactive Divine Supply Bins across all 6 POIs
     const binLocations = [
-      // Valhalla Citadel (6)
       [10, 10], [-10, 10], [10, -10], [-10, -10], [20, 0], [-20, 0],
-      // Bifrost Observatory (4)
       [10, 128], [-10, 128], [0, 148], [14, 140],
-      // Mjolnir Forge (4)
       [-102, 28], [-128, 28], [-115, 50], [-115, 18],
-      // Yggdrasil Sanctuary (4)
       [100, 24], [130, 24], [115, 45], [115, 14],
-      // Helheim Crypts (4)
       [-75, -98], [-95, -98], [-85, -118], [-85, -90],
-      // Valkyrie Sky Docks (4)
       [78, -95], [102, -95], [90, -114], [90, -84],
-      // Mid-map bins (2)
       [-48, 52], [48, 52]
     ];
 
@@ -379,22 +527,17 @@ class AsgardWorld {
 
       const box = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.1, 1.4), bodyMat);
       box.position.y = 0.55;
-      binGroup.add(box);
-
       const lid = new THREE.Mesh(new THREE.BoxGeometry(2.68, 0.35, 1.46), lidMat);
       lid.position.set(0, 1.2, 0);
-      binGroup.add(lid);
-
       const strip = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.14, 1.5), glowMat.clone());
       strip.position.set(0, 0.85, 0);
-      binGroup.add(strip);
+      binGroup.add(box, lid, strip);
 
       this.scene.add(binGroup);
 
-      // Assign loot inside this Supply Bin
       const weaponId = weaponKeys[i % weaponKeys.length];
       const grenadeId = grenadeKeys[i % grenadeKeys.length];
-      const shieldTier = (i % 4 === 0) ? 4 : (i % 3 === 0) ? 3 : 2; // Lv2 Blue, Lv3 Purple, Lv4 Gold Mythic
+      const shieldTier = (i % 5 === 0) ? 4 : (i % 3 === 0) ? 3 : 2;
 
       this.supplyBins.push({
         id: i,
@@ -416,7 +559,6 @@ class AsgardWorld {
   }
 
   buildStormRing() {
-    // 3D Translucent Glowing Ragnarok Storm Cylinder
     const ringGeo = new THREE.CylinderGeometry(1, 1, 140, 64, 1, true);
     const ringMat = new THREE.MeshBasicMaterial({
       color: 0xf43f5e,
@@ -431,16 +573,35 @@ class AsgardWorld {
     this.scene.add(this.ringMesh);
   }
 
-  updateRingVisual(centerX, centerZ, radius, time) {
+  updateRingVisual(centerX, centerZ, radius, time, dt = 0.016) {
     if (!this.ringMesh) return;
     this.ringMesh.position.x = centerX;
     this.ringMesh.position.z = centerZ;
     this.ringMesh.scale.set(Math.max(1, radius), 1, Math.max(1, radius));
     this.ringMesh.material.opacity = 0.2 + Math.sin(time * 3.5) * 0.05;
 
-    // Spin Bifrost Jump Pad rings
     this.jumpPads.forEach(p => {
       p.ring.position.y = 0.4 + Math.sin(time * 4) * 0.12;
+    });
+
+    if (this.jumpTower && this.jumpTower.balloon) {
+      this.jumpTower.balloon.position.y = 50 + Math.sin(time * 2.5) * 1.1;
+      this.jumpTower.balloon.rotation.y += dt * 0.8;
+    }
+
+    // Update falling Odin Care Packages
+    this.carePackages.forEach(pkg => {
+      if (!pkg.landed) {
+        pkg.y -= 28 * dt;
+        if (pkg.y <= pkg.targetY) {
+          pkg.y = pkg.targetY;
+          pkg.landed = true;
+          window.SFX.playExplosion(false);
+        }
+        pkg.mesh.position.y = pkg.y;
+      } else if (pkg.opened && pkg.mesh.userData.beam) {
+        pkg.mesh.userData.beam.visible = false;
+      }
     });
   }
 
@@ -460,7 +621,6 @@ class AsgardWorld {
     let nx = x;
     let nz = z;
     for (const c of this.colliders) {
-      // If player is standing on top of this collider, don't block horizontally
       if (y >= c.maxY - 0.45) continue;
 
       const closestX = Math.max(c.minX, Math.min(nx, c.maxX));
@@ -477,7 +637,6 @@ class AsgardWorld {
       }
     }
 
-    // Clamp inside Asgard Island edge
     const distFromCenter = Math.hypot(nx, nz);
     const maxR = this.islandRadius - 2.5;
     if (distFromCenter > maxR) {

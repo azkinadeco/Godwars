@@ -1,7 +1,16 @@
 /**
- * GOD WARS: ASGARD ROYALE
- * Main Engine, First-Person Controller, Mobile Multi-Touch + Desktop Input,
- * Lobby 3D Showcase, Minimap Renderer, and 16-Player Battle Royale Match Loop.
+ * GOD WARS: ASGARD ROYALE (APEX LEGENDS EDITION - 10-BATCH FULL UPGRADE)
+ * Main Engine:
+ * - Batch 1: Segmented 25-HP Evo Shield Cells, DMG-to-Evo counter, 360° Top Compass Ribbon
+ * - Batch 2: Apex Ping System [F / Middle-Click / Mobile Ping] with 3D-to-2D diamond markers & distance
+ * - Batch 3: 6 Bifrost Ziplines & Valhalla Jump Tower riding physics
+ * - Batch 4: Odin Care Package Sky Drops (Lv5 Red Mythic Evo + Gold Weapons)
+ * - Batch 5: First-Person Weapon Inspect [N], Tactical Sprint Pose, 3D Shell Casings
+ * - Batch 6: Pre-Match "CHAMPION SQUAD" Intro Broadcast & Live 3D Arena Kill Leader Banners
+ * - Batch 7: Knockdown Shields, Gold Evo Self-Revive & Mythic Finisher Executions (Refills 100% Shield!)
+ * - Batch 8: Heirloom Quick Melee [V] & 4-Tier Apex Healing System (Cell, Battery, Medkit, Phoenix Kit)
+ * - Batch 9: Firing Range Practice Mode + Projected Enemy Overhead Health/Shield Bars + Kill Leader Announcer
+ * - Batch 10: High-Speed Wind Lines, Post-Death Live Spectator Camera, & Persistent Career Rank Stats
  */
 
 class GodWarsGame {
@@ -9,25 +18,34 @@ class GodWarsGame {
     this.selectedHeroId = 'thor';
     this.selectedLoadout = ['m4a1', 'p90'];
     this.selectedGrenadeId = 'solar_bomb';
-    this.qualityPreset = 'balanced'; // 'mobile', 'balanced', 'ultra'
+    this.selectedHealId = 'shield_battery';
+    this.qualityPreset = 'balanced';
     this.fov = 90;
     this.lookSensitivity = 1.0;
     this.mobileAutoFire = false;
     this.forceMobileUI = this.detectMobile();
 
     this.matchActive = false;
+    this.isFiringRange = false;
     this.matchTime = 0;
+    this.carePackageTimer = 28;
     this.bots = [];
+    this.killLeader = null;
+    this.activePing = null;
+    this.lastHitTarget = null;
+    this.lastHitTime = 0;
+    this.spectateIndex = 0;
+    this.isSpectating = false;
 
     this.keys = {};
     this.mouseDown = false;
     this.rightMouseDown = false;
 
-    // Mobile Touch State
     this.touchMove = { active: false, id: null, startX: 0, startY: 0, dx: 0, dy: 0 };
     this.touchLook = { active: false, id: null, lastX: 0, lastY: 0 };
     this.touchFiring = false;
 
+    this.loadCareerStats();
     this.initLobbyUI();
     this.initLobby3DPreview();
     this.initGameRenderer();
@@ -43,6 +61,48 @@ class GodWarsGame {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
       (navigator.maxTouchPoints && navigator.maxTouchPoints > 1) ||
       window.innerWidth <= 960;
+  }
+
+  // =========================================================================
+  // BATCH 10: PERSISTENT CAREER STATS & ASGARD PREDATOR RANK
+  // =========================================================================
+  loadCareerStats() {
+    try {
+      const raw = localStorage.getItem('godwars_career_v2');
+      this.career = raw ? JSON.parse(raw) : { matches: 0, wins: 0, kills: 0, maxDmg: 0, rp: 120 };
+    } catch (e) {
+      this.career = { matches: 0, wins: 0, kills: 0, maxDmg: 0, rp: 120 };
+    }
+    this.updateCareerLobbyUI();
+  }
+
+  saveCareerStats(isWin, kills, dmg) {
+    if (this.isFiringRange) return;
+    this.career.matches++;
+    if (isWin) this.career.wins++;
+    this.career.kills += kills;
+    if (dmg > this.career.maxDmg) this.career.maxDmg = Math.round(dmg);
+    this.career.rp += (isWin ? 125 : 15) + kills * 22 + Math.floor(dmg / 50);
+    try {
+      localStorage.setItem('godwars_career_v2', JSON.stringify(this.career));
+    } catch (e) {}
+    this.updateCareerLobbyUI();
+  }
+
+  getRankInfo(rp) {
+    if (rp >= 1500) return { name: 'ASGARD PREDATOR', icon: '👑', color: '#f43f5e' };
+    if (rp >= 950)  return { name: 'VALHALLA MASTER', icon: '💎', color: '#a855f7' };
+    if (rp >= 550)  return { name: 'BIFROST DIAMOND', icon: '💠', color: '#38bdf8' };
+    if (rp >= 280)  return { name: 'OLYMPIAN GOLD',   icon: '🏆', color: '#fbbf24' };
+    return { name: 'EINHERJAR SILVER', icon: '⚔️', color: '#94a3b8' };
+  }
+
+  updateCareerLobbyUI() {
+    const rank = this.getRankInfo(this.career.rp);
+    const elRank = document.getElementById('career-rank-badge');
+    if (elRank) {
+      elRank.innerHTML = `${rank.icon} <span style="color:${rank.color}">${rank.name}</span> (${this.career.rp} RP) • 🏆 ${this.career.wins} WINS • ☠️ ${this.career.kills} KILLS`;
+    }
   }
 
   // =========================================================================
@@ -69,7 +129,6 @@ class GodWarsGame {
       });
     }
 
-    // Populate Armory Weapon Selector Cards
     const weaponGridEl = document.getElementById('armory-weapon-grid');
     if (weaponGridEl) {
       weaponGridEl.innerHTML = '';
@@ -79,10 +138,11 @@ class GodWarsGame {
         item.dataset.wid = w.id;
         item.style.setProperty('--wep-color', w.color);
         item.innerHTML = `
-          <div class="armory-base-tag">BASE: ${w.baseName}</div>
+          <div class="armory-base-tag">BASE: ${w.baseName} • ${w.ammoType}</div>
           <div class="armory-divine-name">${w.divineName}</div>
           <div class="armory-stats">
             <span>DMG <b>${w.damage}</b></span>
+            <span>HEAD <b>${Math.round(w.damage * w.headshotMult)}</b></span>
             <span>RPM <b>${w.rpm}</b></span>
             <span>MAG <b>${w.magSize}</b></span>
           </div>
@@ -117,7 +177,6 @@ class GodWarsGame {
       });
     }
 
-    // Populate Divine Bombs preview in Armory
     const bombGridEl = document.getElementById('armory-bomb-grid');
     if (bombGridEl) {
       bombGridEl.innerHTML = '';
@@ -137,7 +196,6 @@ class GodWarsGame {
       });
     }
 
-    // Lobby Tab Navigation
     document.querySelectorAll('.lobby-tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.lobby-tab-btn').forEach(b => b.classList.remove('active'));
@@ -151,27 +209,33 @@ class GodWarsGame {
       });
     });
 
-    // Start Match Button
     const startBtn = document.getElementById('btn-start-match');
     if (startBtn) {
       startBtn.addEventListener('click', () => {
         window.SFX.init();
         window.SFX.playAbility('ultimate');
-        this.startBattleRoyaleMatch(false);
+        this.startBattleRoyaleMatch(false, false);
       });
     }
 
-    // Instant Action Drop Button
     const quickDropBtn = document.getElementById('btn-instant-drop');
     if (quickDropBtn) {
       quickDropBtn.addEventListener('click', () => {
         window.SFX.init();
         window.SFX.playAbility('tactical');
-        this.startBattleRoyaleMatch(true);
+        this.startBattleRoyaleMatch(true, false);
       });
     }
 
-    // Settings Controls
+    const firingRangeBtn = document.getElementById('btn-firing-range');
+    if (firingRangeBtn) {
+      firingRangeBtn.addEventListener('click', () => {
+        window.SFX.init();
+        window.SFX.playEvoUpgrade();
+        this.startBattleRoyaleMatch(true, true);
+      });
+    }
+
     const touchToggle = document.getElementById('toggle-mobile-hud');
     if (touchToggle) {
       touchToggle.checked = this.forceMobileUI;
@@ -210,6 +274,7 @@ class GodWarsGame {
     }
 
     this.selectHero(this.selectedHeroId);
+    this.updateCareerLobbyUI();
   }
 
   selectHero(heroId) {
@@ -231,11 +296,11 @@ class GodWarsGame {
     setTxt('info-hero-name', h.name);
     setTxt('info-hero-title', `${h.title} • ${h.role}`);
     setTxt('info-hero-lore', h.lore);
-    setTxt('info-passive-name', h.passiveName);
+    setTxt('info-passive-name', `${h.passiveName} • Melee: ${h.meleeName}`);
     setTxt('info-passive-desc', h.passiveDesc);
     setTxt('info-tactical-name', `${h.tacticalName} (${h.tacticalCooldown}s CD)`);
     setTxt('info-tactical-desc', h.tacticalDesc);
-    setTxt('info-ult-name', h.ultimateName);
+    setTxt('info-ult-name', `${h.ultimateName} • Finisher: ${h.finisherName}`);
     setTxt('info-ult-desc', h.ultimateDesc);
 
     const badge = document.getElementById('info-hero-pantheon');
@@ -275,12 +340,11 @@ class GodWarsGame {
     this.previewRenderer.setSize(canvas.clientWidth || 480, canvas.clientHeight || 480);
     this.previewRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
-    const ambient = new THREE.HemisphereLight(0xfef08a, 0x1e293b, 1.1);
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.3);
+    const ambient = new THREE.HemisphereLight(0xfef08a, 0x1e293b, 1.15);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.35);
     keyLight.position.set(4, 6, 5);
     this.previewScene.add(ambient, keyLight);
 
-    // Golden Asgard Pedestal
     const pedGeo = new THREE.CylinderGeometry(1.15, 1.35, 0.18, 32);
     const pedMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9, roughness: 0.2 });
     this.pedestal = new THREE.Mesh(pedGeo, pedMat);
@@ -308,22 +372,18 @@ class GodWarsGame {
     while (this.previewRoot.children.length > 0) {
       this.previewRoot.remove(this.previewRoot.children[0]);
     }
-    const wep = window.ModelFactory.createWeaponModel(weaponId, this.selectedHeroId, false);
+    const wep = window.ModelFactory.createWeaponModel(weaponId, this.selectedHeroId, false, true);
     wep.scale.set(3.4, 3.4, 3.4);
     wep.position.set(0, 1.15, 0);
     this.previewRoot.add(wep);
   }
 
-  // =========================================================================
-  // MAIN 3D BATTLE ROYALE RENDERER & FIRST-PERSON VIEWMODEL
-  // =========================================================================
   initGameRenderer() {
     const canvas = document.getElementById('game-canvas');
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(this.fov, window.innerWidth / window.innerHeight, 0.08, 650);
     this.camera.rotation.order = 'YXZ';
 
-    // First-person weapon viewmodel container attached to camera
     this.viewmodelHolder = new THREE.Group();
     this.camera.add(this.viewmodelHolder);
     this.scene.add(this.camera);
@@ -361,10 +421,16 @@ class GodWarsGame {
   }
 
   // =========================================================================
-  // START 16-PLAYER ASGARD BATTLE ROYALE MATCH
+  // START 16-PLAYER ASGARD BATTLE ROYALE OR FIRING RANGE
   // =========================================================================
-  startBattleRoyaleMatch(instantGroundDrop = false) {
-    // Rebuild clean scene
+  startBattleRoyaleMatch(instantGroundDrop = false, isFiringRange = false) {
+    this.isFiringRange = isFiringRange;
+    this.isSpectating = false;
+    this.killLeader = null;
+    this.activePing = null;
+    this.lastHitTarget = null;
+    this.carePackageTimer = window.GODWARS_DATA.MATCH_CONFIG.carePackageInterval;
+
     while (this.scene.children.length > 0) {
       this.scene.remove(this.scene.children[0]);
     }
@@ -375,23 +441,33 @@ class GodWarsGame {
     this.combat = new window.CombatManager(this);
 
     const hData = window.GODWARS_DATA.HEROES[this.selectedHeroId];
+    const startTier = isFiringRange ? 4 : 2;
+    const tierInfo = window.GODWARS_DATA.EVO_TIERS[startTier];
 
-    // Initialize Player State
     this.player = {
       isPlayer: true,
       name: `YOU (${hData.name})`,
       heroId: this.selectedHeroId,
       alive: true,
-      inDropship: !instantGroundDrop,
+      knocked: false,
+      usedSelfRevive: false,
+      inDropship: !instantGroundDrop && !isFiringRange,
       skydiving: false,
+      ziplining: false,
+      activeZipline: null,
+      ziplineT: 0,
+      ziplineDir: 1,
+      finisherTimer: 0,
+      inspectTimer: 0,
+      meleeTimer: 0,
       maxHp: hData.maxHp,
       hp: hData.maxHp,
-      shieldTier: 2, // Start with Level 2 Blue Evo Shield (75) like Apex Evo spawn!
-      maxShield: 75,
-      shield: 75,
+      shieldTier: startTier,
+      maxShield: tierInfo.maxShield,
+      shield: tierInfo.maxShield,
       kills: 0,
-      damageDealt: 0,
-      position: new THREE.Vector3(0, instantGroundDrop ? 3.5 : 115, instantGroundDrop ? 25 : -175),
+      damageDealt: isFiringRange ? 500 : 0,
+      position: new THREE.Vector3(0, instantGroundDrop || isFiringRange ? 3.5 : 118, instantGroundDrop || isFiringRange ? 26 : -175),
       velocity: new THREE.Vector3(),
       yaw: 0,
       pitch: 0,
@@ -404,18 +480,22 @@ class GodWarsGame {
       jetpackFuel: 100,
       thunderCharge: 0,
       tacticalCooldown: 0,
-      ultCharge: 35,
+      ultCharge: isFiringRange ? 100 : 35,
       ultBuffTimer: 0,
       cloakTimer: 0,
       slowTimer: 0,
       flashBlindTimer: 0,
       ampedWallBonus: false,
-      shieldBatteries: 3,
-      medkits: 2,
+      heals: {
+        shield_cell: 6,
+        shield_battery: 3,
+        medkit: 2,
+        phoenix_kit: 1
+      },
       healTimer: 0,
       healingType: null,
       grenadeCounts: {
-        solar_bomb: 2,
+        solar_bomb: 3,
         apollo_flash: 2,
         yggdrasil_arc: 2
       },
@@ -427,6 +507,7 @@ class GodWarsGame {
           data: w,
           mag: w.magSize,
           reserve: w.reserveAmmo,
+          isMythicGold: isFiringRange,
           reloading: false,
           reloadTimer: 0
         };
@@ -434,36 +515,48 @@ class GodWarsGame {
       fireCooldown: 0
     };
 
-    // Build Bifrost Golden Dragon Dropship
     this.dropship = window.ModelFactory.createDropshipModel();
     this.dropship.position.set(-140, window.GODWARS_DATA.MATCH_CONFIG.dropshipHeight, -155);
     this.dropshipDir = new THREE.Vector3(140, 0, 155).normalize();
     this.dropship.rotation.y = Math.atan2(this.dropshipDir.x, this.dropshipDir.z);
     this.scene.add(this.dropship);
 
-    // Spawn 15 AI Mythological Contenders (Total = 16 Players in Battle Royale)
     this.bots = [];
     const heroKeys = Object.keys(window.GODWARS_DATA.HEROES);
     const weaponKeys = Object.keys(window.GODWARS_DATA.WEAPONS);
     const botNames = window.GODWARS_DATA.BOT_NAMES;
 
-    for (let i = 0; i < 15; i++) {
-      const bHero = heroKeys[i % heroKeys.length];
-      const bWep = weaponKeys[i % weaponKeys.length];
-      const bot = new window.AIContender(i, botNames[i], bHero, bWep, this);
-      if (instantGroundDrop) {
-        bot.inDropship = false;
-        bot.skydiving = false;
-        bot.position.set(bot.dropTarget.x, this.world.getGroundHeight(bot.dropTarget.x, bot.dropTarget.z, 0), bot.dropTarget.z);
-        bot.mesh.position.copy(bot.position);
-        bot.mesh.visible = true;
+    if (isFiringRange) {
+      // Spawn 6 Firing Range Combat Dummies around Valhalla Plaza
+      const dummyCoords = [[-10, 8], [0, 8], [10, 8], [-14, -6], [0, -8], [14, -6]];
+      dummyCoords.forEach(([dx, dz], i) => {
+        const bHero = heroKeys[i % heroKeys.length];
+        const bWep = weaponKeys[i % weaponKeys.length];
+        const dummy = new window.AIContender(i, `DUMMY_${bHero.toUpperCase()}`, bHero, bWep, this, true);
+        dummy.dropTarget.set(dx, 0, dz);
+        dummy.position.set(dx, this.world.getGroundHeight(dx, dz, 0), dz);
+        dummy.mesh.position.copy(dummy.position);
+        dummy.mesh.visible = true;
+        this.bots.push(dummy);
+      });
+    } else {
+      for (let i = 0; i < 15; i++) {
+        const bHero = heroKeys[i % heroKeys.length];
+        const bWep = weaponKeys[i % weaponKeys.length];
+        const bot = new window.AIContender(i, botNames[i], bHero, bWep, this, false);
+        if (instantGroundDrop) {
+          bot.inDropship = false;
+          bot.skydiving = false;
+          bot.position.set(bot.dropTarget.x, this.world.getGroundHeight(bot.dropTarget.x, bot.dropTarget.z, 0), bot.dropTarget.z);
+          bot.mesh.position.copy(bot.position);
+          bot.mesh.visible = true;
+        }
+        this.bots.push(bot);
       }
-      this.bots.push(bot);
     }
 
-    // Initialize Ragnarok Shrinking Storm Ring State
     this.ringPhaseIndex = 0;
-    this.ringState = 'waiting'; // 'waiting' | 'shrinking'
+    this.ringState = 'waiting';
     this.ringTimer = window.GODWARS_DATA.MATCH_CONFIG.ringPhases[0].waitTime;
     this.ringRadius = window.GODWARS_DATA.MATCH_CONFIG.islandRadius;
     this.ringStartRadius = this.ringRadius;
@@ -471,13 +564,12 @@ class GodWarsGame {
     this.ringCenter = { x: (Math.random() - 0.5) * 35, z: (Math.random() - 0.5) * 35 };
     this.ringDamagePerSec = window.GODWARS_DATA.MATCH_CONFIG.ringPhases[0].damagePerSec;
 
-    // Equip Initial First-Person Divine Weapon Viewmodel
     this.equipViewmodelWeapon();
 
-    // Switch Screens from Lobby to HUD
     document.getElementById('lobby-screen').classList.add('hidden');
     document.getElementById('hud-screen').classList.remove('hidden');
     document.getElementById('match-end-modal').classList.add('hidden');
+    document.getElementById('spectate-bar').classList.add('hidden');
     document.getElementById('kill-feed').innerHTML = '';
 
     this.syncMobileHUDVisibility();
@@ -489,11 +581,32 @@ class GodWarsGame {
       if (canvas.requestPointerLock) canvas.requestPointerLock();
     }
 
-    if (this.player.inDropship) {
-      this.showBanner('BIFROST DROPSHIP: PRESS [SPACE / E] OR TAP LAUNCH TO SKYDIVE', '#38bdf8');
+    // BATCH 6: Trigger Apex Legends Pre-Match "CHAMPION OF ASGARD" Intro Broadcast!
+    if (!isFiringRange && !instantGroundDrop) {
+      this.triggerChampionIntroOverlay();
+    } else if (isFiringRange) {
+      this.showBanner('FIRING RANGE ACTIVE • INFINITE DUMMY RESPAWN & FULL ZIPLINE / SKILL TESTING', '#10b981');
+      window.SFX.announce('Welcome to the Asgard Firing Range.');
     } else {
       this.showBanner('WELCOME TO ASGARD ROYALE • 16 CONTENDERS ALIVE', '#fbbf24');
+      window.SFX.announce('Attention. Sixteen contenders in Asgard.');
     }
+  }
+
+  triggerChampionIntroOverlay() {
+    const overlay = document.getElementById('champion-intro-overlay');
+    if (!overlay) return;
+    const hData = window.GODWARS_DATA.HEROES[this.selectedHeroId];
+    const champNameEl = document.getElementById('intro-champ-name');
+    const champSubEl = document.getElementById('intro-champ-sub');
+    if (champNameEl) champNameEl.textContent = `ODIN_Allfather • ${hData.name}`;
+    if (champSubEl) champSubEl.textContent = `REIGNING ASGARD CHAMPION • 11 ELIMINATIONS • 2,480 DMG`;
+
+    overlay.classList.remove('hidden');
+    window.SFX.announce('This is your Champion. Prepare for Bifrost launch.');
+    setTimeout(() => {
+      overlay.classList.add('hidden');
+    }, 3200);
   }
 
   equipViewmodelWeapon() {
@@ -502,7 +615,12 @@ class GodWarsGame {
     }
     const currentWep = this.player.weapons[this.player.activeSlot];
     this.player.weaponId = currentWep.id;
-    this.activeViewmodel = window.ModelFactory.createWeaponModel(currentWep.id, this.player.heroId, true);
+    this.activeViewmodel = window.ModelFactory.createWeaponModel(
+      currentWep.id,
+      this.player.heroId,
+      true,
+      currentWep.isMythicGold
+    );
     this.activeViewmodel.position.set(0.24, -0.22, -0.45);
     this.viewmodelHolder.add(this.activeViewmodel);
   }
@@ -520,7 +638,6 @@ class GodWarsGame {
   initInputHandlers() {
     const canvas = document.getElementById('game-canvas');
 
-    // Desktop PointerLock & Mouse Look
     canvas.addEventListener('click', () => {
       window.SFX.init();
       if (this.matchActive && !this.forceMobileUI && document.pointerLockElement !== canvas) {
@@ -529,8 +646,8 @@ class GodWarsGame {
     });
 
     window.addEventListener('mousemove', (e) => {
-      if (!this.matchActive || document.pointerLockElement !== canvas) return;
-      const sens = 0.0021 * this.lookSensitivity * (this.player && this.player.isADS ? 0.58 : 1.0);
+      if (!this.matchActive || document.pointerLockElement !== canvas || !this.player) return;
+      const sens = 0.0021 * this.lookSensitivity * (this.player.isADS ? 0.58 : 1.0);
       this.player.yaw -= e.movementX * sens;
       this.player.pitch = Math.max(-1.42, Math.min(1.42, this.player.pitch - e.movementY * sens));
     });
@@ -539,7 +656,10 @@ class GodWarsGame {
       if (!this.matchActive || this.forceMobileUI) return;
       if (e.button === 0) {
         this.mouseDown = true;
-        if (this.player.inDropship) this.launchFromDropship();
+        if (this.player && this.player.inDropship) this.launchFromDropship();
+      } else if (e.button === 1) {
+        e.preventDefault();
+        this.triggerApexPing();
       } else if (e.button === 2) {
         this.rightMouseDown = true;
         if (this.player) this.player.isADS = true;
@@ -556,13 +676,11 @@ class GodWarsGame {
 
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-    // Mouse Wheel Weapon Swap
     window.addEventListener('wheel', () => {
       if (!this.matchActive || !this.player || !this.player.alive) return;
       this.swapWeapon();
     });
 
-    // Keyboard Controls
     window.addEventListener('keydown', (e) => {
       const code = e.code;
       this.keys[code] = true;
@@ -570,10 +688,17 @@ class GodWarsGame {
 
       if (code === 'Space') {
         if (this.player.inDropship) this.launchFromDropship();
+        else if (this.player.ziplining) this.detachFromZipline(true);
         else this.triggerJump();
       } else if (code === 'KeyE') {
         if (this.player.inDropship) this.launchFromDropship();
-        else this.interactWithLootBin();
+        else this.handleContextInteract();
+      } else if (code === 'KeyF') {
+        this.triggerApexPing();
+      } else if (code === 'KeyV') {
+        this.triggerQuickMelee();
+      } else if (code === 'KeyN') {
+        this.triggerWeaponInspect();
       } else if (code === 'KeyC' || code === 'ControlLeft') {
         this.triggerSlideOrCrouch();
       } else if (code === 'KeyR') {
@@ -590,8 +715,10 @@ class GodWarsGame {
         this.throwEquippedGrenade();
       } else if (code === 'KeyX') {
         this.cycleGrenadeType();
-      } else if (code === 'KeyH' || code === 'Digit4') {
+      } else if (code === 'KeyH') {
         this.startHealing();
+      } else if (code === 'Digit4') {
+        this.cycleHealType();
       } else if (code === 'KeyM' || code === 'Tab') {
         e.preventDefault();
         this.toggleFullMap();
@@ -611,7 +738,6 @@ class GodWarsGame {
     const joyKnob = document.getElementById('joystick-knob');
     const lookZone = document.getElementById('touch-look-zone');
 
-    // Left Virtual Joystick (Movement + Auto-Sprint)
     if (joyZone) {
       joyZone.addEventListener('touchstart', (e) => {
         e.preventDefault();
@@ -648,7 +774,6 @@ class GodWarsGame {
       joyZone.addEventListener('touchcancel', endJoy);
     }
 
-    // Right Touchpad (360 Camera Aiming)
     if (lookZone) {
       lookZone.addEventListener('touchstart', (e) => {
         e.preventDefault();
@@ -688,7 +813,6 @@ class GodWarsGame {
       lookZone.addEventListener('touchcancel', endLook);
     }
 
-    // Mobile Action Buttons
     const bindHoldBtn = (id, onDown, onUp) => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -698,7 +822,6 @@ class GodWarsGame {
       el.addEventListener('mouseup', (e) => { e.preventDefault(); if (onUp) onUp(); });
     };
 
-    // Dual Fire Buttons (Right Thumb + Left Index Claw Fire) with Drag-Aim support!
     ['btn-touch-fire', 'btn-touch-fire-left'].forEach(btnId => {
       const fireEl = document.getElementById(btnId);
       if (!fireEl) return;
@@ -749,6 +872,7 @@ class GodWarsGame {
       if (!this.player) return;
       this.keys['Space'] = true;
       if (this.player.inDropship) this.launchFromDropship();
+      else if (this.player.ziplining) this.detachFromZipline(true);
       else this.triggerJump();
     }, () => {
       this.keys['Space'] = false;
@@ -759,12 +883,13 @@ class GodWarsGame {
     bindHoldBtn('btn-touch-tactical', () => this.useTacticalAbility());
     bindHoldBtn('btn-touch-ult', () => this.useUltimateAbility());
     bindHoldBtn('btn-touch-grenade', () => this.throwEquippedGrenade());
-    bindHoldBtn('btn-touch-cycle-bomb', () => this.cycleGrenadeType());
     bindHoldBtn('btn-touch-heal', () => this.startHealing());
-    bindHoldBtn('btn-touch-loot', () => this.interactWithLootBin());
+    bindHoldBtn('btn-touch-ping', () => this.triggerApexPing());
+    bindHoldBtn('btn-touch-melee', () => this.triggerQuickMelee());
+    bindHoldBtn('btn-touch-inspect', () => this.triggerWeaponInspect());
+    bindHoldBtn('btn-touch-loot', () => this.handleContextInteract());
     bindHoldBtn('btn-dropship-launch', () => this.launchFromDropship());
 
-    // Weapon Slot Cards Tap to Swap
     const wSlot1 = document.getElementById('hud-weapon-slot-0');
     const wSlot2 = document.getElementById('hud-weapon-slot-1');
     if (wSlot1) wSlot1.addEventListener('click', () => this.selectWeaponSlot(0));
@@ -772,27 +897,31 @@ class GodWarsGame {
     if (wSlot1) wSlot1.addEventListener('touchstart', (e) => { e.preventDefault(); this.selectWeaponSlot(0); });
     if (wSlot2) wSlot2.addEventListener('touchstart', (e) => { e.preventDefault(); this.selectWeaponSlot(1); });
 
-    // Ability HUD Cards Tap Support
     const hudTac = document.getElementById('hud-tactical-box');
     const hudUlt = document.getElementById('hud-ult-box');
     const hudHeal = document.getElementById('hud-heal-box');
     const hudBomb = document.getElementById('hud-bomb-box');
     if (hudTac) hudTac.addEventListener('click', () => this.useTacticalAbility());
     if (hudUlt) hudUlt.addEventListener('click', () => this.useUltimateAbility());
-    if (hudHeal) hudHeal.addEventListener('click', () => this.startHealing());
-    if (hudBomb) hudBomb.addEventListener('click', () => this.throwEquippedGrenade());
+    if (hudHeal) hudHeal.addEventListener('click', () => this.cycleHealType());
+    if (hudBomb) hudBomb.addEventListener('click', () => this.cycleGrenadeType());
 
-    // Minimap Tap to Toggle Full Asgard Map
     const minimapWrap = document.getElementById('minimap-container');
     if (minimapWrap) {
       minimapWrap.addEventListener('click', () => this.toggleFullMap());
     }
 
-    // Return to Lobby / Play Again Buttons
     const btnReplay = document.getElementById('btn-play-again');
     const btnLobby = document.getElementById('btn-back-lobby');
-    if (btnReplay) btnReplay.addEventListener('click', () => this.startBattleRoyaleMatch(false));
+    const btnSpec = document.getElementById('btn-spectate-match');
+    const btnSpecNext = document.getElementById('btn-spectate-next');
+    const btnSpecExit = document.getElementById('btn-spectate-exit');
+
+    if (btnReplay) btnReplay.addEventListener('click', () => this.startBattleRoyaleMatch(false, this.isFiringRange));
     if (btnLobby) btnLobby.addEventListener('click', () => this.returnToLobby());
+    if (btnSpec) btnSpec.addEventListener('click', () => this.enterSpectatorMode());
+    if (btnSpecNext) btnSpecNext.addEventListener('click', () => { this.spectateIndex++; });
+    if (btnSpecExit) btnSpecExit.addEventListener('click', () => this.returnToLobby());
   }
 
   updateJoystick(clientX, clientY, knobEl) {
@@ -812,7 +941,206 @@ class GodWarsGame {
   }
 
   // =========================================================================
-  // PLAYER ACTIONS (JUMP, SLIDE, DROPSHIP, SHOOT, ABILITIES, LOOT, HEAL)
+  // BATCH 2: APEX LEGENDS PING SYSTEM [F / MIDDLE-CLICK / MOBILE PING]
+  // =========================================================================
+  triggerApexPing() {
+    if (!this.player || !this.player.alive) return;
+    const origin = this.camera.position.clone();
+    const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion).normalize();
+    const ray = new THREE.Ray(origin, dir);
+
+    let bestDist = 240;
+    let pingPos = origin.clone().addScaledVector(dir, 60);
+    let pingType = 'location';
+    let pingLabel = 'LET’S GO THIS WAY';
+    let pingColor = '#f97316';
+
+    // Check ground intersection
+    if (dir.y < -0.01) {
+      const t = -origin.y / dir.y;
+      if (t > 0 && t < bestDist) {
+        bestDist = t;
+        pingPos = origin.clone().addScaledVector(dir, t);
+      }
+    }
+
+    // Check map colliders
+    for (const c of this.world.colliders) {
+      const pt = new THREE.Vector3();
+      if (ray.intersectBox(new THREE.Box3(new THREE.Vector3(c.minX, c.minY, c.minZ), new THREE.Vector3(c.maxX, c.maxY, c.maxZ)), pt)) {
+        const d = origin.distanceTo(pt);
+        if (d < bestDist) {
+          bestDist = d;
+          pingPos.copy(pt);
+        }
+      }
+    }
+
+    // Check Supply Bins / Care Packages
+    for (const bin of this.world.supplyBins) {
+      const bPos = new THREE.Vector3(bin.x, 0.8, bin.z);
+      const pt = new THREE.Vector3();
+      if (ray.intersectSphere(new THREE.Sphere(bPos, 2.2), pt)) {
+        const d = origin.distanceTo(pt);
+        if (d < bestDist + 2) {
+          bestDist = d;
+          pingPos.copy(bPos);
+          pingType = 'loot';
+          const wName = window.GODWARS_DATA.WEAPONS[bin.loot.weaponId].divineName;
+          pingLabel = bin.isCarePackage ? `MYTHIC CARE PACKAGE HERE!` : `SUPPLY BIN: ${wName}`;
+          pingColor = '#fbbf24';
+        }
+      }
+    }
+
+    // Check Enemy Contenders
+    for (const bot of this.bots) {
+      if (!bot.alive || bot.inDropship) continue;
+      const bMin = new THREE.Vector3(bot.position.x - 0.8, bot.position.y, bot.position.z - 0.8);
+      const bMax = new THREE.Vector3(bot.position.x + 0.8, bot.position.y + 2.3, bot.position.z + 0.8);
+      const pt = new THREE.Vector3();
+      if (ray.intersectBox(new THREE.Box3(bMin, bMax), pt)) {
+        const d = origin.distanceTo(pt);
+        if (d < bestDist + 3) {
+          bestDist = d;
+          pingPos.copy(bot.position).add(new THREE.Vector3(0, 1.4, 0));
+          pingType = 'enemy';
+          pingLabel = `HOSTILE SPOTTED: ${bot.name} (${bot.heroId.toUpperCase()})`;
+          pingColor = '#f43f5e';
+        }
+      }
+    }
+
+    window.SFX.playPing(pingType);
+    this.activePing = {
+      position: pingPos,
+      type: pingType,
+      label: pingLabel,
+      color: pingColor,
+      ttl: 7.5
+    };
+  }
+
+  // =========================================================================
+  // BATCH 3, 7, 8: CONTEXT INTERACT [E] (FINISHER / SELF-REVIVE / ZIPLINE / JUMP TOWER / LOOT BIN)
+  // =========================================================================
+  handleContextInteract() {
+    const p = this.player;
+    if (!p || !p.alive) return;
+
+    // 1. Self-Revive if Player is Knocked Down with Gold/Red Evo Shield!
+    if (p.knocked) {
+      p.knocked = false;
+      p.hp = 50;
+      p.shield = Math.min(p.maxShield, 50);
+      window.SFX.playEvoUpgrade();
+      this.showBanner('ALLFATHER RESURRECTION COMPLETE!', '#fbbf24');
+      return;
+    }
+
+    // 2. Detach if currently riding Zipline
+    if (p.ziplining) {
+      this.detachFromZipline(true);
+      return;
+    }
+
+    // 3. Execute Mythic Finisher on nearby Knocked Down enemy!
+    if (this.nearestKnockedBot) {
+      this.executeMythicFinisher(this.nearestKnockedBot);
+      return;
+    }
+
+    // 4. Ride Valhalla Jump Tower (Redeploy Balloon)
+    if (this.nearJumpTower) {
+      window.SFX.playJumpPad();
+      p.position.set(this.world.jumpTower.x, this.world.jumpTower.topY, this.world.jumpTower.z);
+      p.skydiving = true;
+      this.showBanner('VALHALLA JUMP TOWER: AERIAL SKYDIVE REDEPLOY!', '#f43f5e');
+      return;
+    }
+
+    // 5. Ride Bifrost Zipline
+    if (this.nearestZipline) {
+      this.attachToZipline(this.nearestZipline);
+      return;
+    }
+
+    // 6. Open Divine Supply Bin / Care Package / Death Box
+    if (this.nearestBin) {
+      this.interactWithLootBin();
+    }
+  }
+
+  attachToZipline(zipInfo) {
+    const p = this.player;
+    window.SFX.playZiplineAttach();
+    p.ziplining = true;
+    p.activeZipline = zipInfo.zip;
+    p.ziplineT = zipInfo.t;
+    p.ziplineDir = zipInfo.dir;
+    p.isSliding = false;
+    this.showBanner(`RIDING BIFROST ZIPLINE (${zipInfo.zip.name}) • [SPACE] TO SUPER-JUMP`, '#fde047');
+  }
+
+  detachFromZipline(superJump = true) {
+    const p = this.player;
+    if (!p || !p.ziplining) return;
+    p.ziplining = false;
+    p.activeZipline = null;
+    if (superJump) {
+      p.velocity.y = 12.8;
+      p.onGround = false;
+      window.SFX.playJumpPad();
+    }
+  }
+
+  executeMythicFinisher(victimBot) {
+    const p = this.player;
+    if (!p || !victimBot || !victimBot.alive) return;
+
+    const hData = window.GODWARS_DATA.HEROES[p.heroId];
+    p.finisherTimer = 1.65;
+    window.SFX.playAbility('ultimate');
+    this.showBanner(`EXECUTING MYTHIC FINISHER: ${hData.finisherName.toUpperCase()}...`, '#fbbf24');
+
+    // Dramatic lightning & explosion VFX on victim
+    this.combat.spawnLightningBolt(
+      victimBot.position.clone().add(new THREE.Vector3(0, 18, 0)),
+      victimBot.position.clone(),
+      hData.hexColor,
+      1.1
+    );
+    this.combat.spawnExplosionVFX(victimBot.position.clone().add(new THREE.Vector3(0, 1, 0)), 5.5, hData.hexColor, 1.2);
+
+    setTimeout(() => {
+      if (!this.matchActive || !p.alive) return;
+      // Apex Legends Finisher Reward: 100% Evo Shield Refill!
+      p.shield = p.maxShield;
+      window.SFX.playEvoUpgrade();
+      this.combat.handleElimination(p, victimBot, `FINISHER: ${hData.finisherName}`);
+      this.showBanner('FINISHER COMPLETE: 100% EVO SHIELD RESTORED!', '#38bdf8');
+    }, 1450);
+  }
+
+  triggerQuickMelee() {
+    const p = this.player;
+    if (!p || !p.alive || p.inDropship || p.meleeTimer > 0) return;
+    p.meleeTimer = 0.52;
+    const eyePos = this.camera.position.clone();
+    const lookDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion).normalize();
+    this.combat.performMelee(p, eyePos, lookDir);
+  }
+
+  triggerWeaponInspect() {
+    const p = this.player;
+    if (!p || !p.alive || p.inDropship) return;
+    p.inspectTimer = 2.4;
+    const wep = p.weapons[p.activeSlot];
+    this.showBanner(`INSPECTING: ${wep.data.divineName} (BASE: ${wep.data.baseName})`, wep.data.color);
+  }
+
+  // =========================================================================
+  // STANDARD PLAYER ACTIONS
   // =========================================================================
   launchFromDropship() {
     if (!this.player || !this.player.inDropship) return;
@@ -825,23 +1153,22 @@ class GodWarsGame {
   }
 
   triggerJump() {
-    if (!this.player || !this.player.alive) return;
+    if (!this.player || !this.player.alive || this.player.knocked) return;
     if (this.player.onGround) {
       this.player.velocity.y = 10.2;
       this.player.onGround = false;
       this.player.isSliding = false;
     } else if (this.player.heroId === 'valkyrie' && this.player.jetpackFuel > 10) {
-      // Valkyrie VTOL Jetpack Burst
       this.player.velocity.y = 8.5;
     }
   }
 
   triggerSlideOrCrouch() {
-    if (!this.player || !this.player.alive || !this.player.onGround) return;
+    if (!this.player || !this.player.alive || !this.player.onGround || this.player.knocked) return;
     if (this.player.slideCooldown <= 0 && !this.player.isSliding) {
       this.player.isSliding = true;
-      this.player.slideTimer = 0.85;
-      this.player.slideCooldown = 1.1;
+      this.player.slideTimer = 0.88;
+      this.player.slideCooldown = 1.05;
     } else {
       this.player.isSliding = false;
     }
@@ -855,6 +1182,7 @@ class GodWarsGame {
     if (!this.player || this.player.activeSlot === slotIdx) return;
     this.player.activeSlot = slotIdx;
     this.player.isADS = false;
+    this.player.inspectTimer = 0;
     this.equipViewmodelWeapon();
     window.SFX.playReload();
   }
@@ -864,18 +1192,18 @@ class GodWarsGame {
     const wep = this.player.weapons[this.player.activeSlot];
     if (wep.reloading || wep.mag >= wep.data.magSize || wep.reserve <= 0) return;
     wep.reloading = true;
-    // Zeus Passive: +20% Faster Reload!
-    const mult = this.player.heroId === 'zeus' ? 0.8 : 1.0;
+    let mult = this.player.heroId === 'zeus' ? 0.8 : 1.0;
+    if (wep.isMythicGold) mult *= 0.82;
     wep.reloadTimer = wep.data.reloadTime * mult;
     window.SFX.playReload();
   }
 
   useTacticalAbility() {
-    if (!this.player || !this.player.alive || this.player.inDropship) return;
+    if (!this.player || !this.player.alive || this.player.inDropship || this.player.knocked) return;
     if (this.player.tacticalCooldown > 0) return;
 
     const hData = window.GODWARS_DATA.HEROES[this.player.heroId];
-    this.player.tacticalCooldown = hData.tacticalCooldown;
+    this.player.tacticalCooldown = this.isFiringRange ? 2.5 : hData.tacticalCooldown;
 
     const eyePos = this.camera.position.clone();
     const lookDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion).normalize();
@@ -883,19 +1211,19 @@ class GodWarsGame {
   }
 
   useUltimateAbility() {
-    if (!this.player || !this.player.alive || this.player.inDropship) return;
+    if (!this.player || !this.player.alive || this.player.inDropship || this.player.knocked) return;
     if (this.player.ultCharge < 100) {
       this.showBanner(`ULTIMATE CHARGING (${Math.floor(this.player.ultCharge)}%)`, '#94a3b8');
       return;
     }
-    this.player.ultCharge = 0;
+    this.player.ultCharge = this.isFiringRange ? 100 : 0;
     const eyePos = this.camera.position.clone();
     const lookDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion).normalize();
     this.combat.triggerHeroUltimate(this.player, eyePos, lookDir);
   }
 
   throwEquippedGrenade() {
-    if (!this.player || !this.player.alive || this.player.inDropship) return;
+    if (!this.player || !this.player.alive || this.player.inDropship || this.player.knocked) return;
     const count = this.player.grenadeCounts[this.selectedGrenadeId] || 0;
     if (count <= 0) {
       this.cycleGrenadeType();
@@ -905,7 +1233,9 @@ class GodWarsGame {
         return;
       }
     }
-    this.player.grenadeCounts[this.selectedGrenadeId]--;
+    if (!this.isFiringRange) {
+      this.player.grenadeCounts[this.selectedGrenadeId]--;
+    }
     const eyePos = this.camera.position.clone();
     const lookDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion).normalize();
     this.combat.throwGrenade(this.player, eyePos, lookDir, this.selectedGrenadeId);
@@ -920,19 +1250,38 @@ class GodWarsGame {
     this.showBanner(`EQUIPPED ORDNANCE: ${g.name.toUpperCase()}`, g.color);
   }
 
+  cycleHealType() {
+    const keys = Object.keys(window.GODWARS_DATA.HEAL_ITEMS);
+    const idx = keys.indexOf(this.selectedHealId);
+    this.selectedHealId = keys[(idx + 1) % keys.length];
+    const h = window.GODWARS_DATA.HEAL_ITEMS[this.selectedHealId];
+    this.showBanner(`SELECTED HEAL ITEM: ${h.name.toUpperCase()} [PRESS H]`, h.color);
+  }
+
   startHealing() {
-    if (!this.player || !this.player.alive || this.player.healTimer > 0) return;
-    if (this.player.shield < this.player.maxShield && this.player.shieldBatteries > 0) {
-      this.player.healingType = 'shield';
-      this.player.healTimer = 2.2;
-      this.showBanner('CHARGING DIVINE SHIELD BATTERY (2.2s)...', '#38bdf8');
-    } else if (this.player.hp < this.player.maxHp && this.player.medkits > 0) {
-      this.player.healingType = 'medkit';
-      this.player.healTimer = 2.6;
-      this.showBanner('APPLYING AMBROSIA MEDKIT (2.6s)...', '#10b981');
-    } else {
-      this.showBanner('SHIELD & HEALTH ALREADY FULL!', '#fbbf24');
+    const p = this.player;
+    if (!p || !p.alive || p.healTimer > 0 || p.knocked) return;
+
+    // Auto-select best heal item if current selection is unneeded or empty
+    let itemKey = this.selectedHealId;
+    if ((p.heals[itemKey] || 0) <= 0) {
+      itemKey = Object.keys(p.heals).find(k => p.heals[k] > 0) || 'shield_cell';
     }
+    if (p.shield < p.maxShield && p.hp >= p.maxHp && (itemKey === 'medkit')) {
+      itemKey = p.heals.shield_battery > 0 ? 'shield_battery' : 'shield_cell';
+    } else if (p.hp < p.maxHp && p.shield >= p.maxShield && (itemKey === 'shield_cell' || itemKey === 'shield_battery')) {
+      itemKey = p.heals.medkit > 0 ? 'medkit' : 'phoenix_kit';
+    }
+
+    const hItem = window.GODWARS_DATA.HEAL_ITEMS[itemKey];
+    if (!hItem || (p.heals[itemKey] || 0) <= 0) {
+      this.showBanner('NO HEALING ITEMS LEFT • OPEN SUPPLY BINS!', '#f43f5e');
+      return;
+    }
+
+    p.healingType = itemKey;
+    p.healTimer = hItem.castTime;
+    this.showBanner(`USING ${hItem.name.toUpperCase()} (${hItem.castTime}s)...`, hItem.color);
   }
 
   interactWithLootBin() {
@@ -941,38 +1290,43 @@ class GodWarsGame {
 
     if (!bin.opened) {
       bin.opened = true;
-      if (!bin.isDeathBox && bin.lid) {
+      if (!bin.isDeathBox && !bin.isCarePackage && bin.lid) {
         bin.lid.position.y = 1.65;
         bin.lid.position.z = -0.55;
         bin.lid.rotation.x = -1.1;
       }
     }
 
-    // Equip or Replenish from Bin Loot
     const loot = bin.loot;
     const wData = window.GODWARS_DATA.WEAPONS[loot.weaponId];
+    const isMythic = Boolean(loot.isMythicGold || bin.isCarePackage);
 
-    // Upgrade shield if bin has higher tier Evo Shield
     if (loot.shieldTier > this.player.shieldTier) {
       this.player.shieldTier = loot.shieldTier;
-      this.player.maxShield = loot.shieldTier === 4 ? 125 : loot.shieldTier === 3 ? 100 : 75;
+      const tInfo = window.GODWARS_DATA.EVO_TIERS[loot.shieldTier];
+      this.player.maxShield = tInfo.maxShield;
+      window.SFX.playEvoUpgrade();
     }
     this.player.shield = this.player.maxShield;
-    this.player.shieldBatteries += loot.shieldBattery;
-    this.player.medkits += loot.medkit;
+    this.player.heals.shield_battery += (loot.shieldBattery || 2);
+    this.player.heals.shield_cell += 3;
+    this.player.heals.medkit += (loot.medkit || 1);
+    if (loot.phoenixKit) this.player.heals.phoenix_kit += loot.phoenixKit;
     this.player.grenadeCounts[loot.grenadeId] = (this.player.grenadeCounts[loot.grenadeId] || 0) + 2;
 
-    // Refill ammo & swap active weapon if player doesn't have it
     const hasWepIdx = this.player.weapons.findIndex(w => w.id === loot.weaponId);
     if (hasWepIdx >= 0) {
       this.player.weapons[hasWepIdx].reserve += wData.magSize * 3;
       this.player.weapons[hasWepIdx].mag = wData.magSize;
+      if (isMythic) this.player.weapons[hasWepIdx].isMythicGold = true;
+      this.equipViewmodelWeapon();
     } else {
       this.player.weapons[this.player.activeSlot] = {
         id: loot.weaponId,
         data: wData,
         mag: wData.magSize,
         reserve: wData.reserveAmmo,
+        isMythicGold: isMythic,
         reloading: false,
         reloadTimer: 0
       };
@@ -980,10 +1334,28 @@ class GodWarsGame {
     }
 
     window.SFX.playReload();
+    const tierName = window.GODWARS_DATA.EVO_TIERS[this.player.shieldTier].name;
     this.showBanner(
-      `LOOTED: ${wData.divineName} + LV${this.player.shieldTier} SHIELD + BATTERIES`,
-      wData.color
+      `LOOTED: ${isMythic ? '★ MYTHIC GOLD ' : ''}${wData.divineName} + ${tierName}`,
+      isMythic ? '#fde047' : wData.color
     );
+  }
+
+  updateKillLeader(candidate) {
+    if (!candidate || candidate.kills < 2) return;
+    if (!this.killLeader || candidate.kills > this.killLeader.kills) {
+      const isNew = this.killLeader !== candidate;
+      this.killLeader = candidate;
+      const hData = window.GODWARS_DATA.HEROES[candidate.heroId] || window.GODWARS_DATA.HEROES.thor;
+      this.world.updateChampionBanners(candidate.name, hData.name, candidate.kills);
+
+      if (isNew) {
+        this.showBanner(`👑 NEW KILL LEADER: ${candidate.name} (${candidate.kills} KILLS)`, '#fbbf24');
+        if (candidate.isPlayer) {
+          window.SFX.announce('Attention. You are the new Kill Leader.');
+        }
+      }
+    }
   }
 
   toggleFullMap() {
@@ -1002,9 +1374,11 @@ class GodWarsGame {
 
   returnToLobby() {
     this.matchActive = false;
+    this.isSpectating = false;
     if (document.exitPointerLock) document.exitPointerLock();
     document.getElementById('hud-screen').classList.add('hidden');
     document.getElementById('match-end-modal').classList.add('hidden');
+    document.getElementById('spectate-bar').classList.add('hidden');
     document.getElementById('lobby-screen').classList.remove('hidden');
   }
 
@@ -1016,7 +1390,6 @@ class GodWarsGame {
     const dt = Math.min(0.05, (now - this.lastTime) / 1000);
     this.lastTime = now;
 
-    // FPS Counter
     this.fpsFrames++;
     this.fpsTimer += dt;
     if (this.fpsTimer >= 0.5) {
@@ -1027,7 +1400,6 @@ class GodWarsGame {
       this.fpsTimer = 0;
     }
 
-    // Rotate 3D Hero / Weapon Pedestal in Lobby
     if (!this.matchActive && this.previewRenderer && this.previewRoot) {
       this.previewRoot.rotation.y += dt * 0.75;
       this.previewRenderer.render(this.previewScene, this.previewCamera);
@@ -1038,14 +1410,54 @@ class GodWarsGame {
 
     this.matchTime += dt;
     this.updateDropship(dt);
-    this.updatePlayer(dt);
+
+    // Periodic Odin Care Package Drop in Battle Royale mode
+    if (!this.isFiringRange) {
+      this.carePackageTimer -= dt;
+      if (this.carePackageTimer <= 0 && this.world.carePackages.length < 4) {
+        this.carePackageTimer = window.GODWARS_DATA.MATCH_CONFIG.carePackageInterval;
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.random() * (this.ringRadius * 0.65);
+        const cx = this.ringCenter.x + Math.cos(a) * r;
+        const cz = this.ringCenter.z + Math.sin(a) * r;
+        this.world.spawnCarePackage(cx, cz);
+        this.showBanner('📦 ODIN CARE PACKAGE INCOMING (MYTHIC LV5 RED EVO & GOLD WEAPON)!', '#f43f5e');
+        window.SFX.announce('Care package incoming.');
+      }
+    }
+
+    if (this.isSpectating) {
+      this.updateSpectatorCamera(dt);
+    } else {
+      this.updatePlayer(dt);
+    }
+
     this.bots.forEach(bot => bot.update(dt, this.matchTime));
     this.combat.update(dt);
-    this.updateStormRing(dt);
-    this.updateHUD();
+    if (!this.isFiringRange) {
+      this.updateStormRing(dt);
+    } else {
+      this.world.updateRingVisual(0, 0, this.world.islandRadius, this.matchTime, dt);
+    }
+    this.updateHUD(dt);
     this.drawMinimap();
 
     this.renderer.render(this.scene, this.camera);
+  }
+
+  updateSpectatorCamera(dt) {
+    const aliveBots = this.bots.filter(b => b.alive);
+    if (aliveBots.length === 0) return;
+    const target = aliveBots[this.spectateIndex % aliveBots.length];
+    const camPos = target.position.clone().add(new THREE.Vector3(0, 3.6, 6.5));
+    this.camera.position.lerp(camPos, Math.min(1, dt * 8));
+    this.camera.lookAt(target.position.clone().add(new THREE.Vector3(0, 1.4, 0)));
+    this.viewmodelHolder.visible = false;
+
+    const specNameEl = document.getElementById('spectate-target-name');
+    if (specNameEl) {
+      specNameEl.textContent = `SPECTATING: ${target.name} (${target.heroId.toUpperCase()}) • ${target.kills} KILLS`;
+    }
   }
 
   updateDropship(dt) {
@@ -1053,7 +1465,6 @@ class GodWarsGame {
     const speed = window.GODWARS_DATA.MATCH_CONFIG.dropshipSpeed;
     this.dropship.position.addScaledVector(this.dropshipDir, speed * dt);
 
-    // Auto-launch player if dropship reaches edge of Asgard Island
     if (this.player && this.player.inDropship) {
       this.player.position.copy(this.dropship.position);
       this.camera.position.set(
@@ -1067,7 +1478,7 @@ class GodWarsGame {
       if (Math.hypot(this.dropship.position.x, this.dropship.position.z) > 195 && this.matchTime > 4) {
         this.launchFromDropship();
       }
-    } else {
+    } else if (!this.isSpectating) {
       this.viewmodelHolder.visible = this.player && this.player.alive;
     }
   }
@@ -1076,34 +1487,38 @@ class GodWarsGame {
     const p = this.player;
     if (!p || !p.alive || p.inDropship) return;
 
-    // Update Cooldowns & Timers
     if (p.tacticalCooldown > 0) p.tacticalCooldown = Math.max(0, p.tacticalCooldown - dt);
     if (p.slideCooldown > 0) p.slideCooldown = Math.max(0, p.slideCooldown - dt);
     if (p.ultBuffTimer > 0) p.ultBuffTimer = Math.max(0, p.ultBuffTimer - dt);
     if (p.cloakTimer > 0) p.cloakTimer = Math.max(0, p.cloakTimer - dt);
     if (p.slowTimer > 0) p.slowTimer = Math.max(0, p.slowTimer - dt);
     if (p.flashBlindTimer > 0) p.flashBlindTimer = Math.max(0, p.flashBlindTimer - dt);
+    if (p.finisherTimer > 0) p.finisherTimer = Math.max(0, p.finisherTimer - dt);
+    if (p.inspectTimer > 0) p.inspectTimer = Math.max(0, p.inspectTimer - dt);
+    if (p.meleeTimer > 0) p.meleeTimer = Math.max(0, p.meleeTimer - dt);
 
-    p.ultCharge = Math.min(100, p.ultCharge + dt * 1.6);
+    p.ultCharge = Math.min(100, p.ultCharge + dt * (this.isFiringRange ? 15 : 1.6));
 
-    // Complete Shield Battery / Medkit Cast
+    // Complete 4-Tier Apex Healing Cast
     if (p.healTimer > 0) {
       p.healTimer -= dt;
       if (p.healTimer <= 0) {
-        if (p.healingType === 'shield' && p.shieldBatteries > 0) {
-          p.shieldBatteries--;
-          p.shield = p.maxShield;
-          this.showBanner('EVO SHIELD FULLY RESTORED!', '#38bdf8');
-        } else if (p.healingType === 'medkit' && p.medkits > 0) {
-          p.medkits--;
-          p.hp = p.maxHp;
-          this.showBanner('HEALTH FULLY RESTORED!', '#10b981');
+        const hItem = window.GODWARS_DATA.HEAL_ITEMS[p.healingType];
+        if (hItem && (p.heals[p.healingType] > 0 || this.isFiringRange)) {
+          if (!this.isFiringRange) p.heals[p.healingType]--;
+          if (hItem.shieldRestore > 0) {
+            p.shield = Math.min(p.maxShield, p.shield + hItem.shieldRestore);
+          }
+          if (hItem.hpRestore > 0) {
+            p.hp = Math.min(p.maxHp, p.hp + hItem.hpRestore);
+          }
+          window.SFX.playEvoUpgrade();
+          this.showBanner(`${hItem.name.toUpperCase()} COMPLETE!`, hItem.color);
         }
         p.healingType = null;
       }
     }
 
-    // Calculate Input Vector (WASD + Mobile Virtual Joystick)
     let moveForward = 0;
     let moveRight = 0;
     if (this.keys['KeyW'] || this.keys['ArrowUp']) moveForward += 1;
@@ -1128,8 +1543,21 @@ class GodWarsGame {
       .addScaledVector(forwardVec, moveForward)
       .addScaledVector(rightVec, moveRight);
 
-    // Skydive Gliding Mode
-    if (p.skydiving) {
+    // 1. Bifrost Zipline Riding Physics
+    if (p.ziplining && p.activeZipline) {
+      const z = p.activeZipline;
+      const totalLen = z.start.distanceTo(z.end);
+      const zipSpeed = 24 / Math.max(1, totalLen);
+      p.ziplineT += p.ziplineDir * zipSpeed * dt;
+
+      if (p.ziplineT >= 1 || p.ziplineT <= 0) {
+        this.detachFromZipline(true);
+      } else {
+        p.position.lerpVectors(z.start, z.end, p.ziplineT);
+        p.position.y -= 1.65;
+      }
+    } else if (p.skydiving) {
+      // 2. Skydive Gliding Mode
       const lookDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
       p.position.x += lookDir.x * 34 * dt;
       p.position.z += lookDir.z * 34 * dt;
@@ -1143,12 +1571,12 @@ class GodWarsGame {
         p.velocity.set(0, 0, 0);
         window.SFX.playHitmarker(false, true, false);
       }
-    } else {
-      // Ground / Air Movement (Sprint + Apex Slide + Valkyrie VTOL Jetpack)
+    } else if (p.finisherTimer <= 0) {
+      // 3. Standard Ground / Air / Slide / Valkyrie Jetpack Movement
       const hData = window.GODWARS_DATA.HEROES[p.heroId];
-      p.isSprinting = (this.keys['ShiftLeft'] || this.touchMove.dy < -0.75) && moveForward > 0.3 && !p.isADS;
+      p.isSprinting = !p.knocked && (this.keys['ShiftLeft'] || this.touchMove.dy < -0.75) && moveForward > 0.3 && !p.isADS;
 
-      let speed = 7.8 * (hData.speedMult || 1.0);
+      let speed = (p.knocked ? 2.2 : 7.8) * (hData.speedMult || 1.0);
       if (p.isSprinting) speed *= 1.38;
       if (p.isADS) speed *= 0.72;
       if (p.cloakTimer > 0) speed *= 1.3;
@@ -1156,12 +1584,11 @@ class GodWarsGame {
 
       if (p.isSliding) {
         p.slideTimer -= dt;
-        const slideMult = p.heroId === 'loki' ? 1.75 : 1.55;
+        const slideMult = p.heroId === 'loki' ? 1.78 : 1.58;
         speed = 8.2 * slideMult;
         if (p.slideTimer <= 0) p.isSliding = false;
       }
 
-      // Thor Passive: Sprinting charges Mjölnir Static Core
       if (p.heroId === 'thor' && (p.isSprinting || p.isSliding)) {
         p.thunderCharge = Math.min(100, p.thunderCharge + 35 * dt);
       }
@@ -1169,7 +1596,6 @@ class GodWarsGame {
       p.position.x += wishDir.x * speed * dt;
       p.position.z += wishDir.z * speed * dt;
 
-      // Valkyrie VTOL Jetpack Passive (Hold Space in mid-air)
       if (p.heroId === 'valkyrie' && !p.onGround && this.keys['Space'] && p.jetpackFuel > 0) {
         p.velocity.y = Math.min(9.5, p.velocity.y + 38 * dt);
         p.jetpackFuel = Math.max(0, p.jetpackFuel - 34 * dt);
@@ -1177,11 +1603,9 @@ class GodWarsGame {
         p.jetpackFuel = Math.min(100, p.jetpackFuel + 28 * dt);
       }
 
-      // Gravity
       p.velocity.y -= 25 * dt;
       p.position.y += p.velocity.y * dt;
 
-      // Map Horizontal Collision & Ground Height
       const col = this.world.resolveHorizontalCollision(p.position.x, p.position.z, p.position.y, 0.48);
       p.position.x = col.x;
       p.position.z = col.z;
@@ -1195,7 +1619,6 @@ class GodWarsGame {
         p.onGround = false;
       }
 
-      // Check Bifrost Jump Pads (Octane-style High Launch!)
       for (const pad of this.world.jumpPads) {
         if (Math.hypot(p.position.x - pad.x, p.position.z - pad.z) < pad.radius && p.position.y < 1.5) {
           p.velocity.y = 21.5;
@@ -1206,45 +1629,69 @@ class GodWarsGame {
       }
     }
 
-    // Update First-Person Camera Position & FOV (Sprint / Slide / ADS interpolation)
-    const eyeHeight = p.isSliding ? 0.92 : 1.68;
+    // High-Speed Wind Lines Overlay (when Skydiving, Sliding, Ziplining, or High Air Velocity)
+    const speedLinesEl = document.getElementById('speed-lines-overlay');
+    if (speedLinesEl) {
+      const highSpeed = p.skydiving || p.isSliding || p.ziplining || Math.abs(p.velocity.y) > 13;
+      speedLinesEl.classList.toggle('active', highSpeed);
+    }
+
+    // First-Person Camera Position & FOV
+    const eyeHeight = p.knocked ? 0.65 : p.isSliding ? 0.92 : 1.68;
     this.camera.position.set(p.position.x, p.position.y + eyeHeight, p.position.z);
-    this.camera.rotation.set(p.pitch, p.yaw, p.isSliding ? -0.06 : 0, 'YXZ');
+    this.camera.rotation.set(p.pitch, p.yaw, p.isSliding ? -0.07 : 0, 'YXZ');
 
     const wep = p.weapons[p.activeSlot];
-    const targetFov = p.isADS ? (wep.data.adsFov || 55) : (p.isSprinting || p.isSliding ? this.fov + 8 : this.fov);
+    const targetFov = p.isADS ? (wep.data.adsFov || 55) : (p.isSprinting || p.isSliding || p.ziplining ? this.fov + 9 : this.fov);
     this.camera.fov += (targetFov - this.camera.fov) * Math.min(1, dt * 14);
     this.camera.updateProjectionMatrix();
 
-    // Update First-Person Weapon Viewmodel Position (Hipfire vs ADS Center Sight + Bobbing)
+    // Update First-Person Weapon Viewmodel (Hipfire vs ADS vs Tactical Sprint vs Inspect vs Quick Melee)
     if (this.activeViewmodel) {
-      const targetX = p.isADS ? 0.0 : 0.24;
-      const targetY = p.isADS ? -0.132 : -0.22;
-      const targetZ = p.isADS ? -0.32 : -0.45;
+      const targetX = p.isADS ? 0.0 : p.inspectTimer > 0 ? 0.06 : 0.24;
+      const targetY = p.isADS ? -0.132 : p.inspectTimer > 0 ? -0.14 : -0.22;
+      const targetZ = p.isADS ? -0.32 : p.meleeTimer > 0 ? -0.24 : -0.45;
       const bob = (inputLen > 0.1 && p.onGround && !p.isADS) ? Math.sin(this.matchTime * 11) * 0.012 : 0;
 
       this.activeViewmodel.position.x += (targetX - this.activeViewmodel.position.x) * Math.min(1, dt * 16);
       this.activeViewmodel.position.y += (targetY + bob - this.activeViewmodel.position.y) * Math.min(1, dt * 16);
       this.activeViewmodel.position.z += (targetZ - this.activeViewmodel.position.z) * Math.min(1, dt * 16);
 
-      // Fade muzzle flash
       const flash = this.activeViewmodel.userData.muzzleFlash;
       if (flash && flash.material.opacity > 0) {
         flash.material.opacity = Math.max(0, flash.material.opacity - dt * 18);
         flash.rotation.z += dt * 25;
       }
 
-      // Reload animation tilt
+      // Show Heirloom Melee Weapon during Quick Melee swing!
+      if (this.activeViewmodel.userData.meleeMesh) {
+        this.activeViewmodel.userData.meleeMesh.visible = p.meleeTimer > 0;
+        if (p.meleeTimer > 0) {
+          this.activeViewmodel.userData.meleeMesh.rotation.x = -Math.sin(p.meleeTimer * Math.PI * 2) * 1.1;
+        }
+      }
+
       if (wep.reloading) {
         this.activeViewmodel.rotation.x = -0.45;
         this.activeViewmodel.rotation.z = 0.35;
+        this.activeViewmodel.rotation.y = 0;
+      } else if (p.inspectTimer > 0) {
+        // BATCH 5: 3D Weapon Inspect Animation
+        this.activeViewmodel.rotation.y = Math.sin(p.inspectTimer * 2.6) * 0.85;
+        this.activeViewmodel.rotation.z = Math.cos(p.inspectTimer * 2.6) * 0.35;
+        this.activeViewmodel.rotation.x = 0.15;
+      } else if (p.isSprinting && !p.isADS) {
+        // Tactical Sprint Angled Carry Pose
+        this.activeViewmodel.rotation.y = 0.42;
+        this.activeViewmodel.rotation.x = 0.18;
+        this.activeViewmodel.rotation.z = -0.15;
       } else {
         this.activeViewmodel.rotation.x += (0 - this.activeViewmodel.rotation.x) * Math.min(1, dt * 15);
+        this.activeViewmodel.rotation.y += (0 - this.activeViewmodel.rotation.y) * Math.min(1, dt * 15);
         this.activeViewmodel.rotation.z += (0 - this.activeViewmodel.rotation.z) * Math.min(1, dt * 15);
       }
     }
 
-    // Weapon Reload Progression
     if (wep.reloading) {
       wep.reloadTimer -= dt;
       if (wep.reloadTimer <= 0) {
@@ -1252,21 +1699,21 @@ class GodWarsGame {
         const needed = wep.data.magSize - wep.mag;
         const take = Math.min(needed, wep.reserve);
         wep.mag += take;
-        wep.reserve -= take;
+        if (!this.isFiringRange) wep.reserve -= take;
       }
     }
 
-    // Weapon Firing (Mouse / Touch Fire Button / Optional Mobile Auto-Fire on Crosshair Target)
+    // Weapon Firing
     if (p.fireCooldown > 0) p.fireCooldown -= dt;
 
-    let wantsToFire = this.mouseDown || this.touchFiring;
-    if (!wantsToFire && this.mobileAutoFire && this.isCrosshairOnEnemy()) {
+    let wantsToFire = (this.mouseDown || this.touchFiring) && !p.knocked && p.finisherTimer <= 0;
+    if (!wantsToFire && this.mobileAutoFire && !p.knocked && this.isCrosshairOnEnemy()) {
       wantsToFire = true;
     }
 
     if (wantsToFire && !wep.reloading && p.fireCooldown <= 0) {
       if (wep.mag > 0) {
-        // Hela Empress of Helheim Ultimate grants infinite magazine ammo & +25% fire rate!
+        p.inspectTimer = 0;
         const helaUltActive = p.heroId === 'hela' && p.ultBuffTimer > 0;
         if (!helaUltActive) {
           wep.mag--;
@@ -1280,10 +1727,9 @@ class GodWarsGame {
           this.touchFiring = false;
         }
 
-        // Trigger Gunshot SFX & Muzzle Flash
-        window.SFX.playGunshot(wep.id, 0);
+        window.SFX.playGunshot(wep.id, 0, wep.isMythicGold);
         if (this.activeViewmodel) {
-          this.activeViewmodel.position.z += 0.045; // Visual recoil kick
+          this.activeViewmodel.position.z += 0.045;
           if (this.activeViewmodel.userData.muzzleFlash) {
             this.activeViewmodel.userData.muzzleFlash.material.opacity = 0.95;
           }
@@ -1292,19 +1738,26 @@ class GodWarsGame {
           }
         }
 
-        // Fire Ray with spread
-        const spread = p.isADS ? wep.data.adsSpread : wep.data.spread;
+        // Eject 3D Brass/Rune Shell Casing
+        const shellOrigin = this.camera.position.clone()
+          .addScaledVector(new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion), 0.45)
+          .addScaledVector(rightVec, 0.22);
+        this.combat.spawnShellCasing(shellOrigin, rightVec);
+
+        let spread = p.isADS ? wep.data.adsSpread : wep.data.spread;
+        if (wep.isMythicGold) spread *= 0.65;
+
         const shootDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
         shootDir.x += (Math.random() - 0.5) * spread;
         shootDir.y += (Math.random() - 0.5) * spread;
         shootDir.z += (Math.random() - 0.5) * spread;
         shootDir.normalize();
 
-        this.combat.fireWeapon(p, this.camera.position.clone(), shootDir, wep.data);
+        this.combat.fireWeapon(p, this.camera.position.clone(), shootDir, wep.data, wep.isMythicGold);
 
-        // Apply slight camera recoil
-        p.pitch = Math.min(1.42, p.pitch + wep.data.recoilPitch * (p.isADS ? 0.65 : 1.0));
-        p.yaw += (Math.random() - 0.5) * wep.data.recoilYaw;
+        const recMult = (p.isADS ? 0.65 : 1.0) * (wep.isMythicGold ? 0.65 : 1.0);
+        p.pitch = Math.min(1.42, p.pitch + wep.data.recoilPitch * recMult);
+        p.yaw += (Math.random() - 0.5) * wep.data.recoilYaw * recMult;
 
         if (wep.mag === 0 && wep.reserve > 0) {
           this.startReload();
@@ -1314,7 +1767,35 @@ class GodWarsGame {
       }
     }
 
-    // Check Nearest Divine Supply Bin / Death Box for Loot Prompt
+    // Context Proximity Scanning (Knocked Bot for Finisher, Zipline, Jump Tower, Supply Bin)
+    this.nearestKnockedBot = null;
+    for (const bot of this.bots) {
+      if (bot.alive && bot.knocked && bot.position.distanceTo(p.position) < 3.6) {
+        this.nearestKnockedBot = bot;
+        break;
+      }
+    }
+
+    this.nearJumpTower = false;
+    if (this.world.jumpTower && Math.hypot(p.position.x - this.world.jumpTower.x, p.position.z - this.world.jumpTower.z) < 4.0) {
+      this.nearJumpTower = true;
+    }
+
+    this.nearestZipline = null;
+    if (!p.ziplining) {
+      for (const z of this.world.ziplines) {
+        const dStart = Math.hypot(p.position.x - z.start.x, p.position.z - z.start.z);
+        const dEnd = Math.hypot(p.position.x - z.end.x, p.position.z - z.end.z);
+        if (dStart < 4.5) {
+          this.nearestZipline = { zip: z, t: 0.04, dir: 1 };
+          break;
+        } else if (dEnd < 4.5) {
+          this.nearestZipline = { zip: z, t: 0.96, dir: -1 };
+          break;
+        }
+      }
+    }
+
     this.nearestBin = null;
     let bestBinDist = 4.2;
     for (const bin of this.world.supplyBins) {
@@ -1360,6 +1841,7 @@ class GodWarsGame {
         this.ringStartRadius = this.ringRadius;
         this.ringTargetRadius = currentPhase.targetRadius;
         this.showBanner(`WARNING: RAGNAROK RING ROUND ${currentPhase.round} CLOSING!`, '#f43f5e');
+        window.SFX.announce(`Ring round ${currentPhase.round} closing.`);
       }
     } else if (this.ringState === 'shrinking') {
       const progress = 1 - Math.max(0, this.ringTimer) / currentPhase.shrinkTime;
@@ -1373,9 +1855,8 @@ class GodWarsGame {
       }
     }
 
-    this.world.updateRingVisual(this.ringCenter.x, this.ringCenter.z, this.ringRadius, this.matchTime);
+    this.world.updateRingVisual(this.ringCenter.x, this.ringCenter.z, this.ringRadius, this.matchTime, dt);
 
-    // Check if Player is outside the Safe Ring
     if (this.player && this.player.alive && !this.player.inDropship) {
       const dist = Math.hypot(
         this.player.position.x - this.ringCenter.x,
@@ -1397,55 +1878,101 @@ class GodWarsGame {
   }
 
   // =========================================================================
-  // APEX LEGENDS HUD, FLOATING DAMAGE NUMBERS, KILL FEED & MINIMAP
+  // APEX LEGENDS HUD, COMPASS, SEGMENTED EVO CELLS, PINGS & OVERHEAD BARS
   // =========================================================================
-  updateHUD() {
+  updateHUD(dt = 0.016) {
     const p = this.player;
     if (!p) return;
 
     const aliveBots = this.bots.filter(b => b.alive).length;
-    const totalAlive = aliveBots + (p.alive ? 1 : 0);
+    const totalAlive = this.isFiringRange ? 6 : aliveBots + (p.alive ? 1 : 0);
 
     const setTxt = (id, val) => {
       const el = document.getElementById(id);
       if (el) el.textContent = val;
     };
 
-    setTxt('hud-alive-count', `${totalAlive}/16`);
+    setTxt('hud-alive-count', this.isFiringRange ? 'TRAINING' : `${totalAlive}/16`);
     setTxt('hud-kills-count', p.kills);
     setTxt('hud-damage-count', Math.round(p.damageDealt));
+
+    // Kill Leader HUD Crown Badge
+    const klEl = document.getElementById('hud-kill-leader');
+    if (klEl) {
+      if (this.killLeader) {
+        klEl.textContent = `👑 ${this.killLeader.name} (${this.killLeader.kills})`;
+      } else {
+        klEl.textContent = `👑 NONE`;
+      }
+    }
 
     const mins = Math.floor(Math.max(0, this.ringTimer) / 60);
     const secs = Math.floor(Math.max(0, this.ringTimer) % 60).toString().padStart(2, '0');
     setTxt(
       'hud-ring-timer',
-      `RING ${this.ringPhaseIndex + 1} ${this.ringState === 'shrinking' ? 'CLOSING' : ''} ${mins}:${secs}`
+      this.isFiringRange
+        ? '🎯 FIRING RANGE • UNLIMITED PRACTICE'
+        : `RING ${this.ringPhaseIndex + 1} ${this.ringState === 'shrinking' ? 'CLOSING' : ''} ${mins}:${secs}`
     );
 
-    // Dropship Launch Button Banner
+    // BATCH 1: Update 360° Top Compass Ribbon
+    const deg = ((Math.round((-p.yaw * 180) / Math.PI) % 360) + 360) % 360;
+    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const cardinal = dirs[Math.round(deg / 45) % 8];
+    setTxt('compass-heading-deg', `${deg}° ${cardinal}`);
+    const compassTrack = document.getElementById('compass-ribbon-track');
+    if (compassTrack) {
+      const prevDeg = ((deg - 30 + 360) % 360);
+      const nextDeg = ((deg + 30) % 360);
+      compassTrack.innerHTML = `<span>${prevDeg}°</span><span>•</span><b>${cardinal} ${deg}°</b><span>•</span><span>${nextDeg}°</span>`;
+    }
+
     const dropBtn = document.getElementById('btn-dropship-launch');
     if (dropBtn) dropBtn.classList.toggle('hidden', !p.inDropship);
 
-    // Hero Legend Portrait & Status
+    // BATCH 1: Authentic Apex Legends Segmented 25-HP Evo Shield Cells & DMG-to-Next-Evo
     const hData = window.GODWARS_DATA.HEROES[p.heroId];
+    const tierInfo = window.GODWARS_DATA.EVO_TIERS[p.shieldTier] || window.GODWARS_DATA.EVO_TIERS[2];
     setTxt('hud-hero-name', hData.name);
     setTxt('hud-hp-text', `${Math.ceil(p.hp)}/${p.maxHp}`);
     setTxt('hud-shield-text', `${Math.ceil(p.shield)}/${p.maxShield}`);
+    setTxt('hud-shield-tier', tierInfo.name);
+    const tierEl = document.getElementById('hud-shield-tier');
+    if (tierEl) tierEl.style.color = tierInfo.color;
+
+    const cellsContainer = document.getElementById('hud-shield-cells');
+    if (cellsContainer) {
+      const totalCells = tierInfo.cells;
+      if (cellsContainer.children.length !== totalCells) {
+        cellsContainer.innerHTML = '';
+        for (let i = 0; i < totalCells; i++) {
+          const cell = document.createElement('div');
+          cell.className = 'shield-cell-segment';
+          cell.innerHTML = '<div class="shield-cell-fill"></div>';
+          cellsContainer.appendChild(cell);
+        }
+      }
+      for (let i = 0; i < totalCells; i++) {
+        const cellFill = cellsContainer.children[i].querySelector('.shield-cell-fill');
+        const cellAmount = Math.max(0, Math.min(25, p.shield - i * 25));
+        cellFill.style.width = `${(cellAmount / 25) * 100}%`;
+        cellFill.style.background = tierInfo.color;
+        cellFill.style.boxShadow = cellAmount > 0 ? `0 0 8px ${tierInfo.color}` : 'none';
+      }
+    }
+
+    // Next Evo Damage Counter
+    if (tierInfo.nextThreshold) {
+      const rem = Math.max(0, Math.ceil(tierInfo.nextThreshold - p.damageDealt));
+      setTxt('hud-next-evo', `NEXT EVO: ${rem} DMG`);
+    } else {
+      setTxt('hud-next-evo', `★ MAX MYTHIC EVO ★`);
+    }
 
     const hpFill = document.getElementById('hud-hp-fill');
     if (hpFill) hpFill.style.width = `${(p.hp / p.maxHp) * 100}%`;
 
-    const shieldFill = document.getElementById('hud-shield-fill');
-    if (shieldFill) {
-      shieldFill.style.width = `${(p.shield / p.maxShield) * 100}%`;
-      const tierColors = { 1: '#e2e8f0', 2: '#38bdf8', 3: '#a855f7', 4: '#fbbf24' };
-      shieldFill.style.background = tierColors[p.shieldTier] || '#38bdf8';
-    }
-
-    const tierLabels = { 1: 'LV1 EVO', 2: 'LV2 BLUE EVO', 3: 'LV3 PURPLE EVO', 4: 'LV4 MYTHIC GOLD' };
-    setTxt('hud-shield-tier', tierLabels[p.shieldTier] || 'EVO SHIELD');
-
-    // Tactical (Q) & Ultimate (Z) HUD Boxes
+    // Tactical (Q) & Ultimate (Z)
     setTxt('hud-tactical-name', hData.tacticalName);
     setTxt('hud-tactical-cd', p.tacticalCooldown > 0 ? `${p.tacticalCooldown.toFixed(1)}s` : 'READY [Q]');
     const tacBox = document.getElementById('hud-tactical-box');
@@ -1456,8 +1983,11 @@ class GodWarsGame {
     const ultBox = document.getElementById('hud-ult-box');
     if (ultBox) ultBox.classList.toggle('ready', p.ultCharge >= 100);
 
-    // Heal & Divine Bomb Boxes
-    setTxt('hud-heal-count', `⚡${p.shieldBatteries} ➕${p.medkits}`);
+    // 4-Tier Apex Healing Slot & Divine Bomb Slot
+    const curHeal = window.GODWARS_DATA.HEAL_ITEMS[this.selectedHealId];
+    setTxt('hud-heal-title', curHeal.shortName);
+    setTxt('hud-heal-count', p.healTimer > 0 ? `${p.healTimer.toFixed(1)}s...` : `${curHeal.icon} x${p.heals[this.selectedHealId] || 0} [H]`);
+
     const gData = window.GODWARS_DATA.GRENADES[this.selectedGrenadeId];
     const gCount = p.grenadeCounts[this.selectedGrenadeId] || 0;
     setTxt('hud-bomb-name', gData.shortName);
@@ -1468,39 +1998,118 @@ class GodWarsGame {
       const slotEl = document.getElementById(`hud-weapon-slot-${idx}`);
       if (!slotEl) return;
       slotEl.classList.toggle('active', idx === p.activeSlot);
-      slotEl.style.setProperty('--slot-color', w.data.color);
-      setTxt(`hud-wep-name-${idx}`, w.data.divineName);
-      setTxt(`hud-wep-base-${idx}`, w.data.baseName);
+      slotEl.style.setProperty('--slot-color', w.isMythicGold ? '#fde047' : w.data.color);
+      setTxt(`hud-wep-name-${idx}`, `${w.isMythicGold ? '★ MYTHIC ' : ''}${w.data.divineName}`);
+      setTxt(`hud-wep-base-${idx}`, `${w.data.baseName} • ${w.data.ammoType.split(' ')[0]}`);
       setTxt(`hud-wep-ammo-${idx}`, w.reloading ? 'RELOADING...' : `${w.mag} / ${w.reserve}`);
     });
 
-    // Center Active Ammo Counter near Crosshair
     const activeWep = p.weapons[p.activeSlot];
-    setTxt('crosshair-ammo', activeWep.reloading ? 'RELOADING' : `${activeWep.mag}`);
+    setTxt('crosshair-ammo', activeWep.reloading ? 'RLD' : `${activeWep.mag}`);
 
-    // ADS Holographic Sight Overlay
     const adsOverlay = document.getElementById('ads-optic-overlay');
     if (adsOverlay) {
       adsOverlay.classList.toggle('active', p.isADS);
-      adsOverlay.style.setProperty('--optic-color', activeWep.data.color);
+      adsOverlay.style.setProperty('--optic-color', activeWep.isMythicGold ? '#fde047' : activeWep.data.color);
     }
 
-    // Loot Prompt Overlay
+    // Context Interact Prompt (Self-Revive / Finisher / Jump Tower / Zipline / Loot Bin)
     const lootPrompt = document.getElementById('hud-loot-prompt');
     const mobileLootBtn = document.getElementById('btn-touch-loot');
-    if (this.nearestBin) {
+    let promptHtml = '';
+    let mobileBtnText = '';
+
+    if (p.knocked) {
+      promptHtml = `<b style="color:#fbbf24">[E / TAP] GOLD EVO GUARDIAN ANGEL: SELF-REVIVE!</b>`;
+      mobileBtnText = `⚡ SELF-REVIVE`;
+    } else if (this.nearestKnockedBot) {
+      promptHtml = `<b style="color:#f43f5e">[E / TAP] EXECUTE MYTHIC FINISHER ON ${this.nearestKnockedBot.name} (REFILLS 100% SHIELD)</b>`;
+      mobileBtnText = `💀 EXECUTE FINISHER`;
+    } else if (this.nearJumpTower) {
+      promptHtml = `<b style="color:#f43f5e">[E / TAP] RIDE VALHALLA JUMP TOWER (AERIAL SKYDIVE REDEPLOY)</b>`;
+      mobileBtnText = `🎈 JUMP TOWER`;
+    } else if (this.nearestZipline) {
+      promptHtml = `<b style="color:#fde047">[E / TAP] RIDE BIFROST ZIPLINE (${this.nearestZipline.zip.name})</b>`;
+      mobileBtnText = `⚡ RIDE ZIPLINE`;
+    } else if (this.nearestBin) {
       const binWep = window.GODWARS_DATA.WEAPONS[this.nearestBin.loot.weaponId];
-      const title = this.nearestBin.isDeathBox
-        ? `DEATH BOX (${this.nearestBin.victimName})`
-        : 'DIVINE SUPPLY BIN';
+      const title = this.nearestBin.isCarePackage
+        ? '★ ODIN MYTHIC CARE PACKAGE'
+        : this.nearestBin.isDeathBox
+          ? `DEATH BOX (${this.nearestBin.victimName})`
+          : 'DIVINE SUPPLY BIN';
+      promptHtml = `<b>[E / TAP]</b> ${title}: <span style="color:${binWep.color}">${binWep.divineName}</span> + LV${this.nearestBin.loot.shieldTier} EVO`;
+      mobileBtnText = `📦 OPEN / LOOT`;
+    }
+
+    if (promptHtml) {
       if (lootPrompt) {
         lootPrompt.classList.remove('hidden');
-        lootPrompt.innerHTML = `<b>[E] / TAP</b> ${title}: <span style="color:${binWep.color}">${binWep.divineName}</span> + LV${this.nearestBin.loot.shieldTier} SHIELD`;
+        lootPrompt.innerHTML = promptHtml;
       }
-      if (mobileLootBtn) mobileLootBtn.classList.remove('hidden');
+      if (mobileLootBtn) {
+        mobileLootBtn.classList.remove('hidden');
+        mobileLootBtn.textContent = mobileBtnText;
+      }
     } else {
       if (lootPrompt) lootPrompt.classList.add('hidden');
       if (mobileLootBtn) mobileLootBtn.classList.add('hidden');
+    }
+
+    // BATCH 2: Update 3D-to-2D Projected Apex Ping Diamond Marker
+    const pingMarkerEl = document.getElementById('apex-ping-marker');
+    if (this.activePing && pingMarkerEl) {
+      this.activePing.ttl -= dt;
+      if (this.activePing.ttl <= 0) {
+        this.activePing = null;
+        pingMarkerEl.classList.add('hidden');
+      } else {
+        const proj = this.activePing.position.clone().project(this.camera);
+        if (proj.z > 1) {
+          pingMarkerEl.classList.add('hidden');
+        } else {
+          pingMarkerEl.classList.remove('hidden');
+          const sx = (proj.x * 0.5 + 0.5) * window.innerWidth;
+          const sy = (-proj.y * 0.5 + 0.5) * window.innerHeight;
+          const distM = Math.round(p.position.distanceTo(this.activePing.position));
+          pingMarkerEl.style.left = `${sx}px`;
+          pingMarkerEl.style.top = `${sy}px`;
+          pingMarkerEl.style.borderColor = this.activePing.color;
+          pingMarkerEl.style.color = this.activePing.color;
+          pingMarkerEl.innerHTML = `<div class="ping-diamond"></div><div class="ping-label">${this.activePing.label} (${distM}m)</div>`;
+        }
+      }
+    } else if (pingMarkerEl) {
+      pingMarkerEl.classList.add('hidden');
+    }
+
+    // BATCH 9: Update 3D-to-2D Projected Enemy Overhead Evo Shield & HP Bar on active combat target
+    const enemyBarEl = document.getElementById('enemy-overhead-bar');
+    if (enemyBarEl) {
+      if (this.lastHitTarget && this.lastHitTarget.alive && (this.matchTime - this.lastHitTime < 3.5)) {
+        const t = this.lastHitTarget;
+        const headWorld = t.position.clone().add(new THREE.Vector3(0, 2.35, 0));
+        const proj = headWorld.project(this.camera);
+        if (proj.z <= 1) {
+          enemyBarEl.classList.remove('hidden');
+          const sx = (proj.x * 0.5 + 0.5) * window.innerWidth;
+          const sy = (-proj.y * 0.5 + 0.5) * window.innerHeight;
+          enemyBarEl.style.left = `${sx}px`;
+          enemyBarEl.style.top = `${sy}px`;
+          const tTier = window.GODWARS_DATA.EVO_TIERS[t.shieldTier] || window.GODWARS_DATA.EVO_TIERS[2];
+          const sPct = (t.shield / t.maxShield) * 100;
+          const hPct = ((t.knocked ? t.knockedHp : t.hp) / t.maxHp) * 100;
+          enemyBarEl.innerHTML = `
+            <div class="eo-name">${t.name} ${t.knocked ? '[KNOCKED]' : ''}</div>
+            <div class="eo-track"><div class="eo-fill" style="width:${sPct}%;background:${tTier.color}"></div></div>
+            <div class="eo-track"><div class="eo-fill" style="width:${hPct}%;background:#10b981"></div></div>
+          `;
+        } else {
+          enemyBarEl.classList.add('hidden');
+        }
+      } else {
+        enemyBarEl.classList.add('hidden');
+      }
     }
   }
 
@@ -1523,14 +2132,23 @@ class GodWarsGame {
 
       ctx.clearRect(0, 0, w, h);
 
-      // Asgard Island Circle
-      ctx.fillStyle = '#0f172a';
+      ctx.fillStyle = '#0b1120';
       ctx.beginPath();
       ctx.arc(cx, cy, this.world.islandRadius * scale, 0, Math.PI * 2);
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = '#d97706';
       ctx.stroke();
+
+      // Draw Bifrost Ziplines on Map
+      ctx.strokeStyle = 'rgba(253, 224, 71, 0.35)';
+      ctx.lineWidth = 1.2;
+      this.world.ziplines.forEach(z => {
+        ctx.beginPath();
+        ctx.moveTo(cx + z.start.x * scale, cy + z.start.z * scale);
+        ctx.lineTo(cx + z.end.x * scale, cy + z.end.z * scale);
+        ctx.stroke();
+      });
 
       // Draw 6 POIs
       window.GODWARS_DATA.POIS.forEach(poi => {
@@ -1547,6 +2165,25 @@ class GodWarsGame {
         ctx.fillText(poi.name.split(' ')[0], px, py + 3);
       });
 
+      // Draw Odin Care Packages on Map
+      this.world.carePackages.forEach(pkg => {
+        if (pkg.opened) return;
+        ctx.fillStyle = '#f43f5e';
+        ctx.beginPath();
+        ctx.arc(cx + pkg.x * scale, cy + pkg.z * scale, idx === 1 ? 5.5 : 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fde047';
+        ctx.stroke();
+      });
+
+      // Draw Active Ping on Map
+      if (this.activePing) {
+        ctx.fillStyle = this.activePing.color;
+        ctx.beginPath();
+        ctx.arc(cx + this.activePing.position.x * scale, cy + this.activePing.position.z * scale, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       // Draw Ragnarok Safe Ring
       ctx.strokeStyle = '#f43f5e';
       ctx.lineWidth = 2.2;
@@ -1560,14 +2197,14 @@ class GodWarsGame {
       );
       ctx.stroke();
 
-      // Draw Enemies if Valkyrie Sky Scan / Loki Recon or firing recently
+      // Draw Detected Enemies
       const p = this.player;
-      const scanActive = p && ((p.heroId === 'valkyrie' && p.ultBuffTimer > 0) || p.heroId === 'loki');
+      const scanActive = p && ((p.heroId === 'valkyrie' && p.ultBuffTimer > 0) || p.heroId === 'loki' || this.isFiringRange);
       this.bots.forEach(b => {
         if (!b.alive || b.inDropship) return;
         const distToPlayer = p ? p.position.distanceTo(b.position) : 999;
         if (scanActive || distToPlayer < 48 || b.fireTimer > 0.05) {
-          ctx.fillStyle = '#ef4444';
+          ctx.fillStyle = b.knocked ? '#fbbf24' : '#ef4444';
           ctx.beginPath();
           ctx.arc(cx + b.position.x * scale, cy + b.position.z * scale, idx === 1 ? 4.5 : 3, 0, Math.PI * 2);
           ctx.fill();
@@ -1594,19 +2231,24 @@ class GodWarsGame {
     });
   }
 
-  spawnFloatingDamageNumber(worldPos, amount, isHeadshot, hitShield, shieldBroken, shieldTier = 2) {
+  spawnFloatingDamageNumber(worldPos, amount, isHeadshot, hitShield, shieldBroken, shieldTier = 2, targetEntity = null) {
+    if (targetEntity) {
+      this.lastHitTarget = targetEntity;
+      this.lastHitTime = this.matchTime;
+    }
+
     const container = document.getElementById('damage-numbers-layer');
     if (!container) return;
 
     const proj = worldPos.clone().project(this.camera);
-    if (proj.z > 1) return; // Behind camera
+    if (proj.z > 1) return;
 
     const x = (proj.x * 0.5 + 0.5) * window.innerWidth + (Math.random() - 0.5) * 34;
     const y = (-proj.y * 0.5 + 0.5) * window.innerHeight - 18 + (Math.random() - 0.5) * 24;
 
     const el = document.createElement('div');
     el.className = `dmg-float ${isHeadshot ? 'headshot' : ''}`;
-    const shieldColors = { 1: '#f8fafc', 2: '#38bdf8', 3: '#c084fc', 4: '#fbbf24' };
+    const shieldColors = { 1: '#f8fafc', 2: '#38bdf8', 3: '#c084fc', 4: '#fbbf24', 5: '#f43f5e' };
     const color = isHeadshot
       ? '#fde047'
       : hitShield
@@ -1619,7 +2261,6 @@ class GodWarsGame {
     el.innerHTML = `${isHeadshot ? '✦ ' : ''}${amount}${shieldBroken ? ' 🛡️💥' : ''}`;
     container.appendChild(el);
 
-    // Hitmarker flash on crosshair
     const hm = document.getElementById('crosshair-hitmarker');
     if (hm) {
       hm.style.borderColor = color;
@@ -1689,27 +2330,40 @@ class GodWarsGame {
   }
 
   checkMatchState() {
-    if (!this.matchActive) return;
+    if (!this.matchActive || this.isFiringRange) return;
     const aliveBots = this.bots.filter(b => b.alive).length;
 
-    if (!this.player.alive) {
-      // Player Eliminated
+    if (!this.player.alive && !this.isSpectating) {
       const rank = aliveBots + 1;
       this.endMatch(false, rank);
-    } else if (aliveBots === 0) {
-      // Player is the CHAMPION OF ASGARD!
+    } else if (aliveBots === 0 && this.player.alive) {
       this.endMatch(true, 1);
+    } else if (this.isSpectating && aliveBots <= 1) {
+      this.isSpectating = false;
+      this.endMatch(false, 2);
     }
+  }
+
+  enterSpectatorMode() {
+    const aliveBots = this.bots.filter(b => b.alive);
+    if (aliveBots.length === 0) return;
+    document.getElementById('match-end-modal').classList.add('hidden');
+    document.getElementById('spectate-bar').classList.remove('hidden');
+    this.isSpectating = true;
+    this.matchActive = true;
   }
 
   endMatch(isChampion, placement) {
     this.matchActive = false;
     if (document.exitPointerLock) document.exitPointerLock();
 
+    this.saveCareerStats(isChampion, this.player.kills, this.player.damageDealt);
+
     const modal = document.getElementById('match-end-modal');
     const title = document.getElementById('match-end-title');
     const subtitle = document.getElementById('match-end-subtitle');
     const stats = document.getElementById('match-end-stats');
+    const specBtn = document.getElementById('btn-spectate-match');
 
     if (modal && title && subtitle && stats) {
       modal.classList.remove('hidden');
@@ -1718,18 +2372,24 @@ class GodWarsGame {
         title.style.color = '#fbbf24';
         subtitle.textContent = 'YOU CONQUERED THE GOD WARS BATTLE ROYALE (#1 / 16)';
         window.SFX.playAbility('ultimate');
+        window.SFX.announce('You are the Apex Champion of Asgard.');
+        if (specBtn) specBtn.classList.add('hidden');
       } else {
         title.textContent = 'SQUAD ELIMINATED';
         title.style.color = '#f43f5e';
         subtitle.textContent = `PLACEMENT: #${placement} OF 16 CONTENDERS`;
+        if (specBtn) specBtn.classList.toggle('hidden', this.bots.filter(b => b.alive).length === 0);
       }
 
       const hData = window.GODWARS_DATA.HEROES[this.player.heroId];
+      const rankInfo = this.getRankInfo(this.career.rp);
       stats.innerHTML = `
         <div class="end-stat-box"><span>HERO</span><b>${hData.name}</b></div>
         <div class="end-stat-box"><span>PLACEMENT</span><b>#${placement} / 16</b></div>
         <div class="end-stat-box"><span>ELIMINATIONS</span><b>${this.player.kills}</b></div>
         <div class="end-stat-box"><span>DAMAGE DEALT</span><b>${Math.round(this.player.damageDealt)}</b></div>
+        <div class="end-stat-box"><span>EVO TIER REACHED</span><b>LV${this.player.shieldTier}</b></div>
+        <div class="end-stat-box"><span>CAREER RANK</span><b style="color:${rankInfo.color}">${rankInfo.name}</b></div>
       `;
     }
   }

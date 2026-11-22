@@ -1,36 +1,41 @@
 /**
- * GOD WARS: ASGARD ROYALE
- * 15 Smart AI Battle Royale Contenders (completing the 16-Player Lobby)
+ * GOD WARS: ASGARD ROYALE (APEX LEGENDS EDITION - 10-BATCH FULL UPGRADE)
+ * 15 Smart AI Battle Royale Contenders + Firing Range Combat Dummies:
  * - Jump from Bifrost Dropship across Asgard's 6 POIs
  * - Equip Divine Weapons (P90, Kriss, M4A1, Uzi, AK47, Magnum) & Evo Shields
- * - Rotate into the Ragnarok Safe Ring, strafe, use Bifrost Jump Pads
+ * - Support Knocked Down (DBNO) state with 3D directional Knockdown Shield & crawling
  * - Fight other AI contenders and the player using firearms + Hero Tactical/Ultimate skills
  */
 
 class AIContender {
-  constructor(id, name, heroId, weaponId, game) {
+  constructor(id, name, heroId, weaponId, game, isDummy = false) {
     this.id = id;
     this.name = name;
     this.heroId = heroId;
     this.weaponId = weaponId;
     this.game = game;
     this.isPlayer = false;
+    this.isDummy = isDummy;
 
     const hData = window.GODWARS_DATA.HEROES[heroId] || window.GODWARS_DATA.HEROES.thor;
     this.maxHp = hData.maxHp || 100;
     this.hp = this.maxHp;
-    this.shieldTier = (id % 3) + 1; // Lv1 White (50), Lv2 Blue (75), Lv3 Purple (100)
-    this.maxShield = this.shieldTier === 1 ? 50 : this.shieldTier === 2 ? 75 : 100;
+    this.shieldTier = isDummy ? ((id % 4) + 2) : ((id % 3) + 1);
+    const tierInfo = window.GODWARS_DATA.EVO_TIERS[this.shieldTier] || window.GODWARS_DATA.EVO_TIERS[2];
+    this.maxShield = tierInfo.maxShield;
     this.shield = this.maxShield;
 
     this.alive = true;
-    this.inDropship = true;
+    this.knocked = false;
+    this.knockedHp = 70;
+    this.knockdownShieldHp = 90;
+    this.bleedoutTimer = 18.0;
+    this.inDropship = !isDummy;
     this.skydiving = false;
     this.kills = 0;
     this.damageDealt = 0;
     this.ultCharge = 35;
 
-    // Pick a target POI on Asgard to drop into
     const pois = window.GODWARS_DATA.POIS;
     const poi = pois[id % pois.length];
     const angle = Math.random() * Math.PI * 2;
@@ -40,9 +45,9 @@ class AIContender {
       0,
       poi.z + Math.sin(angle) * dist
     );
-    this.dropDelay = 1.2 + (id / 15) * 9.5; // Staggered dropship jumps
+    this.dropDelay = 1.2 + (id / 15) * 9.5;
 
-    this.position = new THREE.Vector3(this.dropTarget.x, 110, this.dropTarget.z);
+    this.position = new THREE.Vector3(this.dropTarget.x, isDummy ? 0 : 110, this.dropTarget.z);
     this.velocity = new THREE.Vector3();
     this.moveTarget = this.dropTarget.clone();
 
@@ -55,15 +60,41 @@ class AIContender {
     this.cloakTimer = 0;
     this.ultBuffTimer = 0;
 
-    // Build 3D Hero Mesh + Overhead Health/Shield Indicator Bar
     this.mesh = window.ModelFactory.createHeroModel(heroId);
     this.mesh.position.copy(this.position);
-    this.mesh.visible = false;
+    this.mesh.visible = isDummy;
     this.game.scene.add(this.mesh);
   }
 
   update(dt, elapsedMatchTime) {
     if (!this.alive) return;
+
+    // Firing Range Combat Dummy Behavior (Strafes side-to-side for target practice)
+    if (this.isDummy) {
+      if (this.id % 2 === 1) {
+        this.position.x = this.dropTarget.x + Math.sin(elapsedMatchTime * 1.8 + this.id) * 6.5;
+      }
+      this.position.y = this.game.world.getGroundHeight(this.position.x, this.position.z, this.position.y);
+      this.mesh.position.copy(this.position);
+      if (this.game.player) {
+        const toP = this.game.player.position.clone().sub(this.position);
+        this.mesh.rotation.y = Math.atan2(toP.x, toP.z);
+      }
+      return;
+    }
+
+    // Handle Knocked Down (DBNO) Crawling & Bleedout
+    if (this.knocked) {
+      this.bleedoutTimer -= dt;
+      if (this.game.player) {
+        const toP = this.game.player.position.clone().sub(this.position);
+        this.mesh.rotation.y = Math.atan2(toP.x, toP.z);
+      }
+      if (this.bleedoutTimer <= 0) {
+        this.game.combat.handleElimination(null, this, 'Bleedout');
+      }
+      return;
+    }
 
     if (this.flashBlindTimer > 0) this.flashBlindTimer -= dt;
     if (this.slowTimer > 0) this.slowTimer -= dt;
@@ -119,13 +150,12 @@ class AIContender {
       }
     }
 
-    // 3. Target Acquisition (Prioritize Loki Decoys, then closest visible Enemy within 75m)
+    // 3. Target Acquisition
     this.retargetTimer -= dt;
     if (this.retargetTimer <= 0) {
       this.retargetTimer = 0.6 + Math.random() * 0.4;
       this.currentEnemy = this.findBestTarget();
 
-      // If outside safe ring or no enemy, move toward Safe Ring interior
       if (distToRingCenter > this.game.ringRadius * 0.82) {
         const angle = Math.atan2(
           this.game.ringCenter.z - this.position.z,
@@ -138,7 +168,6 @@ class AIContender {
           this.position.z + Math.sin(angle) * step
         );
       } else if (!this.currentEnemy && this.position.distanceTo(this.moveTarget) < 5) {
-        // Patrol toward a random nearby POI inside the ring
         const r = Math.random() * (this.game.ringRadius * 0.72);
         const a = Math.random() * Math.PI * 2;
         this.moveTarget.set(
@@ -163,10 +192,8 @@ class AIContender {
       toEnemy.y = 0;
       if (toEnemy.lengthSq() > 0.001) toEnemy.normalize();
 
-      // Face enemy
       this.mesh.rotation.y = Math.atan2(toEnemy.x, toEnemy.z);
 
-      // Strafe left/right while keeping optimal combat distance (14m - 28m)
       const strafe = new THREE.Vector3(-toEnemy.z * this.strafeDir, 0, toEnemy.x * this.strafeDir);
       moveVec.addScaledVector(strafe, 0.75);
       if (dist > 26) moveVec.addScaledVector(toEnemy, 0.75);
@@ -186,7 +213,6 @@ class AIContender {
       this.position.x += moveVec.x * speed * dt;
       this.position.z += moveVec.z * speed * dt;
 
-      // Leg running animation
       const runCycle = performance.now() * 0.01;
       if (this.mesh.userData.leftLeg) {
         this.mesh.userData.leftLeg.rotation.x = Math.sin(runCycle + this.id) * 0.65;
@@ -194,7 +220,6 @@ class AIContender {
       }
     }
 
-    // Vertical gravity & Bifrost Jump Pads
     this.velocity.y -= 24 * dt;
     this.position.y += this.velocity.y * dt;
 
@@ -208,7 +233,6 @@ class AIContender {
       this.velocity.y = 0;
     }
 
-    // Check Bifrost Jump Pad launch
     for (const pad of this.game.world.jumpPads) {
       if (Math.hypot(this.position.x - pad.x, this.position.z - pad.z) < pad.radius && this.position.y < 1.2) {
         this.velocity.y = 18.5;
@@ -226,12 +250,11 @@ class AIContender {
       if (dist <= 68) {
         this.fireTimer -= dt;
         const wData = window.GODWARS_DATA.WEAPONS[this.weaponId] || window.GODWARS_DATA.WEAPONS.m4a1;
-        const fireInterval = Math.max(0.14, (60 / wData.rpm) * 1.85); // Balanced AI cadence
+        const fireInterval = Math.max(0.14, (60 / wData.rpm) * 1.85);
 
         if (this.fireTimer <= 0) {
           this.fireTimer = fireInterval + Math.random() * 0.12;
           const aimDir = targetCenter.clone().sub(eyeOrigin).normalize();
-          // Add realistic AI spread so player can out-strafe & out-duel
           const spreadAmt = 0.068;
           aimDir.x += (Math.random() - 0.5) * spreadAmt;
           aimDir.y += (Math.random() - 0.5) * spreadAmt;
@@ -242,7 +265,6 @@ class AIContender {
           this.game.combat.fireWeapon(this, eyeOrigin, aimDir, wData);
         }
 
-        // Trigger Hero Tactical or Ultimate in combat
         this.tacticalTimer -= dt;
         if (this.tacticalTimer <= 0 && dist < 35) {
           this.tacticalTimer = 14 + Math.random() * 6;
@@ -256,14 +278,12 @@ class AIContender {
         }
       }
     } else if (this.hp < this.maxHp * 0.65 || this.shield < this.maxShield * 0.5) {
-      // Passive out-of-combat Shield Cell / Med recharge for AI bots
       this.shield = Math.min(this.maxShield, this.shield + 4 * dt);
       this.hp = Math.min(this.maxHp, this.hp + 2.5 * dt);
     }
   }
 
   findBestTarget() {
-    // 1. Check if there is an active Loki Decoy nearby (Decoys draw AI aggro!)
     for (const decoy of this.game.combat.decoys) {
       if (decoy.owner !== this && decoy.position.distanceTo(this.position) < 38) {
         return { position: decoy.position, alive: true, isDecoy: true };
@@ -271,16 +291,15 @@ class AIContender {
     }
 
     let best = null;
-    let bestScore = 72; // Max detection range
+    let bestScore = 72;
 
     const allTargets = [...this.game.bots];
-    if (this.game.player && this.game.player.alive) {
+    if (this.game.player && this.game.player.alive && !this.game.player.knocked) {
       allTargets.push(this.game.player);
     }
 
     for (const t of allTargets) {
-      if (!t.alive || t === this || t.inDropship) continue;
-      // Loki cloak makes target invisible unless within 7m
+      if (!t.alive || t.knocked || t === this || t.inDropship) continue;
       if (t.cloakTimer && t.cloakTimer > 0 && t.position.distanceTo(this.position) > 7) continue;
 
       const d = this.position.distanceTo(t.position);
