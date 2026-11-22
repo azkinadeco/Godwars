@@ -191,6 +191,62 @@ class CombatManager {
       }
     }
 
+    // Check intersection with Hovering Apex Cargo Bots (Loot Drones!)
+    for (const cb of (this.game.world.cargoBots || [])) {
+      if (!cb.alive) continue;
+      const ray = new THREE.Ray(origin, dir);
+      const pt = new THREE.Vector3();
+      if (ray.intersectSphere(new THREE.Sphere(cb.position, 1.85), pt)) {
+        const d = origin.distanceTo(pt);
+        if (d < bestDist) {
+          bestDist = d;
+          hitPoint.copy(pt);
+          cb.alive = false;
+          cb.mesh.visible = false;
+          const tier = cb.currentTier; // 2=Blue, 3=Purple, 4=Gold Mythic
+          const tierColors = { 2: 0x38bdf8, 3: 0xa855f7, 4: 0xfbbf24 };
+          this.spawnExplosionVFX(cb.position.clone(), 5.5, tierColors[tier], 0.55);
+          window.SFX.playExplosion(false);
+          window.SFX.playEvoUpgrade();
+          // Drop Mythic Loot Box directly underneath on the ground!
+          const dropY = this.game.world.getGroundHeight(cb.position.x, cb.position.z, cb.position.y);
+          const weaponKeys = Object.keys(window.GODWARS_DATA.WEAPONS);
+          const randWep = weaponKeys[Math.floor(Math.random() * weaponKeys.length)];
+          const boxMesh = new THREE.Mesh(
+            new THREE.OctahedronGeometry(0.85, 0),
+            new THREE.MeshBasicMaterial({ color: tierColors[tier] })
+          );
+          boxMesh.position.set(cb.position.x, dropY + 0.85, cb.position.z);
+          this.scene.add(boxMesh);
+          this.game.world.supplyBins.push({
+            id: 'cargodrop_' + Date.now(),
+            x: cb.position.x,
+            z: cb.position.z,
+            opened: false,
+            isCarePackage: tier >= 4,
+            mesh: boxMesh,
+            lid: boxMesh,
+            strip: boxMesh,
+            loot: {
+              weaponId: randWep,
+              isMythicGold: tier >= 4,
+              grenadeId: 'solar_bomb',
+              shieldTier: tier >= 4 ? 5 : tier,
+              attachmentTier: tier,
+              shieldBattery: 3,
+              phoenixKit: tier >= 4 ? 1 : 0
+            }
+          });
+          if (shooter && shooter.isPlayer) {
+            const label = tier >= 4 ? '★ GOLD CARGO BOT DESTROYED! MYTHIC LOOT DROPPED!' : `CARGO BOT DESTROYED! LV${tier} LOOT DROPPED!`;
+            this.game.showBanner(label, tier >= 4 ? '#fde047' : '#a855f7');
+          }
+          this.spawnTracer(origin.clone().addScaledVector(dir, 0.7), hitPoint, tierColors[tier]);
+          return;
+        }
+      }
+    }
+
     const candidates = [...this.game.bots];
     if (this.game.player && this.game.player.alive) {
       candidates.push(this.game.player);

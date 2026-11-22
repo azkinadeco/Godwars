@@ -22,6 +22,7 @@ class AsgardWorld {
     this.replicators = [];      // Apex Replicator Crafting terminals
     this.surveyBeacons = [];    // Recon Survey Beacons on rooftops
     this.respawnBeacons = [];   // Apex Green Respawn Beacons for fallen Squadmates
+    this.cargoBots = [];        // Hovering Color-Cycling Apex Cargo Bots (Loot Drones!)
     this.supplyBins = [];
     this.jumpPads = [];
     this.ziplines = [];
@@ -50,6 +51,7 @@ class AsgardWorld {
     this.buildArenaChampionBanners();
     this.buildSupplyBins();
     this.buildGroundLootAndReplicators();
+    this.buildCargoBots();
     this.buildStormRing();
   }
 
@@ -431,13 +433,46 @@ class AsgardWorld {
   // =========================================================================
   buildLightingAndSky() {
     this.scene.background = new THREE.Color(0x0b1528);
-    this.scene.fog = new THREE.FogExp2(0x0e1a32, 0.0018);
+    this.scene.fog = new THREE.FogExp2(0x13203d, 0.00145);
 
-    const hemiLight = new THREE.HemisphereLight(0xfff7ed, 0x1e293b, 0.92);
+    // Apex-Style Atmospheric Asgard Golden-Twilight Sky Dome Shader
+    const skyGeo = new THREE.SphereGeometry(520, 32, 20);
+    const skyMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      uniforms: {
+        topColor: { value: new THREE.Color(0x060b1c) },
+        midColor: { value: new THREE.Color(0x172554) },
+        horizonColor: { value: new THREE.Color(0xd97706) }
+      },
+      vertexShader: `
+        varying vec3 vWorldPos;
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vWorldPos = wp.xyz;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 topColor;
+        uniform vec3 midColor;
+        uniform vec3 horizonColor;
+        varying vec3 vWorldPos;
+        void main() {
+          float h = normalize(vWorldPos).y;
+          vec3 col = mix(horizonColor, midColor, smoothstep(-0.08, 0.28, h));
+          col = mix(col, topColor, smoothstep(0.22, 0.78, h));
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+    this.scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+    const hemiLight = new THREE.HemisphereLight(0xfff7ed, 0x1e293b, 0.96);
     hemiLight.position.set(0, 180, 0);
     this.scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.32);
+    const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.38);
     sunLight.position.set(110, 180, 95);
     this.scene.add(sunLight);
 
@@ -1240,6 +1275,46 @@ class AsgardWorld {
     });
   }
 
+  buildCargoBots() {
+    // 4 Hovering Color-Cycling Apex Cargo Bots (Loot Drones) flying around Asgard POIs!
+    // Shoot them when they glow GOLD for instant Mythic Gold Weapons & Lv5 Red Evo Shield!
+    const botRoutes = [
+      { cx: 0, cz: 0, radius: 36, height: 18 },
+      { cx: 0, cz: 115, radius: 24, height: 16 },
+      { cx: -115, cz: 35, radius: 28, height: 17 },
+      { cx: 115, cz: 30, radius: 28, height: 18 }
+    ];
+
+    botRoutes.forEach((r, idx) => {
+      const group = new THREE.Group();
+      const sphereMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+      const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(1.15, 1), sphereMat);
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(1.55, 0.1, 8, 20),
+        this.mats.gold
+      );
+      ring.rotation.x = Math.PI / 2;
+      group.add(ball, ring);
+      group.position.set(r.cx + r.radius, r.height, r.cz);
+      this.scene.add(group);
+
+      this.cargoBots.push({
+        id: idx,
+        alive: true,
+        cx: r.cx,
+        cz: r.cz,
+        radius: r.radius,
+        height: r.height,
+        angle: idx * 1.5,
+        colorPhase: idx * 1.1,
+        currentTier: 2, // 2=Blue, 3=Purple, 4=Gold Mythic
+        mesh: group,
+        ballMat: sphereMat,
+        position: group.position
+      });
+    });
+  }
+
   buildStormRing() {
     const ringGeo = new THREE.CylinderGeometry(1, 1, 140, 64, 1, true);
     const ringMat = new THREE.MeshBasicMaterial({
@@ -1293,6 +1368,24 @@ class AsgardWorld {
       } else if (pkg.opened && pkg.mesh.userData.beam) {
         pkg.mesh.userData.beam.visible = false;
       }
+    });
+
+    // Update Hovering Color-Cycling Apex Cargo Bots (Blue -> Purple -> Gold!)
+    const tierHex = { 2: 0x38bdf8, 3: 0xa855f7, 4: 0xfbbf24 };
+    this.cargoBots.forEach(cb => {
+      if (!cb.alive) return;
+      cb.angle += dt * 0.45;
+      cb.colorPhase += dt * 0.9;
+      const tiers = [2, 3, 4];
+      cb.currentTier = tiers[Math.floor(cb.colorPhase) % 3];
+      cb.ballMat.color.setHex(tierHex[cb.currentTier]);
+
+      cb.mesh.position.set(
+        cb.cx + Math.cos(cb.angle) * cb.radius,
+        cb.height + Math.sin(time * 2.5 + cb.id) * 1.2,
+        cb.cz + Math.sin(cb.angle) * cb.radius
+      );
+      cb.mesh.rotation.y += dt * 2.0;
     });
   }
 

@@ -67,7 +67,11 @@ func _preload_blender_glb_assets() -> void:
 	var all_files = [
 		"weapon_p90", "weapon_kriss", "weapon_m4a1", "weapon_uzi", "weapon_ak47", "weapon_magnum",
 		"hero_loki", "hero_thor", "hero_hades", "hero_zeus", "hero_hela", "hero_valkyrie",
-		"prop_dropship", "prop_carepackage", "prop_supplybin", "prop_replicator"
+		"bomb_ragnarok", "bomb_apollo", "bomb_yggdrasil",
+		"prop_dropship", "prop_carepackage", "prop_supplybin", "prop_replicator",
+		"prop_evoshield", "prop_jumppad", "prop_respawnbeacon", "prop_surveybeacon",
+		"prop_odin_monument", "prop_bifrost_gate", "prop_yggdrasil_tree", "prop_asgard_tree", "prop_forge_anvil",
+		"statue_odin", "statue_thor", "statue_valkyrie", "statue_heimdall", "statue_hela", "prop_asgard_archway"
 	]
 	for fname in all_files:
 		var path = "res://assets/models/" + fname + ".glb"

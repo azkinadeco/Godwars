@@ -594,6 +594,15 @@ window.ModelFactory = {
     gun.position.set(0.46, 1.12, 0.38);
     root.add(gun);
 
+    // Grounded Contact Shadow Disc under Hero feet (makes 3D characters look anchored on floors!)
+    const shadowDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(0.62, 16),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.42, depthWrite: false })
+    );
+    shadowDisc.rotation.x = -Math.PI / 2;
+    shadowDisc.position.y = 0.03;
+    root.add(shadowDisc);
+
     // Attach High-Detail Beveled Blender 3.6 GLB Hero Armor Overlay (assets/models/hero_<id>.glb)
     this.attachBlenderGLB(`hero_${heroId}`, root);
 

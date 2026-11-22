@@ -1062,9 +1062,13 @@ class GodWarsGame {
       } else if (code === 'KeyR') {
         this.startReload();
       } else if (code === 'Digit1') {
+        this.player.holstered = false;
         this.selectWeaponSlot(0);
       } else if (code === 'Digit2') {
+        this.player.holstered = false;
         this.selectWeaponSlot(1);
+      } else if (code === 'Digit3') {
+        this.toggleHolsterWeapon();
       } else if (code === 'KeyQ') {
         this.useTacticalAbility();
       } else if (code === 'KeyZ') {
@@ -1245,6 +1249,7 @@ class GodWarsGame {
     bindHoldBtn('btn-touch-ping', () => this.triggerApexPing());
     bindHoldBtn('btn-touch-melee', () => this.triggerQuickMelee());
     bindHoldBtn('btn-touch-inspect', () => this.triggerWeaponInspect());
+    bindHoldBtn('btn-touch-holster', () => this.toggleHolsterWeapon());
     bindHoldBtn('btn-touch-bag', () => this.toggleInventoryModal());
     bindHoldBtn('btn-touch-loot', () => this.handleContextInteract());
     bindHoldBtn('btn-dropship-launch', () => this.launchFromDropship());
@@ -1716,14 +1721,41 @@ class GodWarsGame {
     this.showBanner('3RD-PERSON SKYDIVE ACTIVE • AIM TOWARD YOUR TARGET POI!', '#fbbf24');
   }
 
+  toggleHolsterWeapon() {
+    if (!this.player || !this.player.alive) return;
+    this.player.holstered = !this.player.holstered;
+    if (this.player.holstered) {
+      this.player.isADS = false;
+      this.showBanner('WEAPON HOLSTERED (+15% UNARMED SPRINT SPEED • HEIRLOOM OUT)', '#38bdf8');
+    } else {
+      window.SFX.playReload();
+    }
+  }
+
   triggerJump() {
-    if (!this.player || !this.player.alive || this.player.knocked) return;
-    if (this.player.onGround) {
-      this.player.velocity.y = 10.2;
-      this.player.onGround = false;
-      this.player.isSliding = false;
-    } else if (this.player.heroId === 'valkyrie' && this.player.jetpackFuel > 10) {
-      this.player.velocity.y = 8.5;
+    const p = this.player;
+    if (!p || !p.alive || p.knocked) return;
+    const forwardVec = new THREE.Vector3(-Math.sin(p.yaw), 0, -Math.cos(p.yaw));
+
+    if (p.onGround) {
+      p.velocity.y = 10.4;
+      p.onGround = false;
+      // Apex Slide-Jump Momentum Burst!
+      if (p.isSliding) {
+        p.momentumBoost = 15.2;
+        p.momentumDir = forwardVec.clone();
+        p.isSliding = false;
+      }
+    } else if (p.wallContactNormal && p.wallJumpCd <= 0) {
+      // Apex Wall-Bounce (Wall-Jump off any wall in mid-air!)
+      p.velocity.y = 11.4;
+      p.momentumBoost = 13.5;
+      p.momentumDir = p.wallContactNormal.clone().addScaledVector(forwardVec, 0.5).normalize();
+      p.wallJumpCd = 0.55;
+      window.SFX.playJumpPad();
+      this.showBanner('⚡ APEX WALL-BOUNCE!', '#38bdf8');
+    } else if (p.heroId === 'valkyrie' && p.jetpackFuel > 10) {
+      p.velocity.y = 8.5;
     }
   }
 
@@ -2222,6 +2254,15 @@ class GodWarsGame {
         p.thunderCharge = Math.min(100, p.thunderCharge + 35 * dt);
       }
 
+      if (p.wallJumpCd && p.wallJumpCd > 0) p.wallJumpCd = Math.max(0, p.wallJumpCd - dt);
+      if (p.momentumBoost && p.momentumBoost > 0) {
+        p.position.x += p.momentumDir.x * p.momentumBoost * dt;
+        p.position.z += p.momentumDir.z * p.momentumBoost * dt;
+        p.momentumBoost = Math.max(0, p.momentumBoost - (p.onGround ? 26 : 9) * dt);
+      }
+
+      if (p.holstered) speed *= 1.16;
+
       p.position.x += wishDir.x * speed * dt;
       p.position.z += wishDir.z * speed * dt;
 
@@ -2235,11 +2276,20 @@ class GodWarsGame {
       p.velocity.y -= 25 * dt;
       p.position.y += p.velocity.y * dt;
 
+      const preX = p.position.x;
+      const preZ = p.position.z;
       const col = this.world.resolveHorizontalCollision(p.position.x, p.position.z, p.position.y, 0.48);
+      const pushX = col.x - preX;
+      const pushZ = col.z - preZ;
+      if (Math.hypot(pushX, pushZ) > 0.004) {
+        p.wallContactNormal = new THREE.Vector3(pushX, 0, pushZ).normalize();
+      } else {
+        p.wallContactNormal = null;
+      }
       p.position.x = col.x;
       p.position.z = col.z;
 
-      // Apex Ledge Mantle / Wall-Climb Physics
+      // Apex Ledge Mantle / Wall-Climb + Super-Glide Physics
       if (!p.onGround && moveForward > 0.25 && (this.keys['Space'] || p.velocity.y > -6)) {
         const ledgeY = this.world.findClimbableLedge(p.position.x, p.position.y, p.position.z, forwardVec);
         if (ledgeY !== null && p.position.y < ledgeY) {
@@ -2250,6 +2300,11 @@ class GodWarsGame {
             p.position.x += forwardVec.x * 0.55;
             p.position.z += forwardVec.z * 0.55;
             p.onGround = true;
+            // Apex Super-Glide burst if holding Crouch/Slide at top of mantle!
+            if (this.keys['KeyC'] || this.keys['ShiftLeft']) {
+              p.momentumBoost = 16.0;
+              p.momentumDir = forwardVec.clone();
+            }
           }
         }
       }
@@ -2332,11 +2387,21 @@ class GodWarsGame {
       }
 
       if (this.activeViewmodel.userData.meleeMesh) {
-        this.activeViewmodel.userData.meleeMesh.visible = p.meleeTimer > 0;
+        const showHeirloom = p.meleeTimer > 0 || p.holstered;
+        this.activeViewmodel.userData.meleeMesh.visible = showHeirloom;
         if (p.meleeTimer > 0) {
           this.activeViewmodel.userData.meleeMesh.rotation.x = -Math.sin(p.meleeTimer * Math.PI * 2) * 1.1;
+        } else if (p.holstered) {
+          this.activeViewmodel.userData.meleeMesh.rotation.y += dt * 4.5;
+          this.activeViewmodel.userData.meleeMesh.position.set(0.0, -0.02, -0.25);
         }
       }
+      // Hide gun body meshes when holstered so only spinning Heirloom shows!
+      this.activeViewmodel.children.forEach(ch => {
+        if (ch !== this.activeViewmodel.userData.meleeMesh) {
+          ch.visible = !p.holstered;
+        }
+      });
 
       if (wep.reloading) {
         this.activeViewmodel.rotation.x = -0.45;
@@ -2373,6 +2438,9 @@ class GodWarsGame {
     if (p.fireCooldown > 0) p.fireCooldown -= dt;
 
     let wantsToFire = (this.mouseDown || this.touchFiring) && !p.knocked && !p.skydiving && p.finisherTimer <= 0;
+    if (wantsToFire && p.holstered) {
+      p.holstered = false;
+    }
     if (!wantsToFire && this.mobileAutoFire && !p.knocked && !p.skydiving && this.isCrosshairOnEnemy()) {
       wantsToFire = true;
     }
@@ -2614,11 +2682,17 @@ class GodWarsGame {
     const aliveBots = this.bots.filter(b => b.alive).length;
     const totalAlive = this.isFiringRange ? 6 : aliveBots + (p.alive ? 1 : 0);
 
+    // Count Remaining Living Squads (exact Apex Legends top-right "SQUADS LEFT" counter!)
+    const livingTeams = new Set();
+    if (p.alive) livingTeams.add(p.teamId);
+    this.bots.forEach(b => { if (b.alive) livingTeams.add(b.teamId); });
+
     const setTxt = (id, val) => {
       const el = document.getElementById(id);
       if (el) el.textContent = val;
     };
 
+    setTxt('hud-squads-count', this.isFiringRange ? '1' : `${livingTeams.size}`);
     setTxt('hud-alive-count', this.isFiringRange ? 'TRAINING' : `${totalAlive}/16`);
     setTxt('hud-kills-count', p.kills);
     setTxt('hud-damage-count', Math.round(p.damageDealt));
@@ -2802,6 +2876,20 @@ class GodWarsGame {
 
     const activeWep = p.weapons[p.activeSlot];
     setTxt('crosshair-ammo', activeWep.reloading ? 'RLD' : `${activeWep.mag}`);
+
+    // Crosshair Reload Progress Bar
+    const rldWrap = document.getElementById('crosshair-reload-bar');
+    const rldFill = document.getElementById('crosshair-reload-fill');
+    if (rldWrap && rldFill) {
+      if (activeWep.reloading) {
+        rldWrap.classList.remove('hidden');
+        const totalRld = activeWep.data.reloadTime || 2.0;
+        const pct = Math.min(100, Math.max(0, (1 - activeWep.reloadTimer / totalRld) * 100));
+        rldFill.style.width = `${pct}%`;
+      } else {
+        rldWrap.classList.add('hidden');
+      }
+    }
 
     // Dynamic Velocity & Recoil Crosshair Bloom (Apex Legends Feel!)
     const chWrap = document.getElementById('crosshair-wrapper');
@@ -3044,6 +3132,41 @@ class GodWarsGame {
         ctx.fill();
       }
 
+      // Draw Next Safe Zone White Circle (Exact Apex Legends Ring Preview!)
+      if (!this.isFiringRange) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(
+          cx + this.ringCenter.x * scale,
+          cy + this.ringCenter.z * scale,
+          Math.max(2, this.ringTargetRadius * scale),
+          0,
+          Math.PI * 2
+        );
+        ctx.stroke();
+
+        // Dotted Rotation Guide Line from Player to Next Safe Zone Center (if outside next ring!)
+        if (this.player) {
+          const distToNext = Math.hypot(
+            this.player.position.x - this.ringCenter.x,
+            this.player.position.z - this.ringCenter.z
+          );
+          if (distToNext > this.ringTargetRadius) {
+            ctx.save();
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.72)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(cx + this.player.position.x * scale, cy + this.player.position.z * scale);
+            ctx.lineTo(cx + this.ringCenter.x * scale, cy + this.ringCenter.z * scale);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+      }
+
+      // Draw Current Ragnarok Red Storm Ring
       ctx.strokeStyle = '#f43f5e';
       ctx.lineWidth = 2.2;
       ctx.beginPath();
@@ -3104,8 +3227,16 @@ class GodWarsGame {
 
   spawnFloatingDamageNumber(worldPos, amount, isHeadshot, hitShield, shieldBroken, shieldTier = 2, targetEntity = null) {
     if (targetEntity) {
+      // Apex Legends Stacking Damage Counter (accumulates burst damage on the same target within 1.1s!)
+      if (this.lastHitTarget === targetEntity && (this.matchTime - this.lastHitTime) < 1.15) {
+        this.stackedDamage = (this.stackedDamage || 0) + amount;
+      } else {
+        this.stackedDamage = amount;
+      }
       this.lastHitTarget = targetEntity;
       this.lastHitTime = this.matchTime;
+    } else {
+      this.stackedDamage = amount;
     }
 
     const container = document.getElementById('damage-numbers-layer');
@@ -3114,8 +3245,13 @@ class GodWarsGame {
     const proj = worldPos.clone().project(this.camera);
     if (proj.z > 1) return;
 
-    const x = (proj.x * 0.5 + 0.5) * window.innerWidth + (Math.random() - 0.5) * 34;
-    const y = (-proj.y * 0.5 + 0.5) * window.innerHeight - 18 + (Math.random() - 0.5) * 24;
+    const x = (proj.x * 0.5 + 0.5) * window.innerWidth + (Math.random() - 0.5) * 18;
+    const y = (-proj.y * 0.5 + 0.5) * window.innerHeight - 24;
+
+    // Remove previous stacking element for clean Apex live-incrementing number!
+    if (this._activeStackEl && this._activeStackEl.parentNode) {
+      this._activeStackEl.remove();
+    }
 
     const el = document.createElement('div');
     el.className = `dmg-float ${isHeadshot ? 'headshot' : ''}`;
@@ -3129,8 +3265,9 @@ class GodWarsGame {
     el.style.left = `${x}px`;
     el.style.top = `${y}px`;
     el.style.color = color;
-    el.innerHTML = `${isHeadshot ? '✦ ' : ''}${amount}${shieldBroken ? ' 🛡️💥' : ''}`;
+    el.innerHTML = `${isHeadshot ? '✦ ' : ''}${this.stackedDamage}${shieldBroken ? ' 🛡️💥' : ''}`;
     container.appendChild(el);
+    this._activeStackEl = el;
 
     const hm = document.getElementById('crosshair-hitmarker');
     if (hm) {

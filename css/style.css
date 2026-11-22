@@ -677,6 +677,25 @@ html, body {
   text-shadow: 0 1px 3px #000;
 }
 
+#crosshair-reload-bar {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 58px;
+  height: 5px;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(251, 191, 36, 0.7);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+#crosshair-reload-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #38bdf8, #fbbf24);
+}
+
 #ads-optic-overlay {
   position: absolute;
   top: 50%;
@@ -1166,6 +1185,7 @@ html, body {
 #btn-touch-melee { bottom: 180px; right: 238px; width: 46px; height: 46px; border-color: #a855f7; }
 #btn-touch-ping { top: 175px; left: 92px; width: 46px; height: 46px; border-color: #f97316; }
 #btn-touch-inspect { top: 230px; left: 92px; width: 44px; height: 44px; border-color: #fde047; }
+#btn-touch-holster { top: 230px; left: 144px; width: 44px; height: 44px; border-color: #2dd4bf; }
 #btn-touch-bag { top: 230px; left: 32px; width: 44px; height: 44px; border-color: #38bdf8; }
 #btn-touch-heal { bottom: 258px; left: 195px; width: 48px; height: 48px; border-color: var(--emerald); }
 #btn-touch-loot { top: 64%; left: 50%; transform: translateX(-50%); width: 175px; height: 44px; border-radius: 22px; background: linear-gradient(135deg, #f59e0b, #d97706); border-color: #fff; font-size: 12px; }
