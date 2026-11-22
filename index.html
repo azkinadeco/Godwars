@@ -267,7 +267,8 @@
         <div class="counter-item"><span>DMG</span><b id="hud-damage-count">0</b></div>
         <div class="counter-item"><span>LEADER</span><b id="hud-kill-leader">👑 NONE</b></div>
         <div class="counter-item"><b id="hud-fps" style="color:#10b981">60 FPS</b></div>
-        <button id="btn-hud-quick-settings" class="hud-gear-btn" title="In-Match Settings">⚙️</button>
+        <button id="btn-hud-tac-tray" class="hud-gear-btn" aria-label="Tactical Utility Tray" title="Ping / Melee / Bag / Holster / Holo">⋯</button>
+        <button id="btn-hud-quick-settings" class="hud-gear-btn" aria-label="In-Match Settings" title="In-Match Settings">⚙️</button>
       </div>
       <div id="kill-feed"></div>
     </div>
@@ -426,23 +427,31 @@
       </div>
       <div id="touch-look-zone"></div>
 
-      <button id="btn-touch-fire" class="touch-btn">🔥<br/>FIRE</button>
-      <button id="btn-touch-fire-left" class="touch-btn">🔥<br/>L-FIRE</button>
-      <button id="btn-touch-ads" class="touch-btn">🎯<br/>ADS</button>
-      <button id="btn-touch-jump" class="touch-btn">🪽<br/>JUMP</button>
-      <button id="btn-touch-slide" class="touch-btn">⚡<br/>SLIDE</button>
-      <button id="btn-touch-reload" class="touch-btn">🔄<br/>RLD</button>
-      <button id="btn-touch-tactical" class="touch-btn">Q<br/>SKILL</button>
-      <button id="btn-touch-ult" class="touch-btn">Z<br/>ULT</button>
-      <button id="btn-touch-grenade" class="touch-btn">💥<br/>BOMB</button>
-      <button id="btn-touch-melee" class="touch-btn">👊<br/>MELEE</button>
-      <button id="btn-touch-ping" class="touch-btn">📍<br/>PING</button>
-      <button id="btn-touch-inspect" class="touch-btn">✨<br/>INSP</button>
-      <button id="btn-touch-holster" class="touch-btn">🏃<br/>RUN</button>
-      <button id="btn-touch-emote" class="touch-btn">🎭<br/>HOLO</button>
-      <button id="btn-touch-bag" class="touch-btn">🎒<br/>BAG</button>
-      <button id="btn-touch-heal" class="touch-btn">🛡️<br/>HEAL</button>
-      <button id="btn-touch-loot" class="touch-btn hidden">📦 OPEN / LOOT</button>
+      <!-- Primary Combat Arc (Right Thumb) -->
+      <button id="btn-touch-fire" class="touch-btn" aria-label="Fire Weapon">🔥<br/>FIRE</button>
+      <button id="btn-touch-fire-left" class="touch-btn hidden" aria-label="Left Fire Weapon">🔥<br/>FIRE</button>
+      <button id="btn-touch-ads" class="touch-btn" aria-label="Aim Down Sights">🎯<br/>ADS</button>
+      <button id="btn-touch-jump" class="touch-btn" aria-label="Jump or Jetpack">🪽<br/>JUMP</button>
+      <button id="btn-touch-slide" class="touch-btn" aria-label="Slide or Crouch">⚡<br/>SLIDE</button>
+      <button id="btn-touch-reload" class="touch-btn" aria-label="Reload Weapon">🔄<br/>RLD</button>
+      <button id="btn-touch-tactical" class="touch-btn" aria-label="Tactical Skill">⚡<br/>SKILL</button>
+      <button id="btn-touch-ult" class="touch-btn" aria-label="Ultimate Ability">👑<br/>ULT</button>
+
+      <!-- Always-Handy Quick Consumables (Cleanly Tucked Next to Center Dock) -->
+      <button id="btn-touch-heal" class="touch-btn" aria-label="Heal (Hold for Wheel)">🛡️<br/>HEAL</button>
+      <button id="btn-touch-grenade" class="touch-btn" aria-label="Bomb (Hold for Wheel)">💥<br/>BOMB</button>
+
+      <!-- Organized Collapsible Tactical Utility Strip (All Features Kept, Zero Clutter!) -->
+      <div id="mobile-tac-tray" class="mobile-tac-tray hidden">
+        <button id="btn-touch-melee" class="touch-btn tray-item" aria-label="Quick Melee">👊<br/>MELEE</button>
+        <button id="btn-touch-ping" class="touch-btn tray-item" aria-label="Ping (Hold for Wheel)">📍<br/>PING</button>
+        <button id="btn-touch-bag" class="touch-btn tray-item" aria-label="Tactical Backpack">🎒<br/>BAG</button>
+        <button id="btn-touch-holster" class="touch-btn tray-item" aria-label="Holster Weapon">🏃<br/>RUN</button>
+        <button id="btn-touch-emote" class="touch-btn tray-item" aria-label="Drop Holo-Spray">🎭<br/>HOLO</button>
+        <button id="btn-touch-inspect" class="touch-btn tray-item" aria-label="Inspect Weapon">✨<br/>INSP</button>
+      </div>
+
+      <button id="btn-touch-loot" class="touch-btn hidden" aria-label="Interact or Loot">📦 OPEN / LOOT</button>
     </div>
   </section>
 
@@ -571,16 +580,26 @@
     </div>
   </div>
 
-  <!-- Mobile Portrait -> Landscape Prompt Overlay (Dismissible) -->
+  <!-- Sleek Asgard Match Loading Overlay (Prevents Freeze Perception on iPhone) -->
+  <div id="asgard-loading-overlay" class="hidden">
+    <div class="rotate-card" style="max-width:340px;">
+      <div style="font-size:34px;margin-bottom:6px;">⚡</div>
+      <h2 style="font-size:16px;color:#fbbf24;letter-spacing:1.5px;">DEPLOYING TO ASGARD...</h2>
+      <p id="loading-status-text" style="font-size:11.5px;color:#94a3b8;margin:6px 0 10px;">Building Asgard Island & 6 God Contenders</p>
+      <div class="xp-bar-track"><div id="loading-bar-fill" class="xp-bar-fill" style="width:35%"></div></div>
+    </div>
+  </div>
+
+  <!-- Mobile Portrait -> Landscape Prompt Overlay (Mandatory Landscape Guidance for iPhone 16 Plus) -->
   <div id="rotate-landscape-overlay" class="hidden">
     <div class="rotate-card">
       <div class="rotate-phone-icon">📱</div>
-      <h2>PUTAR HP KE MODE LANDSCAPE</h2>
-      <p>GOD WARS: ASGARD ROYALE dirancang untuk layar horizontal seperti Apex Legends Mobile agar kontrol 2-jempol & HUD maksimal.</p>
+      <h2>MIRINGKAN IPHONE KE LANDSCAPE</h2>
+      <p>GOD WARS: ASGARD ROYALE didesain khusus layar horizontal (Landscape) agar kontrol 2-jempol & grafik Asgard tampil penuh seperti Apex Legends Mobile.</p>
       <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;">
-        <button id="btn-force-landscape" class="btn-apex-play">⛶ FULLSCREEN & LANDSCAPE</button>
-        <button id="btn-dismiss-rotate" class="btn-apex-secondary">LANJUT PORTRAIT</button>
+        <button id="btn-force-landscape" class="btn-apex-play">⛶ AKTIFKAN FULLSCREEN</button>
       </div>
+      <p style="font-size:10.5px;color:#38bdf8;margin-top:10px;">💡 Tips iPhone Safari: Pastikan <b>Portrait Orientation Lock</b> mati di Control Center, lalu miringkan HP Anda.</p>
     </div>
   </div>
 

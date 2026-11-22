@@ -17,40 +17,34 @@ window.ModelFactory = {
   initGLBPreload() {
     if (typeof THREE === 'undefined' || !THREE.GLTFLoader) return;
     if (!this._loader) this._loader = new THREE.GLTFLoader();
+    // On-demand progressive loading: prevents 34 simultaneous HTTP requests & RAM spikes on iPhone Safari!
+  },
 
-    const assetList = [
-      'weapon_p90', 'weapon_kriss', 'weapon_m4a1', 'weapon_uzi', 'weapon_ak47', 'weapon_magnum',
-      'hero_loki', 'hero_thor', 'hero_hades', 'hero_zeus', 'hero_hela', 'hero_valkyrie',
-      'prop_dropship', 'prop_carepackage', 'prop_supplybin', 'prop_replicator',
-      'bomb_solar', 'bomb_flash', 'bomb_arc', 'loot_evoshield',
-      'prop_jumppad', 'prop_respawn_beacon', 'prop_survey_beacon',
-      'prop_odin_statue', 'prop_bifrost_gate', 'prop_yggdrasil_tree',
-      'prop_asgard_tree', 'prop_forge_anvil',
-      'statue_odin', 'statue_thor', 'statue_valkyrie', 'statue_heimdall', 'statue_hela', 'prop_asgard_archway'
-    ];
-
-    assetList.forEach(name => {
-      if (this._glbCache[name] || this._glbLoading[name]) return;
-      this._glbLoading[name] = [];
-      this._loader.load(
-        `assets/models/${name}.glb`,
-        (gltf) => {
-          this._glbCache[name] = gltf.scene;
-          const callbacks = this._glbLoading[name] || [];
-          delete this._glbLoading[name];
-          callbacks.forEach(cb => cb(gltf.scene.clone(true)));
-        },
-        undefined,
-        () => {
-          delete this._glbLoading[name];
-        }
-      );
-    });
+  _loadSingleGLB(assetName) {
+    if (!this._loader) this.initGLBPreload();
+    if (!this._loader || this._glbCache[assetName] || this._glbLoading[assetName]) return;
+    this._glbLoading[assetName] = [];
+    this._loader.load(
+      `assets/models/${assetName}.glb`,
+      (gltf) => {
+        this._glbCache[assetName] = gltf.scene;
+        const callbacks = this._glbLoading[assetName] || [];
+        delete this._glbLoading[assetName];
+        callbacks.forEach(cb => cb(gltf.scene.clone(true)));
+      },
+      undefined,
+      () => {
+        delete this._glbLoading[assetName];
+      }
+    );
   },
 
   attachBlenderGLB(assetName, targetGroup, onLoadedTransform = null, fallbackToHide = null) {
     if (typeof THREE === 'undefined' || !THREE.GLTFLoader) return false;
     this.initGLBPreload();
+    if (!this._glbCache[assetName] && !this._glbLoading[assetName]) {
+      this._loadSingleGLB(assetName);
+    }
 
     const applyClone = (clonedScene) => {
       if (onLoadedTransform) onLoadedTransform(clonedScene);

@@ -529,7 +529,15 @@ class GodWarsGame {
       });
     }
 
-    // BATCH 1: In-Match Quick Settings Gear Drawer
+    // BATCH 1: In-Match Quick Settings Gear Drawer & Collapsible Tactical Utility Tray (⋯)
+    const tacTrayBtn = document.getElementById('btn-hud-tac-tray');
+    const tacTray = document.getElementById('mobile-tac-tray');
+    if (tacTrayBtn && tacTray) {
+      tacTrayBtn.addEventListener('click', () => {
+        tacTray.classList.toggle('hidden');
+        this.vibrate(10);
+      });
+    }
     const qsGearBtn = document.getElementById('btn-hud-quick-settings');
     if (qsGearBtn) qsGearBtn.addEventListener('click', () => this.toggleQuickSettings());
     const qsCloseBtn = document.getElementById('btn-qs-close');
@@ -559,10 +567,11 @@ class GodWarsGame {
     });
     bindQs('qs-gyro', 'change', (e) => { this.mobileGyroEnabled = e.target.checked; });
 
-    // BATCH 8: Interactive 3D Lobby Hero Touch/Mouse Drag-to-Rotate 360°
+    // P1-1 FIXED: Interactive 3D Lobby Hero Drag-to-Rotate ONLY on empty stage/canvas (never hijacks scroll/sliders!)
     const lobbyCanvas = document.getElementById('game-canvas');
     if (lobbyCanvas) {
-      const startOrbit = (x) => { if (!this.matchActive) { this.lobbyDragActive = true; this.lobbyDragLastX = x; } };
+      const canOrbit = (target) => !this.matchActive && target && (target.id === 'game-canvas' || target.id === 'tab-play');
+      const startOrbit = (x, target) => { if (canOrbit(target)) { this.lobbyDragActive = true; this.lobbyDragLastX = x; } };
       const moveOrbit = (x) => {
         if (!this.matchActive && this.lobbyDragActive) {
           this.lobbyOrbitYaw += (x - this.lobbyDragLastX) * 0.012;
@@ -570,11 +579,11 @@ class GodWarsGame {
         }
       };
       const endOrbit = () => { this.lobbyDragActive = false; };
-      window.addEventListener('mousedown', (e) => startOrbit(e.clientX));
+      window.addEventListener('mousedown', (e) => startOrbit(e.clientX, e.target));
       window.addEventListener('mousemove', (e) => moveOrbit(e.clientX));
       window.addEventListener('mouseup', endOrbit);
-      window.addEventListener('touchstart', (e) => { if (!this.matchActive && e.touches.length === 1) startOrbit(e.touches[0].clientX); }, { passive: true });
-      window.addEventListener('touchmove', (e) => { if (!this.matchActive && e.touches.length === 1) moveOrbit(e.touches[0].clientX); }, { passive: true });
+      window.addEventListener('touchstart', (e) => { if (e.touches.length === 1) startOrbit(e.touches[0].clientX, e.target); }, { passive: true });
+      window.addEventListener('touchmove', (e) => { if (e.touches.length === 1) moveOrbit(e.touches[0].clientX); }, { passive: true });
       window.addEventListener('touchend', endOrbit);
     }
 
@@ -850,34 +859,29 @@ class GodWarsGame {
     document.body.classList.toggle('mobile-mode', this.forceMobileUI);
     document.documentElement.style.setProperty('--touch-scale', String(this.touchScale));
 
-    // Batch 2: Portrait -> Landscape Prompt & Orientation Lock
+    // Mandatory Landscape Guidance for iPhone 16 Plus & Mobile Phones
     const checkOrientation = () => {
       const rotOverlay = document.getElementById('rotate-landscape-overlay');
       if (!rotOverlay) return;
       const isPortrait = window.innerHeight > window.innerWidth;
-      if (this.forceMobileUI && isPortrait && !this.portraitDismissed) {
+      if (this.forceMobileUI && isPortrait) {
         rotOverlay.classList.remove('hidden');
       } else {
         rotOverlay.classList.add('hidden');
+        // Smoothly hide iOS Safari address bar when rotated to landscape
+        if (this.forceMobileUI) window.scrollTo(0, 1);
       }
     };
     checkOrientation();
     window.addEventListener('resize', checkOrientation);
-    window.addEventListener('orientationchange', () => setTimeout(checkOrientation, 150));
+    window.addEventListener('orientationchange', () => setTimeout(checkOrientation, 180));
 
     const btnForceLand = document.getElementById('btn-force-landscape');
     if (btnForceLand) {
       btnForceLand.addEventListener('click', () => {
         this.requestMobileFullscreenLandscape();
-        this.portraitDismissed = true;
-        document.getElementById('rotate-landscape-overlay').classList.add('hidden');
-      });
-    }
-    const btnDismissRot = document.getElementById('btn-dismiss-rotate');
-    if (btnDismissRot) {
-      btnDismissRot.addEventListener('click', () => {
-        this.portraitDismissed = true;
-        document.getElementById('rotate-landscape-overlay').classList.add('hidden');
+        window.scrollTo(0, 1);
+        checkOrientation();
       });
     }
 
@@ -1229,6 +1233,12 @@ class GodWarsGame {
   // START 16-PLAYER ASGARD BATTLE ROYALE (TRIOS / SOLOS / FIRING RANGE)
   // =========================================================================
   startBattleRoyaleMatch(instantGroundDrop = false, isFiringRange = false) {
+    const loadOverlay = document.getElementById('asgard-loading-overlay');
+    const loadFill = document.getElementById('loading-bar-fill');
+    if (loadOverlay) {
+      loadOverlay.classList.remove('hidden');
+      if (loadFill) loadFill.style.width = '75%';
+    }
     window.SFX.fadeOutLobbyMusic(1100);
     this.isFiringRange = isFiringRange;
     this.isSpectating = false;
@@ -1453,6 +1463,7 @@ class GodWarsGame {
 
     this.syncMobileHUDVisibility();
     document.body.classList.toggle('mobile-mode', this.forceMobileUI);
+    if (loadOverlay) setTimeout(() => loadOverlay.classList.add('hidden'), 280);
     this.matchActive = true;
     this.matchTime = 0;
 
@@ -3661,10 +3672,14 @@ class GodWarsGame {
       chAmmoEl.classList.toggle('low-ammo-pulse', lowAmmo);
     }
 
-    // BATCH 2, 3, 5, 6: Mobile Auto-Loot, Auto-Doors, Visual Sound Radar & Smart Heal
-    this.updateMobileAutoLootAndDoors();
-    this.updateVisualSoundRadar();
-    this.updateSmartHealSuggestion();
+    // P0-3 FIXED: Throttle Visual Sound Radar & Heavy Mobile Checks to 10 Hz (100ms) instead of 60fps DOM thrashing!
+    const nowMs = performance.now();
+    if (!this._lastMobileHudTick || nowMs - this._lastMobileHudTick >= 100) {
+      this._lastMobileHudTick = nowMs;
+      this.updateMobileAutoLootAndDoors();
+      this.updateVisualSoundRadar();
+      this.updateSmartHealSuggestion();
+    }
 
     // BATCH 7: Live Firing Range Accuracy & Headshot Stat Update
     if (this.isFiringRange) {

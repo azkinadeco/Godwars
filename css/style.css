@@ -1688,15 +1688,30 @@ html, body {
   pointer-events: none;
 }
 
-/* Batch 3: Mobile-Friendly Lobby on Phones (Portrait & Short Landscape) */
+/* =========================================================================
+   P0-1 FIXED: IPHONE 16 PLUS LANDSCAPE LOBBY (REAL SELECTORS, 1-SCREEN FIT)
+   ========================================================================= */
+#asgard-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 998;
+  background: rgba(5, 9, 22, 0.94);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (max-width: 960px), (max-height: 520px) {
   .lobby-topbar {
-    padding: 5px calc(10px + env(safe-area-inset-right)) 5px calc(10px + env(safe-area-inset-left));
+    padding: 4px calc(12px + env(safe-area-inset-right)) 4px calc(12px + env(safe-area-inset-left));
     flex-wrap: nowrap;
     gap: 6px;
+    min-height: 40px;
   }
   .brand-sub, #slider-music-volume, #career-rank-badge { display: none !important; }
-  .brand-title { font-size: 15px; }
+  .brand-title { font-size: 14px; letter-spacing: 1.5px; }
+  .brand-crest { font-size: 18px; }
   .lobby-nav {
     display: flex;
     overflow-x: auto;
@@ -1707,272 +1722,322 @@ html, body {
   }
   .lobby-nav::-webkit-scrollbar { display: none; }
   .lobby-tab-btn {
-    padding: 5px 9px;
-    font-size: 10px;
+    padding: 6px 10px;
+    font-size: 11px;
     white-space: nowrap;
+    min-height: 32px;
   }
-  .lobby-music-pill { padding: 3px 6px; }
-  .btn-music-toggle { font-size: 9.5px; }
-  .btn-icon { padding: 4px 8px; font-size: 10px; }
+  .lobby-music-pill { padding: 3px 8px; }
+  .btn-music-toggle { font-size: 10.5px; }
+  .btn-icon { padding: 5px 9px; font-size: 11px; }
 
   .lobby-tab-panel {
-    padding: 8px calc(10px + env(safe-area-inset-right)) 10px calc(10px + env(safe-area-inset-left));
-    max-height: calc(100dvh - 46px);
+    padding: 6px calc(12px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+    max-height: calc(100dvh - 44px);
     overflow-y: auto;
   }
-  .stage-squad-tags { gap: 10px; margin-top: 2px; }
-  .stage-nameplate { padding: 4px 8px; }
-  .stage-np-title { font-size: 10.5px; }
-  .stage-np-sub { font-size: 8.5px; }
-
-  .play-bottom-dock {
-    padding: 6px 10px;
-    gap: 8px;
-    flex-direction: row;
-    align-items: flex-end;
+  #tab-play {
+    overflow: hidden;
     justify-content: space-between;
   }
-  .mode-selector-card, .ready-action-card { padding: 6px 8px; }
-  .btn-apex-ready { padding: 9px 18px; font-size: 14px; }
-  .btn-apex-secondary { padding: 6px 10px; font-size: 10.5px; }
-  .quick-hero-bar { gap: 4px; }
-  .quick-hero-chip { padding: 4px 7px; font-size: 10px; }
+  .stage-squad-tags { gap: 20px; margin-top: 2px; }
+  .stage-nameplate { padding: 4px 10px; }
+  .stage-nameplate.ally { margin-top: 10px; }
+  .stage-np-title { font-size: 11px; }
+  .stage-np-sub { font-size: 9px; }
 
-  /* Batch 10: Compact Modals & Radial Wheels on Short Phone Landscape */
+  /* REAL Lobby Dock Selectors (P0-1 Fix: side-by-side, zero wrap, READY always visible!) */
+  .play-bottom-dock {
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0;
+  }
+  .apex-ready-panel {
+    width: 245px;
+    flex-shrink: 0;
+    padding: 8px 10px;
+    gap: 6px;
+  }
+  .mode-pill-btn { padding: 5px 4px; font-size: 10px; }
+  .btn-apex-ready { padding: 9px 14px; font-size: 14px; letter-spacing: 1.5px; }
+  .btn-apex-secondary { padding: 6px 10px; font-size: 11px; }
+
+  .play-quick-hero-panel {
+    flex: 1;
+    max-width: 440px;
+    padding: 7px 10px;
+    gap: 5px;
+  }
+  #play-quick-heroes { gap: 5px; }
+  .hero-card.compact { padding: 5px 8px; gap: 4px; }
+  .hc-icon { font-size: 13px; }
+  .hc-name { font-size: 11px; }
+  .play-ability-pills { display: none; }
+
+  /* Compact Modals & Radial Wheels on iPhone Landscape */
   .modal-box {
-    max-height: 92dvh;
+    max-height: 90dvh;
     overflow-y: auto;
     padding: 12px 14px;
   }
-  .radial-wheel-container { transform: scale(0.78); }
+  .radial-wheel-container { transform: scale(0.8); }
   .ls-hero-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .ls-hero-tile { padding: 7px 4px; }
   .ls-icon { font-size: 18px; }
   .ls-name { font-size: 11px; }
 }
 
-/* Batch 4: ZERO-OVERLAP ERGONOMIC MOBILE LANDSCAPE COMBAT HUD */
+/* =========================================================================
+   P0-2 FIXED: IPHONE 16 PLUS ZERO-OVERLAP LANDSCAPE COMBAT HUD
+   - Dynamic Island safe-area respected on left & right
+   - All touch targets >= 44x44px (WCAG 2.2 AA / Apple HIG)
+   - Readable >= 11px HUD typography
+   - Clean neutral glass buttons except FIRE & ULT for visual priority
+   - Secondary features organized in collapsible Tactical Utility Tray (⋯)
+   ========================================================================= */
 body.mobile-mode #hud-screen {
   touch-action: none;
 }
 body.mobile-mode .hud-bottom-center {
-  display: none !important; /* Replaced by ergonomic mobile touch buttons */
+  display: none !important;
 }
 body.mobile-mode #compass-bar {
   top: 4px;
   width: 170px;
-  font-size: 10px;
+  font-size: 11px;
   padding: 2px 8px;
 }
 body.mobile-mode #minimap-container {
   top: 6px;
-  left: calc(8px + env(safe-area-inset-left));
-  width: 84px;
-  height: 84px;
+  left: calc(10px + env(safe-area-inset-left));
+  width: 78px;
+  height: 78px;
 }
 body.mobile-mode #minimap-canvas {
-  width: 84px;
-  height: 84px;
+  width: 78px;
+  height: 78px;
 }
 body.mobile-mode #hud-ring-timer {
-  top: 94px;
-  left: calc(8px + env(safe-area-inset-left));
-  font-size: 9px;
+  top: 88px;
+  left: calc(10px + env(safe-area-inset-left));
+  font-size: 10px;
   padding: 2px 6px;
 }
 body.mobile-mode .hud-top-right {
   top: 6px;
-  right: calc(8px + env(safe-area-inset-right));
+  right: calc(10px + env(safe-area-inset-right));
 }
 body.mobile-mode .match-counters {
   gap: 4px;
+  align-items: center;
 }
 body.mobile-mode .counter-item {
-  padding: 2px 5px;
-  font-size: 8.5px;
+  padding: 3px 6px;
+  font-size: 9.5px;
 }
-body.mobile-mode .counter-item b { font-size: 10px; }
+body.mobile-mode .counter-item b { font-size: 11px; }
 body.mobile-mode #kill-feed {
-  max-width: 180px;
-  font-size: 9px;
+  max-width: 190px;
+  font-size: 10px;
 }
 
-/* Compact HP/Evo Shield & Dual Weapon Swap Cards centered at bottom (ZERO overlap with thumbs!) */
+/* Squadmates tucked cleanly below Ring Timer */
 body.mobile-mode #hud-squadmates-list {
-  top: 118px;
-  left: calc(8px + env(safe-area-inset-left));
+  top: 112px;
+  left: calc(10px + env(safe-area-inset-left));
   bottom: auto;
-  transform: scale(0.82);
+  transform: scale(0.84);
   transform-origin: top left;
 }
+
+/* Center-Bottom Unified Dock: HP/Evo (Left) + Dual Weapon Cards (Right) — 0px Overlap! */
 body.mobile-mode .hud-bottom-left {
   bottom: calc(6px + env(safe-area-inset-bottom));
   left: 50%;
-  transform: translateX(-104%);
-  width: 162px;
+  transform: translateX(-103%);
+  width: 172px;
   padding: 5px 8px;
 }
 body.mobile-mode #hud-hero-name { font-size: 11px; }
-body.mobile-mode #hud-shield-tier { font-size: 8px; }
-body.mobile-mode .bar-label { font-size: 8.5px; }
-body.mobile-mode #hud-shield-cells { height: 7px; }
-body.mobile-mode .bar-track { height: 7px; }
+body.mobile-mode #hud-shield-tier { font-size: 9px; }
+body.mobile-mode .bar-label { font-size: 9.5px; }
+body.mobile-mode #hud-shield-cells { height: 8px; }
+body.mobile-mode .bar-track { height: 8px; }
 body.mobile-mode #hud-next-evo { display: none; }
 
 body.mobile-mode .hud-bottom-right {
   bottom: calc(6px + env(safe-area-inset-bottom));
   left: 50%;
   right: auto;
-  transform: translateX(4%);
-  width: 176px;
+  transform: translateX(3%);
+  width: 186px;
   flex-direction: row;
-  gap: 4px;
+  gap: 5px;
 }
 body.mobile-mode .weapon-hud-card {
   flex: 1;
-  padding: 4px 6px;
+  padding: 5px 7px;
   min-width: 0;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
-body.mobile-mode .weapon-hud-card.active { transform: translateY(-3px); }
-body.mobile-mode .wep-card-top { font-size: 7px; }
-body.mobile-mode .wep-card-name { font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-body.mobile-mode .wep-card-ammo { font-size: 10.5px; }
+body.mobile-mode .weapon-hud-card.active { transform: translateY(-2px); }
+body.mobile-mode .wep-card-top { display: none; } /* Hide PC [B] MODE key hint on mobile */
+body.mobile-mode .wep-card-name { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.mobile-mode .wep-card-ammo { font-size: 12px; }
 body.mobile-mode .wep-att-pips { display: none; }
 
-/* Ergonomic Safe-Area Multi-Touch Button Layout (fits 640x360 to 932x430!) */
+/* Floating Left Joystick Zone (strictly left 30vw, zero collision with center dock!) */
 body.mobile-mode #touch-joystick-zone {
   position: absolute;
   bottom: 0;
   left: 0;
-  width: 38vw;
-  height: calc(100dvh - 120px);
+  width: 30vw;
+  height: calc(100dvh - 115px);
 }
 body.mobile-mode #touch-look-zone {
   position: absolute;
-  top: 42px;
+  top: 44px;
   right: 0;
-  width: 58vw;
-  height: calc(100dvh - 105px);
+  width: 60vw;
+  height: calc(100dvh - 108px);
 }
+
+/* Clean Apex Mobile Neutral Glass Buttons (>= 44px WCAG 2.2 AA) */
 body.mobile-mode .touch-btn {
   transform: scale(var(--touch-scale, 1));
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.05;
-  opacity: 0.88;
+  background: rgba(15, 23, 42, 0.62);
+  border: 1.5px solid rgba(255, 255, 255, 0.32);
+  color: #f8fafc;
+  opacity: 0.92;
 }
 body.mobile-mode .touch-btn:active {
-  transform: scale(calc(var(--touch-scale, 1) * 0.9));
+  transform: scale(calc(var(--touch-scale, 1) * 0.92));
   opacity: 1;
 }
 
-/* Right-Thumb Combat Arc (Zero Overlap!) */
+/* Primary Right-Thumb Combat Arc (Only FIRE & ULT use accent color!) */
 body.mobile-mode #btn-touch-fire {
-  bottom: calc(62px + env(safe-area-inset-bottom));
-  right: calc(18px + env(safe-area-inset-right));
-  width: 66px;
-  height: 66px;
-  font-size: 11px;
+  bottom: calc(52px + env(safe-area-inset-bottom));
+  right: calc(16px + env(safe-area-inset-right));
+  width: 68px;
+  height: 68px;
+  font-size: 12px;
+  background: radial-gradient(circle, rgba(234, 88, 12, 0.88), rgba(185, 28, 28, 0.92));
+  border: 2px solid #fde047;
 }
 body.mobile-mode #btn-touch-ads {
-  bottom: calc(136px + env(safe-area-inset-bottom));
+  bottom: calc(132px + env(safe-area-inset-bottom));
   right: calc(18px + env(safe-area-inset-right));
-  width: 46px;
-  height: 46px;
+  width: 48px;
+  height: 48px;
+  border-color: rgba(56, 189, 248, 0.7);
 }
 body.mobile-mode #btn-touch-jump {
-  bottom: calc(122px + env(safe-area-inset-bottom));
-  right: calc(78px + env(safe-area-inset-right));
+  bottom: calc(118px + env(safe-area-inset-bottom));
+  right: calc(84px + env(safe-area-inset-right));
   width: 48px;
   height: 48px;
 }
 body.mobile-mode #btn-touch-slide {
-  bottom: calc(66px + env(safe-area-inset-bottom));
-  right: calc(92px + env(safe-area-inset-right));
-  width: 46px;
-  height: 46px;
-}
-body.mobile-mode #btn-touch-reload {
-  bottom: calc(14px + env(safe-area-inset-bottom));
-  right: calc(92px + env(safe-area-inset-right));
-  width: 42px;
-  height: 42px;
-}
-body.mobile-mode #btn-touch-tactical {
-  bottom: calc(176px + env(safe-area-inset-bottom));
-  right: calc(74px + env(safe-area-inset-right));
-  width: 46px;
-  height: 46px;
-}
-body.mobile-mode #btn-touch-ult {
-  bottom: calc(176px + env(safe-area-inset-bottom));
-  right: calc(128px + env(safe-area-inset-right));
+  bottom: calc(58px + env(safe-area-inset-bottom));
+  right: calc(96px + env(safe-area-inset-right));
   width: 48px;
   height: 48px;
 }
-body.mobile-mode #btn-touch-grenade {
-  bottom: calc(122px + env(safe-area-inset-bottom));
-  right: calc(134px + env(safe-area-inset-right));
-  width: 42px;
-  height: 42px;
-}
-body.mobile-mode #btn-touch-melee {
-  bottom: calc(68px + env(safe-area-inset-bottom));
-  right: calc(144px + env(safe-area-inset-right));
-  width: 42px;
-  height: 42px;
-}
-
-/* Left-Side Utility Strip (Above Joystick, Zero Overlap!) */
-body.mobile-mode #btn-touch-fire-left {
-  top: 48px;
-  left: calc(104px + env(safe-area-inset-left));
-  width: 50px;
-  height: 50px;
-}
-body.mobile-mode #btn-touch-heal {
-  top: 48px;
-  left: calc(162px + env(safe-area-inset-left));
-  bottom: auto;
+body.mobile-mode #btn-touch-reload {
+  bottom: calc(8px + env(safe-area-inset-bottom));
+  right: calc(96px + env(safe-area-inset-right));
   width: 44px;
   height: 44px;
 }
-body.mobile-mode #btn-touch-ping {
-  top: 48px;
-  left: calc(214px + env(safe-area-inset-left));
-  width: 42px;
-  height: 42px;
+body.mobile-mode #btn-touch-tactical {
+  bottom: calc(176px + env(safe-area-inset-bottom));
+  right: calc(76px + env(safe-area-inset-right));
+  width: 46px;
+  height: 46px;
+  border-color: rgba(56, 189, 248, 0.75);
 }
-body.mobile-mode #btn-touch-bag {
-  top: 102px;
-  left: calc(104px + env(safe-area-inset-left));
-  width: 38px;
-  height: 38px;
+body.mobile-mode #btn-touch-ult {
+  bottom: calc(176px + env(safe-area-inset-bottom));
+  right: calc(134px + env(safe-area-inset-right));
+  width: 48px;
+  height: 48px;
+  background: rgba(217, 119, 6, 0.75);
+  border: 2px solid #fde047;
 }
-body.mobile-mode #btn-touch-holster {
-  top: 102px;
-  left: calc(150px + env(safe-area-inset-left));
-  width: 38px;
-  height: 38px;
+
+/* Quick Heal & Bomb neatly centered above the Bottom Dock (Zero overlap!) */
+body.mobile-mode #btn-touch-heal {
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  left: calc(50% - 54px);
+  top: auto;
+  width: 46px;
+  height: 46px;
+  border-color: rgba(16, 185, 129, 0.75);
 }
-body.mobile-mode #btn-touch-emote {
-  top: 102px;
-  left: calc(196px + env(safe-area-inset-left));
-  width: 38px;
-  height: 38px;
+body.mobile-mode #btn-touch-grenade {
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  left: calc(50% + 8px);
+  right: auto;
+  top: auto;
+  width: 46px;
+  height: 46px;
+  border-color: rgba(249, 115, 22, 0.75);
 }
-body.mobile-mode #btn-touch-inspect {
-  display: none; /* Keep mobile HUD clean; inspect available on desktop */
+
+/* Organized Collapsible Tactical Utility Strip (⋯) — All Extra Features Accessible, Zero Clutter! */
+.mobile-tac-tray {
+  position: absolute;
+  top: 44px;
+  right: calc(12px + env(safe-area-inset-right));
+  display: flex;
+  gap: 8px;
+  padding: 6px 10px;
+  background: rgba(7, 11, 25, 0.9);
+  border: 1.5px solid rgba(251, 191, 36, 0.55);
+  border-radius: 28px;
+  pointer-events: auto;
+  z-index: 18;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.65);
+}
+body.mobile-mode .mobile-tac-tray .tray-item {
+  position: static !important;
+  width: 44px !important;
+  height: 44px !important;
+  display: flex !important;
+  top: auto !important;
+  left: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  font-size: 9.5px;
 }
 
 body.mobile-mode #hud-perk-upgrade-bar {
-  bottom: 72px;
+  bottom: 118px;
   min-width: 280px;
   padding: 6px 10px;
 }
 body.mobile-mode #hud-range-controls {
-  top: 152px;
+  top: 146px;
+  left: calc(10px + env(safe-area-inset-left));
   width: 165px;
   padding: 5px 7px;
+}
+
+/* P1-4: Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 
