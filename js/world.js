@@ -72,22 +72,20 @@ class AsgardWorld {
     const lavaTex = window.ModelFactory.getSurfaceTexture('molten_lava', 6, 6);
 
     this.mats = {
-      gold: new THREE.MeshStandardMaterial({ color: 0xf59e0b, bumpMap: detailTex, bumpScale: 0.02, metalness: 0.85, roughness: 0.22 }),
-      brightGold: new THREE.MeshStandardMaterial({ color: 0xfde047, metalness: 0.9, roughness: 0.16 }),
-      marbleWall: new THREE.MeshStandardMaterial({ color: 0xf8fafc, map: marbleWallTex, bumpMap: detailTex, bumpScale: 0.035, roughness: 0.32, metalness: 0.14 }),
-      marbleFloor: new THREE.MeshStandardMaterial({ color: 0xe2e8f0, map: marbleFloorTex, bumpMap: detailTex, bumpScale: 0.025, roughness: 0.36, metalness: 0.18 }),
-      darkSteel: new THREE.MeshStandardMaterial({ color: 0x334155, map: goldRuneTex, bumpMap: detailTex, bumpScale: 0.03, metalness: 0.72, roughness: 0.32 }),
-      obsidian: new THREE.MeshStandardMaterial({ color: 0x1e293b, map: cyanRuneTex, bumpMap: detailTex, bumpScale: 0.03, metalness: 0.76, roughness: 0.26 }),
-      stone: new THREE.MeshStandardMaterial({ color: 0x94a3b8, map: stoneTex, bumpMap: detailTex, bumpScale: 0.06, roughness: 0.68, metalness: 0.12 }),
-      woodGold: new THREE.MeshStandardMaterial({ color: 0xd97706, map: woodGoldTex, bumpMap: detailTex, bumpScale: 0.04, roughness: 0.58, metalness: 0.25 }),
-      grass: new THREE.MeshStandardMaterial({ color: 0x4ade80, map: grassTex, bumpMap: detailTex, bumpScale: 0.05, roughness: 0.78, metalness: 0.05 }),
+      gold: new THREE.MeshStandardMaterial({ color: 0xc8892a, metalness: 0.8, roughness: 0.34 }),
+      brightGold: new THREE.MeshStandardMaterial({ color: 0xe0b24a, metalness: 0.88, roughness: 0.26 }),
+      marbleWall: new THREE.MeshStandardMaterial({ color: 0xd8d0c2, map: marbleWallTex, roughness: 0.62, metalness: 0.04 }),
+      marbleFloor: new THREE.MeshStandardMaterial({ color: 0xb0a898, map: marbleFloorTex, roughness: 0.55, metalness: 0.06 }),
+      darkSteel: new THREE.MeshStandardMaterial({ color: 0x334155, map: goldRuneTex, metalness: 0.72, roughness: 0.32 }),
+      obsidian: new THREE.MeshStandardMaterial({ color: 0x1e293b, map: cyanRuneTex, metalness: 0.76, roughness: 0.26 }),
+      stone: new THREE.MeshStandardMaterial({ color: 0xd0ccc4, map: stoneTex, roughness: 0.68, metalness: 0.12 }),
+      woodGold: new THREE.MeshStandardMaterial({ color: 0xd97706, map: woodGoldTex, roughness: 0.58, metalness: 0.25 }),
+      grass: new THREE.MeshStandardMaterial({ color: 0x4ade80, map: grassTex, roughness: 0.78, metalness: 0.05 }),
       lava: new THREE.MeshBasicMaterial({ color: 0xffedd5, map: lavaTex }),
       bifrostWater: new THREE.MeshStandardMaterial({
         color: 0x38bdf8,
         emissive: 0x0284c7,
         emissiveIntensity: 0.55,
-        bumpMap: detailTex,
-        bumpScale: 0.03,
         roughness: 0.12,
         metalness: 0.85
       }),
@@ -177,6 +175,7 @@ class AsgardWorld {
   addStairRamp(x, z, w, d, lowY, highY, dir = 'N', material = null) {
     const steps = 10;
     const group = new THREE.Group();
+    group.userData.staticBatch = true;
     const mat = material || this.mats.gold;
     const dh = (highY - lowY) / steps;
 
@@ -462,7 +461,7 @@ class AsgardWorld {
   // =========================================================================
   buildLightingAndSky() {
     this.scene.background = new THREE.Color(0x185ac2);
-    this.scene.fog = new THREE.Fog(0xc7e6ff, 95, 480);
+    this.scene.fog = new THREE.Fog(0xc9d8e6, 70, 440);
 
     // Euphoria Adventure Multi-Stop Celestial Sky Dome Shader (Sun Disc, Golden Corona & 2-Octave FBM Clouds!)
     this.skyUniforms = {
@@ -474,7 +473,7 @@ class AsgardWorld {
       time:    { value: 0 },
       cloudTex:{ value: window.ModelFactory.getDetailTexture() }
     };
-    const skyGeo = new THREE.SphereGeometry(620, 32, 18);
+    const skyGeo = new THREE.SphereGeometry(600, 32, 18);
     const skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
@@ -522,14 +521,26 @@ class AsgardWorld {
         }
       `
     });
-    this.scene.add(new THREE.Mesh(skyGeo, skyMat));
+    // Sky dome rides with the camera so it never crosses the 650m far plane
+    // (previously the far side got clipped and the flat blue background showed as a giant "dome").
+    const skyMesh = new THREE.Mesh(skyGeo, skyMat);
+    skyMesh.frustumCulled = false;
+    skyMesh.renderOrder = -1000;
+    const camPos = new THREE.Vector3();
+    skyMesh.onBeforeRender = (renderer, scene, camera) => {
+      camPos.setFromMatrixPosition(camera.matrixWorld);
+      skyMesh.position.copy(camPos);
+      skyMesh.updateMatrixWorld(true);
+    };
+    this.scene.add(skyMesh);
+    this.skyMesh = skyMesh;
 
     // Euphoria Adventure High-Contrast Anime/Fantasy Lighting + Tight Follow-Player Sun Shadow Map (P0-3)!
-    const hemiLight = new THREE.HemisphereLight(0xdcf0ff, 0x6f7f58, 1.38);
+    const hemiLight = new THREE.HemisphereLight(0xb8d2f5, 0x5a4a38, 0.42);
     hemiLight.position.set(0, 180, 0);
     this.scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfff5e4, 1.85);
+    const sunLight = new THREE.DirectionalLight(0xffe2b8, 1.55);
     sunLight.position.set(60, 95, 50);
     sunLight.castShadow = true;
     sunLight.shadow.mapSize.set(1024, 1024);
@@ -555,54 +566,47 @@ class AsgardWorld {
       [90, 18, -100, 0xe879f9, 1.5, 85]    // Valkyrie Sky Docks Violet-Gold Glow
     ];
     poiLights.forEach(([lx, ly, lz, color, intensity, dist]) => {
-      const pl = new THREE.PointLight(color, intensity, dist);
+      const pl = new THREE.PointLight(color, intensity * 0.55, dist, 2);
       pl.position.set(lx, ly, lz);
       this.scene.add(pl);
     });
 
-    // Drifting Volumetric Cosmic Clouds high above Asgard Island
-    const cloudMat = new THREE.MeshBasicMaterial({ color: 0xfef3c7, transparent: true, opacity: 0.14 });
-    for (let i = 0; i < 12; i++) {
-      const a = (i / 12) * Math.PI * 2;
-      const r = 90 + (i % 3) * 65;
-      const cloud = new THREE.Mesh(new THREE.DodecahedronGeometry(18 + (i % 4) * 5, 1), cloudMat);
-      cloud.scale.set(2.2, 0.45, 1.4);
-      cloud.position.set(Math.cos(a) * r, 78 + (i % 3) * 14, Math.sin(a) * r);
-      this.scene.add(cloud);
-      this.animatedProps.push({ mesh: cloud, rotY: 0.04 });
-    }
-
-    const starGeo = new THREE.BufferGeometry();
-    const starCount = 800;
-    const positions = new Float32Array(starCount * 3);
-    for (let i = 0; i < starCount; i++) {
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.random() * Math.PI * 0.46;
-      const r = 420 + Math.random() * 80;
-      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-      positions[i * 3 + 1] = Math.abs(r * Math.cos(phi)) + 30;
-      positions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
-    }
-    starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    this.scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xfef08a, size: 1.9 })));
-
-    const skyRing = new THREE.Mesh(
-      new THREE.TorusGeometry(320, 4.0, 10, 64),
-      new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.35 })
-    );
-    skyRing.rotation.x = Math.PI / 3;
-    skyRing.position.set(0, 95, 0);
-    this.scene.add(skyRing);
+    // (Removed: dodecahedron 'balloon' clouds, daytime star points and a 320m sky torus —
+    //  the sky shader already paints FBM clouds, and those meshes read as clutter from the ground.)
 
     // Floating Asgard Mountains & Golden Waterfalls around Island Perimeter
-    const spireMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.7, roughness: 0.3 });
+    const isleRockMat = new THREE.MeshStandardMaterial({ color: 0x5b5148, roughness: 0.92, metalness: 0.0, flatShading: true });
+    const isleGrassMat = new THREE.MeshStandardMaterial({ color: 0x5f8a3a, roughness: 0.95, metalness: 0.0, flatShading: true });
+    const islePineMat = new THREE.MeshStandardMaterial({ color: 0x2f5a2a, roughness: 0.9, metalness: 0.0, flatShading: true });
     const fallMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.45 });
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
-      const spire = new THREE.Mesh(new THREE.ConeGeometry(24, 72, 6), spireMat);
-      spire.position.set(Math.cos(a) * 310, 22 + (i % 3) * 14, Math.sin(a) * 310);
-      spire.rotation.x = Math.PI;
-      this.scene.add(spire);
+      // Distant floating sky-islands: jagged rock underside + grassy cap + a few pines.
+      const isle = new THREE.Group();
+      const R = 16 + (i % 3) * 7;
+      const rockGeo = new THREE.ConeGeometry(R, R * 2.6, 9, 5);
+      const rp = rockGeo.attributes.position;
+      for (let k = 0; k < rp.count; k++) {
+        const y = rp.getY(k);
+        if (y > R * 1.29) continue; // keep the top rim flat
+        const j = 1 + Math.sin(k * 12.9898 + i * 4.1) * 0.18;
+        rp.setX(k, rp.getX(k) * j); rp.setZ(k, rp.getZ(k) * j);
+      }
+      rockGeo.computeVertexNormals();
+      const rock = new THREE.Mesh(rockGeo, isleRockMat);
+      rock.rotation.x = Math.PI;
+      rock.position.y = -R * 1.3;
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(R * 1.02, R * 1.02, 2.2, 9), isleGrassMat);
+      isle.add(rock, cap);
+      for (let t = 0; t < 4; t++) {
+        const ta = t * 1.7 + i;
+        const pine = new THREE.Mesh(new THREE.ConeGeometry(2.4, 9, 6), islePineMat);
+        pine.position.set(Math.cos(ta) * R * 0.5, 5.4, Math.sin(ta) * R * 0.5);
+        isle.add(pine);
+      }
+      isle.position.set(Math.cos(a) * 330, 18 + (i % 3) * 16, Math.sin(a) * 330);
+      isle.rotation.y = i * 0.9;
+      this.scene.add(isle);
 
       const wx = Math.cos(a + 0.3) * (this.islandRadius - 1);
       const wz = Math.sin(a + 0.3) * (this.islandRadius - 1);
@@ -659,8 +663,6 @@ class AsgardWorld {
     const islandMat = new THREE.MeshStandardMaterial({
       color: 0x64748b,
       map: stoneCliffTex,
-      bumpMap: detailTex,
-      bumpScale: 0.08,
       roughness: 0.78,
       metalness: 0.14
     });
@@ -688,13 +690,19 @@ class AsgardWorld {
       posAttr.setY(i, vy);
 
       // Euphoria Multi-Biome Vertex Paint + Elevation Cliff Tint
-      col.setRGB(0.24, 0.58, 0.28); // Lush Sunlit Asgard Meadow Green
+      col.setRGB(0.40, 0.56, 0.27); // Sunlit Meadow Green (sRGB)
+      // Large-scale macro variation: dry-grass patches and worn dirt so the meadow never reads flat.
+      const n1 = Math.sin(vx * 0.031 + Math.sin(vz * 0.023) * 2.1) * Math.cos(vz * 0.027 - Math.sin(vx * 0.019) * 1.7);
+      const n2 = Math.sin(vx * 0.083 + vz * 0.061) * Math.sin(vz * 0.097 - vx * 0.043);
+      if (n1 > 0.15) col.lerp(new THREE.Color(0x9a9a52), Math.min(0.55, (n1 - 0.15) * 1.1));
+      if (n2 > 0.55) col.lerp(new THREE.Color(0x7d6b4e), Math.min(0.45, (n2 - 0.55) * 1.6));
+      if (n1 < -0.4) col.lerp(new THREE.Color(0x3f6b2c), Math.min(0.5, (-n1 - 0.4) * 1.2));
       if (vy > 3.2) {
         col.lerp(new THREE.Color(0x64748b), Math.min(0.65, (vy - 3.2) / 4.0)); // Rocky Highland Peaks
       }
       const dValhalla = Math.hypot(vx, vz);
       if (dValhalla < 58) {
-        col.lerp(new THREE.Color(0xeab308), Math.max(0, 1 - dValhalla / 58) * 0.78); // Golden Citadel Sandstone
+        col.lerp(new THREE.Color(0xb89a6a), Math.max(0, 1 - dValhalla / 58) * 0.78); // Golden Citadel Sandstone
       }
       const dForge = Math.hypot(vx + 115, vz - 35);
       if (dForge < 62) {
@@ -708,6 +716,7 @@ class AsgardWorld {
       if (dHelheim < 56) {
         col.lerp(new THREE.Color(0x0f766e), Math.max(0, 1 - dHelheim / 56) * 0.82); // Helheim Obsidian-Teal
       }
+      col.convertSRGBToLinear(); // r128 treats vertex colors as linear; author in sRGB
       cols[i * 3] = col.r;
       cols[i * 3 + 1] = col.g;
       cols[i * 3 + 2] = col.b;
@@ -718,8 +727,6 @@ class AsgardWorld {
     const terrainMat = new THREE.MeshStandardMaterial({
       vertexColors: true,
       map: lushGrassTex,
-      bumpMap: detailTex,
-      bumpScale: 0.04,
       roughness: 0.80,
       metalness: 0.05
     });
@@ -1114,6 +1121,7 @@ class AsgardWorld {
       canvas.width = 256;
       canvas.height = 512;
       const tex = new THREE.CanvasTexture(canvas);
+      if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
       const mat = new THREE.MeshBasicMaterial({
         map: tex,
         side: THREE.DoubleSide,
@@ -1826,7 +1834,17 @@ class AsgardWorld {
       this.scene.add(grp);
       if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
         window.ModelFactory.attachBlenderGLB(`euphoria/${name}`, grp, (glb) => {
-          glb.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+          glb.traverse(c => {
+            if (!c.isMesh) return;
+            c.castShadow = true; c.receiveShadow = true;
+            // Pure-white vertex-painted "toon" stone blows out under the sun; tint once to warm weathered limestone.
+            const m = c.material;
+            if (m && !m.userData.gwTinted && m.color) {
+              m.userData.gwTinted = true;
+              if (m.color.getHex() === 0xffffff) m.color.setHex(0xe6dccb);
+              if (m.roughness !== undefined) m.roughness = Math.max(m.roughness, 0.7);
+            }
+          });
         });
       }
       return grp;

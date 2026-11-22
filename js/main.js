@@ -851,7 +851,7 @@ class GodWarsGame {
     // Euphoria Adventure High-Resolution Color Grading: ACES Filmic Tone Mapping + sRGB Output!
     if (THREE.ACESFilmicToneMapping !== undefined) {
       this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      this.renderer.toneMappingExposure = 1.16;
+      this.renderer.toneMappingExposure = 0.9;
     }
     if (THREE.sRGBEncoding !== undefined) {
       this.renderer.outputEncoding = THREE.sRGBEncoding;
@@ -929,6 +929,10 @@ class GodWarsGame {
       groundBounce.rotation.x = -Math.PI / 2;
       envScene.add(groundBounce);
 
+      // Keep the env map as a reflection source, not a second sun: dim every panel so
+      // diffuse IBL doesn't double the ambient term and wash the world out.
+      envScene.traverse(o => { if (o.isMesh && o.material.color) o.material.color.multiplyScalar(0.42); });
+      envScene.background.multiplyScalar(0.5);
       const rt = pmrem.fromScene(envScene, 0.04);
       this.pmremEnvTexture = rt.texture;
       this.scene.environment = this.pmremEnvTexture;
@@ -1339,6 +1343,13 @@ class GodWarsGame {
 
     this.world = new window.AsgardWorld(this.scene);
     this.world.build();
+    if (window.StaticBatcher) {
+      try { window.StaticBatcher.batch(this.scene, this.world); } catch (e) { console.warn('StaticBatcher failed', e); }
+      const batchWorld = this.world;
+      window.StaticBatcher.batchWhenGLBReady(this.scene, this.world,
+        () => this.world === batchWorld,
+        () => [this.bots, this.allies, this.player, this.combat, this.dropship, this.camera, this.fpKnockShield, this.muzzleLight, this.activePing, this.viewmodelHolder]);
+    }
     this.combat = new window.CombatManager(this);
 
     const hData = window.GODWARS_DATA.HEROES[this.selectedHeroId];
@@ -1376,9 +1387,9 @@ class GodWarsGame {
       shield: tierInfo.maxShield,
       kills: 0,
       damageDealt: isFiringRange ? 500 : 0,
-      position: new THREE.Vector3(0, instantGroundDrop || isFiringRange ? 3.5 : 118, instantGroundDrop || isFiringRange ? 26 : -175),
+      position: new THREE.Vector3(instantGroundDrop ? 22 : 0, instantGroundDrop || isFiringRange ? 3.5 : 118, instantGroundDrop ? 42 : isFiringRange ? 26 : -175),
       velocity: new THREE.Vector3(),
-      yaw: 0,
+      yaw: instantGroundDrop ? Math.atan2(22, 42) : 0,
       pitch: 0,
       onGround: false,
       isSprinting: false,
@@ -3132,7 +3143,7 @@ class GodWarsGame {
         this.launchFromDropship();
       }
     } else if (!this.isSpectating) {
-      this.viewmodelHolder.visible = this.player && this.player.alive && !this.player.skydiving && !this.player.knocked;
+      this.viewmodelHolder.visible = !!(this.player && this.player.alive && !this.player.skydiving && !this.player.knocked);
     }
   }
 
@@ -3513,7 +3524,7 @@ class GodWarsGame {
       }
 
       if (this.activeViewmodel.userData.meleeMesh) {
-        const showHeirloom = p.meleeTimer > 0 || p.holstered;
+        const showHeirloom = !!(p.meleeTimer > 0 || p.holstered);
         this.activeViewmodel.userData.meleeMesh.visible = showHeirloom;
         if (p.meleeTimer > 0) {
           this.activeViewmodel.userData.meleeMesh.rotation.x = -Math.sin(p.meleeTimer * Math.PI * 2) * 1.1;
@@ -3524,7 +3535,7 @@ class GodWarsGame {
       }
       // Hide gun body meshes when holstered so only spinning Heirloom shows!
       this.activeViewmodel.children.forEach(ch => {
-        if (ch !== this.activeViewmodel.userData.meleeMesh && ch !== this.activeViewmodel.userData.healMesh) {
+        if (ch !== this.activeViewmodel.userData.meleeMesh && ch !== this.activeViewmodel.userData.healMesh && !ch.userData.gwReplacedByGLB) {
           ch.visible = !p.holstered;
         }
       });

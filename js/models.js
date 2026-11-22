@@ -50,8 +50,10 @@ window.ModelFactory = {
       const clonedScene = cached.scene.clone(true);
       if (onLoadedTransform) onLoadedTransform(clonedScene);
       if (fallbackToHide) {
-        if (Array.isArray(fallbackToHide)) fallbackToHide.forEach(m => { if (m) m.visible = false; });
-        else fallbackToHide.visible = false;
+        // Flag them so per-frame visibility toggles (holster, etc.) never resurrect the placeholder.
+        const hide = m => { if (m) { m.visible = false; m.userData.gwReplacedByGLB = true; } };
+        if (Array.isArray(fallbackToHide)) fallbackToHide.forEach(hide);
+        else hide(fallbackToHide);
       }
       targetGroup.add(clonedScene);
 
@@ -140,6 +142,7 @@ window.ModelFactory = {
     ctx.stroke();
 
     const tex = new THREE.CanvasTexture(canvas);
+    if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     this._texCache[key] = tex;
@@ -195,7 +198,10 @@ window.ModelFactory = {
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     tex.magFilter = THREE.LinearFilter;
-    tex.minFilter = THREE.LinearFilter;
+    // Mipmaps are essential: without them the bump derivatives alias at distance and blow surfaces out to white.
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.generateMipmaps = true;
+    tex.anisotropy = 4;
     tex.needsUpdate = true;
     this._texCache._euphoriaDetail = tex;
     return tex;
@@ -210,75 +216,146 @@ window.ModelFactory = {
     canvas.height = 256;
     const ctx = canvas.getContext('2d');
 
-    if (type === 'marble_wall') {
-      // Asgard Royal Carved White-Gold Marble Ashlar Masonry + Subtle Veins
-      ctx.fillStyle = '#e8eef5';
-      ctx.fillRect(0, 0, 256, 256);
-      // Soft marble veining
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
-      ctx.lineWidth = 2;
-      for (let i = 0; i < 14; i++) {
-        ctx.beginPath();
-        ctx.moveTo(0, i * 20);
-        ctx.lineTo(128, i * 20 + (i % 2 === 0 ? 14 : -12));
-        ctx.lineTo(256, i * 20 + 4);
+    // Shared helpers for the procedural PBR-ish surfaces (seeded so every session looks identical).
+    let seed = type.length * 7919 + 17;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+    const speckle = (count, alpha, light) => {
+      for (let i = 0; i < count; i++) {
+        const v = light ? 255 : 0;
+        ctx.fillStyle = `rgba(${v},${v},${v},${(rnd() * alpha).toFixed(3)})`;
+        const sz = 1 + rnd() * 2.2;
+        ctx.fillRect(rnd() * canvas.width, rnd() * canvas.height, sz, sz);
+      }
+    };
+    const grime = (alpha) => {
+      for (let i = 0; i < 18; i++) {
+        const x = rnd() * canvas.width, y = rnd() * canvas.height, r = 30 + rnd() * 90;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+        g.addColorStop(0, `rgba(60,50,38,${alpha})`); g.addColorStop(1, 'rgba(60,50,38,0)');
+        ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+    };
+    const crack = (n) => {
+      ctx.strokeStyle = 'rgba(40,34,28,0.45)'; ctx.lineWidth = 1;
+      for (let i = 0; i < n; i++) {
+        let x = rnd() * canvas.width, y = rnd() * canvas.height;
+        ctx.beginPath(); ctx.moveTo(x, y);
+        for (let k = 0; k < 6; k++) { x += (rnd() - 0.5) * 26; y += (rnd() - 0.5) * 26; ctx.lineTo(x, y); }
         ctx.stroke();
       }
-      // Ashlar stone courses & golden frieze lines
-      ctx.strokeStyle = 'rgba(100, 116, 139, 0.42)';
-      ctx.lineWidth = 2;
-      for (let row = 0; row < 4; row++) {
-        const y = row * 64;
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(256, y); ctx.stroke();
-        const offset = (row % 2) * 64;
-        for (let col = 0; col < 2; col++) {
-          const x = (offset + col * 128) % 256;
-          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 64); ctx.stroke();
+    };
+
+    if (type === 'marble_wall' || type === 'marble_floor' || type === 'asgard_stone') {
+      canvas.width = 512; canvas.height = 512;
+    }
+
+    if (type === 'marble_wall') {
+      // Weathered limestone ashlar: staggered courses, per-block tone, recessed mortar, rain streaks.
+      ctx.fillStyle = '#5d564c'; // mortar
+      ctx.fillRect(0, 0, 512, 512);
+      const rows = 8, rh = 512 / rows;
+      for (let r = 0; r < rows; r++) {
+        const cols = 3 + (r % 2);
+        const bw = 512 / cols;
+        const off = (r % 2) * bw * 0.5;
+        for (let c = -1; c <= cols; c++) {
+          const x = c * bw + off, y = r * rh;
+          const t = 0.82 + rnd() * 0.18;
+          const base = [222 * t, 210 * t, 188 * t].map(v => v | 0);
+          ctx.fillStyle = `rgb(${base})`;
+          ctx.fillRect(x + 3, y + 3, bw - 6, rh - 6);
+          // top bevel highlight + bottom AO inside each block
+          ctx.fillStyle = 'rgba(255,250,235,0.22)'; ctx.fillRect(x + 3, y + 3, bw - 6, 3);
+          ctx.fillStyle = 'rgba(40,32,24,0.22)'; ctx.fillRect(x + 3, y + rh - 7, bw - 6, 4);
         }
       }
-      ctx.fillStyle = '#f59e0b';
-      ctx.fillRect(0, 0, 256, 6);
-      ctx.fillRect(0, 126, 256, 4);
+      grime(0.16);
+      // vertical rain streaks
+      for (let i = 0; i < 40; i++) {
+        const x = rnd() * 512, len = 40 + rnd() * 160, y = rnd() * 300;
+        const g = ctx.createLinearGradient(x, y, x, y + len);
+        g.addColorStop(0, 'rgba(70,60,48,0.18)'); g.addColorStop(1, 'rgba(70,60,48,0)');
+        ctx.fillStyle = g; ctx.fillRect(x, y, 2 + rnd() * 4, len);
+      }
+      crack(10);
+      speckle(5000, 0.12, false);
+      speckle(2500, 0.10, true);
+      // single gilded frieze band (kept from the original Asgard look, subtler)
+      ctx.fillStyle = 'rgba(196,150,60,0.85)';
+      ctx.fillRect(0, 0, 512, 7);
     } else if (type === 'marble_floor') {
-      // Ornate Golden-Trimmed Valhalla Palace Floor Tiles
-      ctx.fillStyle = '#cbd5e1';
-      ctx.fillRect(0, 0, 256, 256);
-      ctx.strokeStyle = '#94a3b8';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(4, 4, 120, 120);
-      ctx.strokeRect(132, 4, 120, 120);
-      ctx.strokeRect(4, 132, 120, 120);
-      ctx.strokeRect(132, 132, 120, 120);
-      ctx.strokeStyle = 'rgba(245, 158, 11, 0.55)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(128, 16); ctx.lineTo(240, 128); ctx.lineTo(128, 240); ctx.lineTo(16, 128); ctx.closePath();
-      ctx.stroke();
-    } else if (type === 'asgard_stone') {
-      // Chiseled Geological Cliff & Castle Stone with Mossy Cracks
-      ctx.fillStyle = '#475569';
-      ctx.fillRect(0, 0, 256, 256);
-      const shades = ['#334155', '#64748b', '#475569', '#1e293b'];
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 4; c++) {
-          ctx.fillStyle = shades[(r + c) % shades.length];
-          const x = ((c * 64) + (r % 2) * 32) % 256;
-          ctx.fillRect(x + 2, r * 32 + 2, 60, 28);
+      // Large worn paving flags with irregular tones, dark grout, dirt in the joints and scuffs.
+      ctx.fillStyle = '#4a443b';
+      ctx.fillRect(0, 0, 512, 512);
+      const n = 4, sz = 512 / n;
+      for (let r = 0; r < n; r++) {
+        for (let c = 0; c < n; c++) {
+          const t = 0.78 + rnd() * 0.22;
+          const warm = rnd() * 14;
+          ctx.fillStyle = `rgb(${(200 * t + warm) | 0},${(192 * t + warm * 0.6) | 0},${(176 * t) | 0})`;
+          ctx.fillRect(c * sz + 3, r * sz + 3, sz - 6, sz - 6);
+          // edge darkening toward the grout
+          const g = ctx.createLinearGradient(c * sz, r * sz, c * sz, r * sz + sz);
+          g.addColorStop(0, 'rgba(255,255,255,0.08)'); g.addColorStop(0.5, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(30,24,18,0.18)');
+          ctx.fillStyle = g; ctx.fillRect(c * sz + 3, r * sz + 3, sz - 6, sz - 6);
         }
       }
-      ctx.strokeStyle = 'rgba(20, 83, 45, 0.45)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(8, 8, 240, 240);
+      grime(0.22);
+      crack(14);
+      speckle(7000, 0.14, false);
+      speckle(3000, 0.08, true);
+    } else if (type === 'asgard_stone') {
+      // Rough quarried cliff stone: irregular blocks, cool-grey with moss creeping in the joints.
+      ctx.fillStyle = '#3a3a36';
+      ctx.fillRect(0, 0, 512, 512);
+      for (let r = 0; r < 10; r++) {
+        let x = -rnd() * 40;
+        const h = 51;
+        while (x < 512) {
+          const w = 50 + rnd() * 70;
+          const t = 0.7 + rnd() * 0.3;
+          ctx.fillStyle = `rgb(${(150 * t) | 0},${(146 * t) | 0},${(136 * t) | 0})`;
+          ctx.beginPath();
+          ctx.moveTo(x + 3 + rnd() * 4, r * h + 3 + rnd() * 3);
+          ctx.lineTo(x + w - 3 - rnd() * 4, r * h + 2 + rnd() * 3);
+          ctx.lineTo(x + w - 2 - rnd() * 4, r * h + h - 3 - rnd() * 3);
+          ctx.lineTo(x + 2 + rnd() * 4, r * h + h - 2 - rnd() * 3);
+          ctx.closePath(); ctx.fill();
+          x += w;
+        }
+      }
+      for (let i = 0; i < 30; i++) {
+        const x = rnd() * 512, y = rnd() * 512, rr = 10 + rnd() * 34;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, rr);
+        g.addColorStop(0, 'rgba(78,104,52,0.45)'); g.addColorStop(1, 'rgba(78,104,52,0)');
+        ctx.fillStyle = g; ctx.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+      }
+      crack(16);
+      speckle(8000, 0.18, false);
+      speckle(4000, 0.10, true);
     } else if (type === 'lush_grass') {
       // Euphoria-Style Sunlit Emerald-Olive Fantasy Meadow Texture
-      ctx.fillStyle = '#1e5631';
+      // Neutral light-olive mottled meadow; hue comes from terrain vertex paint (multiplied).
+      // Seeded random (no modulo lattice) so tiling reads as natural turf, not diagonal stripes.
+      let seed = 1337;
+      const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+      ctx.fillStyle = '#b4c08a';
       ctx.fillRect(0, 0, 256, 256);
-      const bladeCols = ['#15803d', '#166534', '#22c55e', '#4d7c0f', '#facc15'];
-      for (let i = 0; i < 420; i++) {
-        ctx.fillStyle = bladeCols[i % (i % 19 === 0 ? 5 : 4)];
-        const bx = (i * 73) % 256;
-        const by = (i * 137) % 256;
-        ctx.fillRect(bx, by, 3, 9);
+      const blot = (x, y, r, col, a) => {
+        for (const ox of [-256, 0, 256]) for (const oy of [-256, 0, 256]) {
+          const g = ctx.createRadialGradient(x + ox, y + oy, 0, x + ox, y + oy, r);
+          g.addColorStop(0, col.replace('A', a)); g.addColorStop(1, col.replace('A', 0));
+          ctx.fillStyle = g; ctx.fillRect(x + ox - r, y + oy - r, r * 2, r * 2);
+        }
+      };
+      for (let i = 0; i < 26; i++) blot(rnd() * 256, rnd() * 256, 30 + rnd() * 60, i % 3 === 0 ? 'rgba(214,206,140,A)' : i % 3 === 1 ? 'rgba(120,150,90,A)' : 'rgba(160,175,110,A)', 0.55);
+      const blades = ['rgba(90,120,60,0.55)', 'rgba(140,165,95,0.5)', 'rgba(205,215,150,0.45)', 'rgba(70,95,50,0.5)'];
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 2600; i++) {
+        const x = rnd() * 256, y = rnd() * 256, len = 2 + rnd() * 5, ang = -Math.PI / 2 + (rnd() - 0.5) * 1.2;
+        ctx.strokeStyle = blades[(rnd() * blades.length) | 0];
+        ctx.lineWidth = 0.8 + rnd() * 0.9;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(ang) * len, y + Math.sin(ang) * len); ctx.stroke();
       }
     } else if (type === 'wood_gold') {
       ctx.fillStyle = '#78350f';
@@ -305,9 +382,11 @@ window.ModelFactory = {
     }
 
     const tex = new THREE.CanvasTexture(canvas);
+    if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(repeatX, repeatY);
+    tex.anisotropy = 8; // keeps floors/roads crisp at grazing angles instead of smearing to grey
     this._texCache[key] = tex;
     return tex;
   },
@@ -363,6 +442,7 @@ window.ModelFactory = {
     }
 
     const tex = new THREE.CanvasTexture(canvas);
+    if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
     this._texCache[key] = tex;
     return tex;
   },
@@ -615,7 +695,18 @@ window.ModelFactory = {
     const weaponFallbackMeshes = [...group.children];
     this.attachBlenderGLB(`weapon_${weaponId}`, group, (glbScene) => {
       glbScene.scale.set(1.02, 1.02, 1.02);
-      glbScene.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+      glbScene.traverse((c) => {
+        if (!c.isMesh) return;
+        c.castShadow = true; c.receiveShadow = true;
+        // Gunmetal pass: the pale chrome read lavender under the sky env. Shared cached mats -> tune once.
+        const m = c.material;
+        if (m && !m.userData.gwGunmetal && m.color) {
+          m.userData.gwGunmetal = true;
+          const n = (m.name || '').toLowerCase();
+          if (n.includes('metal')) { m.color.setHex(0x2c3038); m.roughness = 0.42; m.metalness = 0.75; }
+          else if (n.includes('silver')) { m.color.setHex(0x6b717a); m.roughness = 0.3; m.metalness = 0.85; }
+        }
+      });
     }, weaponFallbackMeshes);
 
     // First-person God Gauntlet / Hands + 3D Shield Battery Heal Prop + Heirloom Melee Mesh
@@ -650,10 +741,8 @@ window.ModelFactory = {
       leftArmGroup.add(leftForearm, leftCuff, leftFist);
       group.add(leftArmGroup);
 
-      this.attachBlenderGLB('viewmodel_god_arms', group, (glbArms) => {
-        glbArms.scale.set(0.75, 0.75, 0.75);
-        glbArms.position.set(0, -0.12, 0.06);
-      });
+      // NOTE: the 'viewmodel_god_arms' GLB rendered as a box-on-a-pole dead centre of the screen,
+      // blocking the crosshair. The procedural gauntlets above read correctly, so the GLB is not attached.
 
       // P1-1: 3D First-Person Shield Battery / Medkit Healing Prop (visible while healing!)
       const healGroup = new THREE.Group();
