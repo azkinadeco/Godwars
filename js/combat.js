@@ -452,6 +452,9 @@ class CombatManager {
     if (shieldBroken) {
       const tierHex = (window.GODWARS_DATA.EVO_TIERS[victim.shieldTier] || { hex: 0x38bdf8 }).hex;
       this.spawnImpactSparks(hitWorldPos || victim.position.clone().add(new THREE.Vector3(0, 1.3, 0)), tierHex, 10);
+      if (victim.isPlayer && this.game.triggerShieldBreakFlash) {
+        this.game.triggerShieldBreakFlash();
+      }
     }
 
     if (attacker && attacker.isPlayer) {
@@ -563,6 +566,11 @@ class CombatManager {
     }
 
     const killerName = killer ? killer.name : 'RAGNAROK RING';
+    if (!this.game.firstBloodTriggered && !this.game.isFiringRange) {
+      this.game.firstBloodTriggered = true;
+      this.game.showBanner(`🩸 FIRST BLOOD: ${killerName} ELIMINATED ${victim.name}!`, '#f43f5e');
+      window.SFX.announce('First blood.');
+    }
     this.game.addKillFeed(killerName, victim.name, weaponName);
     this.game.checkMatchState();
   }

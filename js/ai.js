@@ -278,10 +278,47 @@ class AIContender {
       if (Math.random() < 0.35) this.strafeDir *= -1;
     }
 
-    // 5. Movement & Strafe Physics
+    // 5. Movement & Tactical Cover / Shield Battery Retreat Physics (P1-4)
     let speed = this.isAlly ? 7.2 : 6.5;
     if (this.slowTimer > 0) speed *= 0.55;
     if (this.cloakTimer > 0) speed *= 1.25;
+    if (this.batteryCooldown > 0) this.batteryCooldown -= dt;
+
+    // Trigger Apex Tactical Shield Battery Retreat when Shield cracks in combat!
+    if (!this.isHealingBattery && this.shield <= 0 && this.hp < 85 && (this.batteryCooldown || 0) <= 0 && this.currentEnemy) {
+      this.isHealingBattery = true;
+      this.batteryTimer = 2.6;
+      this.batteryCooldown = 14.0;
+      if (!this.batteryAura) {
+        this.batteryAura = new THREE.Mesh(
+          new THREE.TorusGeometry(0.85, 0.06, 8, 24),
+          new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85 })
+        );
+        this.batteryAura.rotation.x = Math.PI / 2;
+        this.batteryAura.position.y = 1.05;
+        this.mesh.add(this.batteryAura);
+      }
+      this.batteryAura.visible = true;
+      if (this.game.player) {
+        const dx = this.position.x - this.game.player.position.x;
+        const dz = this.position.z - this.game.player.position.z;
+        const rel = Math.atan2(dx, -dz) + this.game.player.yaw;
+        window.SFX.playShieldBatteryHum(Math.sin(rel));
+      }
+    }
+
+    if (this.isHealingBattery) {
+      this.batteryTimer -= dt;
+      speed *= 0.85;
+      if (this.batteryAura) {
+        this.batteryAura.position.y = 0.45 + ((2.6 - this.batteryTimer) / 2.6) * 1.35;
+      }
+      if (this.batteryTimer <= 0) {
+        this.isHealingBattery = false;
+        this.shield = this.maxShield;
+        if (this.batteryAura) this.batteryAura.visible = false;
+      }
+    }
 
     let moveVec = new THREE.Vector3();
     if (this.currentEnemy && distToRingCenter <= this.game.ringRadius * 0.95) {
@@ -293,9 +330,14 @@ class AIContender {
       this.mesh.rotation.y = Math.atan2(toEnemy.x, toEnemy.z);
 
       const strafe = new THREE.Vector3(-toEnemy.z * this.strafeDir, 0, toEnemy.x * this.strafeDir);
-      moveVec.addScaledVector(strafe, 0.75);
-      if (dist > 26) moveVec.addScaledVector(toEnemy, 0.75);
-      else if (dist < 11) moveVec.addScaledVector(toEnemy, -0.65);
+      if (this.isHealingBattery) {
+        moveVec.addScaledVector(toEnemy, -0.95);
+        moveVec.addScaledVector(strafe, 0.85);
+      } else {
+        moveVec.addScaledVector(strafe, 0.75);
+        if (dist > 26) moveVec.addScaledVector(toEnemy, 0.75);
+        else if (dist < 11) moveVec.addScaledVector(toEnemy, -0.65);
+      }
     } else {
       const toWay = this.moveTarget.clone().sub(this.position);
       toWay.y = 0;
@@ -320,8 +362,8 @@ class AIContender {
 
     this.updatePhysicsAndGround(dt);
 
-    // 6. Combat Firing & Hero Abilities
-    if (this.currentEnemy && this.flashBlindTimer <= 0) {
+    // 6. Combat Firing & Hero Abilities (Paused while popping Shield Battery!)
+    if (this.currentEnemy && this.flashBlindTimer <= 0 && !this.isHealingBattery) {
       const eyeOrigin = this.position.clone().add(new THREE.Vector3(0, 1.55, 0));
       const targetCenter = this.currentEnemy.position.clone().add(new THREE.Vector3(0, 1.25, 0));
       const dist = eyeOrigin.distanceTo(targetCenter);
@@ -341,7 +383,13 @@ class AIContender {
           aimDir.normalize();
 
           const distToPlayer = this.game.player ? this.position.distanceTo(this.game.player.position) : 50;
-          window.SFX.playGunshot(this.weaponId, distToPlayer);
+          let pan = 0;
+          if (this.game.player) {
+            const dx = this.position.x - this.game.player.position.x;
+            const dz = this.position.z - this.game.player.position.z;
+            pan = Math.sin(Math.atan2(dx, -dz) + this.game.player.yaw);
+          }
+          window.SFX.playGunshot(this.weaponId, distToPlayer, false, pan);
           this.game.combat.fireWeapon(this, eyeOrigin, aimDir, wData);
         }
 

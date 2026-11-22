@@ -71,7 +71,8 @@ func _preload_blender_glb_assets() -> void:
 		"prop_dropship", "prop_carepackage", "prop_supplybin", "prop_replicator",
 		"prop_evoshield", "prop_jumppad", "prop_respawnbeacon", "prop_surveybeacon",
 		"prop_odin_monument", "prop_bifrost_gate", "prop_yggdrasil_tree", "prop_asgard_tree", "prop_forge_anvil",
-		"statue_odin", "statue_thor", "statue_valkyrie", "statue_heimdall", "statue_hela", "prop_asgard_archway"
+		"statue_odin", "statue_thor", "statue_valkyrie", "statue_heimdall", "statue_hela", "prop_asgard_archway",
+		"viewmodel_god_arms", "item_shield_battery", "item_medkit"
 	]
 	for fname in all_files:
 		var path = "res://assets/models/" + fname + ".glb"

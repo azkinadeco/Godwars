@@ -139,7 +139,20 @@ class SoundEngine {
     } catch (e) {}
   }
 
-  playGunshot(weaponId, distance = 0, isMythicGold = false) {
+  // Helper: Connect node through 3D StereoPannerNode (P2-1 Spatial Audio)
+  _connectSpatial(sourceNode, pan = 0) {
+    if (!this.ctx) return;
+    if (typeof this.ctx.createStereoPanner === 'function') {
+      const panner = this.ctx.createStereoPanner();
+      panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan || 0)), this.ctx.currentTime);
+      sourceNode.connect(panner);
+      panner.connect(this.ctx.destination);
+    } else {
+      sourceNode.connect(this.ctx.destination);
+    }
+  }
+
+  playGunshot(weaponId, distance = 0, isMythicGold = false, pan = 0) {
     if (!this.enabled) return;
     this.init();
     if (!this.ctx) return;
@@ -170,7 +183,7 @@ class SoundEngine {
 
     whiteNoise.connect(filter);
     filter.connect(gain);
-    gain.connect(this.ctx.destination);
+    this._connectSpatial(gain, pan);
     whiteNoise.start(now);
 
     const osc = this.ctx.createOscillator();
@@ -184,9 +197,27 @@ class SoundEngine {
     oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
 
     osc.connect(oscGain);
-    oscGain.connect(this.ctx.destination);
+    this._connectSpatial(oscGain, pan);
     osc.start(now);
     osc.stop(now + 0.095);
+  }
+
+  playShieldBatteryHum(pan = 0) {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.exponentialRampToValueAtTime(860, now + 0.45);
+    gain.gain.setValueAtTime(this.masterVolume * 0.32, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
+    osc.connect(gain);
+    this._connectSpatial(gain, pan);
+    osc.start(now);
+    osc.stop(now + 0.5);
   }
 
   playHitmarker(isHeadshot = false, isShield = true, shieldBroken = false) {

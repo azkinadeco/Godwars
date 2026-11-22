@@ -372,25 +372,71 @@ window.ModelFactory = {
       glbScene.scale.set(1.02, 1.02, 1.02);
     });
 
-    // First-person God Gauntlet / Hands + Hidden Heirloom Melee Mesh
+    // First-person God Gauntlet / Hands + 3D Shield Battery Heal Prop + Heirloom Melee Mesh
     if (isFirstPerson) {
-      const armMat = new THREE.MeshStandardMaterial({ color: hData.hexColor, metalness: 0.75, roughness: 0.25 });
-      const cuffMat = new THREE.MeshStandardMaterial({ color: hData.hexAccent, metalness: 0.9, roughness: 0.2 });
+      const armMat = new THREE.MeshStandardMaterial({ color: hData.hexColor, metalness: 0.78, roughness: 0.22 });
+      const cuffMat = new THREE.MeshStandardMaterial({ color: hData.hexAccent, metalness: 0.92, roughness: 0.18 });
+      const gloveMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.65, roughness: 0.35 });
 
-      const rightHand = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.075, 0.22), armMat);
-      rightHand.position.set(0.02, -0.11, 0.18);
-      rightHand.rotation.x = 0.22;
-      const rightCuff = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.085, 0.05), cuffMat);
-      rightCuff.position.set(0.02, -0.12, 0.24);
-      group.add(rightHand, rightCuff);
+      const rightArmGroup = new THREE.Group();
+      const rightForearm = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.052, 0.28, 12), armMat);
+      rightForearm.rotation.x = Math.PI * 0.42;
+      rightForearm.position.set(0.05, -0.13, 0.22);
+      const rightCuff = new THREE.Mesh(new THREE.CylinderGeometry(0.054, 0.056, 0.07, 12), cuffMat);
+      rightCuff.rotation.x = Math.PI * 0.42;
+      rightCuff.position.set(0.04, -0.11, 0.12);
+      const rightFist = new THREE.Mesh(new THREE.SphereGeometry(0.046, 10, 10), gloveMat);
+      rightFist.position.set(0.02, -0.09, 0.06);
+      rightArmGroup.add(rightForearm, rightCuff, rightFist);
+      group.add(rightArmGroup);
 
-      if (weaponId !== 'magnum') {
-        const leftHand = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.26), armMat);
-        leftHand.position.set(-0.045, -0.09, -0.08);
-        leftHand.rotation.y = 0.24;
-        leftHand.rotation.x = 0.12;
-        group.add(leftHand);
-      }
+      const leftArmGroup = new THREE.Group();
+      const leftForearm = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.05, 0.30, 12), armMat);
+      leftForearm.rotation.x = Math.PI * 0.44;
+      leftForearm.rotation.z = -0.22;
+      leftForearm.position.set(-0.09, -0.12, 0.04);
+      const leftCuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.054, 0.07, 12), cuffMat);
+      leftCuff.rotation.x = Math.PI * 0.44;
+      leftCuff.rotation.z = -0.22;
+      leftCuff.position.set(-0.06, -0.10, -0.08);
+      const leftFist = new THREE.Mesh(new THREE.SphereGeometry(0.044, 10, 10), gloveMat);
+      leftFist.position.set(-0.04, -0.08, -0.15);
+      leftArmGroup.add(leftForearm, leftCuff, leftFist);
+      group.add(leftArmGroup);
+
+      this.attachBlenderGLB('viewmodel_god_arms', group, (glbArms) => {
+        glbArms.scale.set(0.75, 0.75, 0.75);
+        glbArms.position.set(0, -0.12, 0.06);
+      });
+
+      // P1-1: 3D First-Person Shield Battery / Medkit Healing Prop (visible while healing!)
+      const healGroup = new THREE.Group();
+      const batCore = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.055, 0.055, 0.22, 14),
+        new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+      );
+      const batCapTop = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.068, 0.04, 14), cuffMat);
+      batCapTop.position.y = 0.11;
+      const batCapBot = batCapTop.clone();
+      batCapBot.position.y = -0.11;
+      const batRing = new THREE.Mesh(
+        new THREE.TorusGeometry(0.078, 0.008, 8, 20),
+        new THREE.MeshBasicMaterial({ color: 0xfde047 })
+      );
+      batRing.rotation.x = Math.PI / 2;
+      healGroup.add(batCore, batCapTop, batCapBot, batRing);
+      this.attachBlenderGLB('item_shield_battery', healGroup, (glbBat) => {
+        glbBat.scale.set(0.65, 0.65, 0.65);
+      });
+      healGroup.position.set(-0.22, -0.05, -0.28);
+      healGroup.visible = false;
+      group.add(healGroup);
+
+      group.userData.leftArmGroup = leftArmGroup;
+      group.userData.rightArmGroup = rightArmGroup;
+      group.userData.healMesh = healGroup;
+      group.userData.healCore = batCore;
+      group.userData.healRing = batRing;
 
       // Muzzle Flash mesh
       const flashMat = new THREE.MeshBasicMaterial({

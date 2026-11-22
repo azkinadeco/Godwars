@@ -1441,6 +1441,11 @@ class GodWarsGame {
     this.player.shotsHit = 0;
     this.player.headshotsLanded = 0;
     this.player.skydiveEmoteTimer = 0;
+    this.player.recoilShotIndex = 0;
+    this.player.recoilAccumPitch = 0;
+    this.player.camRoll = 0;
+    this.player.landingDip = 0;
+    this.firstBloodTriggered = false;
     this.activePerkOffer = null;
     const perkBar = document.getElementById('hud-perk-upgrade-bar');
     if (perkBar) perkBar.classList.add('hidden');
@@ -3093,6 +3098,9 @@ class GodWarsGame {
 
       const groundY = this.world.getGroundHeight(p.position.x, p.position.z, p.position.y);
       if (p.position.y <= groundY) {
+        if (!p.onGround && p.velocity.y < -5.5) {
+          p.landingDip = Math.min(0.18, Math.abs(p.velocity.y) * 0.011);
+        }
         if (p.isSliding && groundY < (p.prevGroundY || 0) - 0.01) {
           p.slideTimer = Math.min(1.1, p.slideTimer + dt * 0.8);
         }
@@ -3102,6 +3110,9 @@ class GodWarsGame {
         p.onGround = true;
       } else {
         p.onGround = false;
+      }
+      if (p.landingDip > 0) {
+        p.landingDip = Math.max(0, p.landingDip - dt * 0.85);
       }
 
       for (const pad of this.world.jumpPads) {
@@ -3130,16 +3141,18 @@ class GodWarsGame {
       speedLinesEl.classList.toggle('active', highSpeed);
     }
 
-    // Camera Positioning: 3rd-Person during Skydive vs 1st-Person during Combat!
+    // Camera Positioning: 3rd-Person during Skydive vs 1st-Person with Slide Roll Tilt & Landing Dip!
     if (p.skydiving) {
       const camBack = new THREE.Vector3(Math.sin(p.yaw) * 6.2, 3.2, Math.cos(p.yaw) * 6.2);
       this.camera.position.copy(p.position).add(camBack);
       this.camera.rotation.set(p.pitch - 0.18, p.yaw, 0, 'YXZ');
       this.viewmodelHolder.visible = false;
     } else {
-      const eyeHeight = p.knocked ? 0.65 : p.isSliding ? 0.92 : 1.68;
+      const eyeHeight = (p.knocked ? 0.65 : p.isSliding ? 0.92 : 1.68) - (p.landingDip || 0);
+      const targetRoll = p.isSliding ? -0.115 : (p.wallJumpCd > 0.3 ? 0.095 : 0);
+      p.camRoll = (p.camRoll || 0) + (targetRoll - (p.camRoll || 0)) * Math.min(1, dt * 14);
       this.camera.position.set(p.position.x, p.position.y + eyeHeight, p.position.z);
-      this.camera.rotation.set(p.pitch, p.yaw, p.isSliding ? -0.07 : 0, 'YXZ');
+      this.camera.rotation.set(p.pitch, p.yaw, p.camRoll, 'YXZ');
       this.viewmodelHolder.visible = !p.knocked;
     }
 
@@ -3180,15 +3193,59 @@ class GodWarsGame {
       }
       // Hide gun body meshes when holstered so only spinning Heirloom shows!
       this.activeViewmodel.children.forEach(ch => {
-        if (ch !== this.activeViewmodel.userData.meleeMesh) {
+        if (ch !== this.activeViewmodel.userData.meleeMesh && ch !== this.activeViewmodel.userData.healMesh) {
           ch.visible = !p.holstered;
         }
       });
 
+      // P1-1: 3D Shield Battery / Medkit First-Person Healing Prop Animation
+      const healMesh = this.activeViewmodel.userData.healMesh;
+      if (healMesh) {
+        const isHealing = p.healTimer > 0;
+        healMesh.visible = isHealing;
+        if (isHealing) {
+          const isMed = p.healingType === 'medkit';
+          if (this.activeViewmodel.userData.healCore) {
+            this.activeViewmodel.userData.healCore.material.color.setHex(isMed ? 0x10b981 : p.healingType === 'phoenix_kit' ? 0xa855f7 : 0x38bdf8);
+          }
+          if (this.activeViewmodel.userData.healRing) {
+            this.activeViewmodel.userData.healRing.rotation.z += dt * 9.5;
+          }
+          healMesh.position.y = -0.04 + Math.sin(this.matchTime * 10) * 0.015;
+          healMesh.rotation.y += dt * 3.2;
+        }
+      }
+
+      // P1-1: 3-Phase Apex Reload Animation (Phase 1: Tilt & Drop Mag -> Phase 2: Insert Fresh Mag -> Phase 3: Bolt Cock)
+      const magMesh = this.activeViewmodel.userData.magMesh;
       if (wep.reloading) {
-        this.activeViewmodel.rotation.x = -0.45;
-        this.activeViewmodel.rotation.z = 0.35;
-        this.activeViewmodel.rotation.y = 0;
+        const totalRld = wep.data.reloadTime || 2.0;
+        const prog = 1 - Math.max(0, Math.min(1, wep.reloadTimer / totalRld));
+        if (prog < 0.38) {
+          // Phase 1: Tilt gun & pull magazine out
+          this.activeViewmodel.rotation.x = -0.28;
+          this.activeViewmodel.rotation.z = 0.42;
+          this.activeViewmodel.rotation.y = 0.15;
+          if (magMesh && !this.activeViewmodel.userData.isRevolver) magMesh.position.y = -0.18 - prog * 0.35;
+        } else if (prog < 0.76) {
+          // Phase 2: Slam fresh magazine up into receiver
+          const p2 = (prog - 0.38) / 0.38;
+          this.activeViewmodel.rotation.x = -0.36 + Math.sin(p2 * Math.PI) * 0.18;
+          this.activeViewmodel.rotation.z = 0.38;
+          this.activeViewmodel.rotation.y = 0.10;
+          if (magMesh && !this.activeViewmodel.userData.isRevolver) magMesh.position.y = -0.30 + p2 * 0.24;
+        } else {
+          // Phase 3: Charging handle / bolt snap forward
+          const p3 = (prog - 0.76) / 0.24;
+          this.activeViewmodel.rotation.x = -0.15 * (1 - p3);
+          this.activeViewmodel.rotation.z = -0.22 * Math.sin(p3 * Math.PI);
+          this.activeViewmodel.rotation.y = 0;
+          if (magMesh && !this.activeViewmodel.userData.isRevolver) magMesh.position.y = -0.06;
+        }
+      } else if (p.healTimer > 0) {
+        this.activeViewmodel.rotation.x = -0.25;
+        this.activeViewmodel.rotation.z = -0.22;
+        this.activeViewmodel.rotation.y = 0.20;
       } else if (p.inspectTimer > 0) {
         this.activeViewmodel.rotation.y = Math.sin(p.inspectTimer * 2.6) * 0.85;
         this.activeViewmodel.rotation.z = Math.cos(p.inspectTimer * 2.6) * 0.35;
@@ -3282,15 +3339,33 @@ class GodWarsGame {
 
         this.combat.fireWeapon(p, this.camera.position.clone(), shootDir, wep.data, wep.isMythicGold, hopupTier.dmgMult);
 
+        // P1-2: Learnable Weapon Recoil Pattern + Camera Kick Recovery
         const recMult = (p.isADS ? 0.65 : 1.0) * barrelTier.recoilMult * (wep.isMythicGold ? 0.65 : 1.0);
-        p.pitch = Math.min(1.42, p.pitch + wep.data.recoilPitch * recMult);
-        p.yaw += (Math.random() - 0.5) * wep.data.recoilYaw * recMult;
+        const pat = wep.data.recoilPattern;
+        let dPitch = wep.data.recoilPitch * recMult;
+        let dYaw = (Math.random() - 0.5) * wep.data.recoilYaw * recMult;
+        if (pat && pat.length > 0) {
+          const step = pat[(p.recoilShotIndex || 0) % pat.length];
+          dPitch = step[0] * recMult;
+          dYaw = step[1] * recMult;
+          p.recoilShotIndex = (p.recoilShotIndex || 0) + 1;
+        }
+        p.pitch = Math.min(1.42, p.pitch + dPitch);
+        p.yaw += dYaw;
+        p.recoilAccumPitch = Math.min(0.18, (p.recoilAccumPitch || 0) + dPitch * 0.45);
 
         if (wep.mag === 0 && wep.reserve > 0) {
           this.startReload();
         }
       } else if (wep.reserve > 0) {
         this.startReload();
+      }
+    } else if (!wantsToFire) {
+      p.recoilShotIndex = 0;
+      if (p.recoilAccumPitch > 0.001) {
+        const recover = Math.min(p.recoilAccumPitch, dt * 0.28);
+        p.pitch = Math.max(-1.42, p.pitch - recover);
+        p.recoilAccumPitch -= recover;
       }
     }
 
@@ -3537,45 +3612,65 @@ class GodWarsGame {
     // Update Bottom-Left Allied Squadmates Live Status Bars + 3D Projected Ally Nameplates!
     const squadHudEl = document.getElementById('hud-squadmates-list');
     const allyTagsLayer = document.getElementById('ally-nameplates-layer');
+    // P1-3 FIXED: Zero 60fps innerHTML Thrashing! Squadmate HUD throttled to 10Hz & 3D Nameplates reuse cached DOM nodes!
     if (squadHudEl) {
       if (this.allies.length === 0) {
-        squadHudEl.innerHTML = '';
-        if (allyTagsLayer) allyTagsLayer.innerHTML = '';
+        if (squadHudEl.innerHTML !== '') squadHudEl.innerHTML = '';
+        if (allyTagsLayer && allyTagsLayer.innerHTML !== '') allyTagsLayer.innerHTML = '';
       } else {
-        squadHudEl.innerHTML = this.allies.map(a => {
-          const sPct = a.alive ? (a.shield / a.maxShield) * 100 : 0;
-          const hPct = a.alive ? ((a.knocked ? a.knockedHp : a.hp) / a.maxHp) * 100 : 0;
-          const status = !a.alive ? '☠️ ELIMINATED' : a.knocked ? '⚠️ KNOCKED' : a.currentEnemy ? '⚔️ FIGHTING' : '🛡️ SQUAD';
-          return `
-            <div class="ally-hud-row ${a.knocked ? 'knocked' : ''}">
-              <div class="ally-row-top"><span>${a.name}</span><b>${status}</b></div>
-              <div class="ally-mini-track"><div style="width:${sPct}%;background:#38bdf8;height:100%"></div></div>
-              <div class="ally-mini-track"><div style="width:${hPct}%;background:${a.knocked ? '#f59e0b' : '#10b981'};height:100%"></div></div>
-            </div>
-          `;
-        }).join('');
+        const nowSquadMs = performance.now();
+        if (!this._lastSquadDomTick || nowSquadMs - this._lastSquadDomTick >= 100) {
+          this._lastSquadDomTick = nowSquadMs;
+          squadHudEl.innerHTML = this.allies.map(a => {
+            const sPct = a.alive ? (a.shield / a.maxShield) * 100 : 0;
+            const hPct = a.alive ? ((a.knocked ? a.knockedHp : a.hp) / a.maxHp) * 100 : 0;
+            const status = !a.alive ? '☠️ ELIMINATED' : a.knocked ? '⚠️ KNOCKED' : a.currentEnemy ? '⚔️ FIGHTING' : '🛡️ SQUAD';
+            return `
+              <div class="ally-hud-row ${a.knocked ? 'knocked' : ''}">
+                <div class="ally-row-top"><span>${a.name}</span><b>${status}</b></div>
+                <div class="ally-mini-track"><div style="width:${sPct}%;background:#38bdf8;height:100%"></div></div>
+                <div class="ally-mini-track"><div style="width:${hPct}%;background:${a.knocked ? '#f59e0b' : '#10b981'};height:100%"></div></div>
+              </div>
+            `;
+          }).join('');
+        }
 
-        // Project 3D Floating Teammate Nameplates in Viewport
+        // Reuse persistent DOM nodes for 3D Floating Teammate Nameplates (0 createElement/innerHTML per frame!)
         if (allyTagsLayer) {
-          allyTagsLayer.innerHTML = '';
           this.allies.forEach(a => {
-            if (!a.alive || a.inDropship) return;
+            if (!a._domTag || a._domTag.parentNode !== allyTagsLayer) {
+              const tag = document.createElement('div');
+              tag.className = 'ally-3d-tag';
+              allyTagsLayer.appendChild(tag);
+              a._domTag = tag;
+            }
+            if (!a.alive || a.inDropship) {
+              a._domTag.style.display = 'none';
+              return;
+            }
             const headPos = a.position.clone().add(new THREE.Vector3(0, 2.45, 0));
             const proj = headPos.project(this.camera);
             if (proj.z <= 1) {
-              const sx = (proj.x * 0.5 + 0.5) * window.innerWidth;
-              const sy = (-proj.y * 0.5 + 0.5) * window.innerHeight;
+              const sx = Math.round((proj.x * 0.5 + 0.5) * window.innerWidth);
+              const sy = Math.round((-proj.y * 0.5 + 0.5) * window.innerHeight);
               const dist = Math.round(p.position.distanceTo(a.position));
-              const tag = document.createElement('div');
-              tag.className = `ally-3d-tag ${a.knocked ? 'knocked' : ''}`;
-              tag.style.left = `${sx}px`;
-              tag.style.top = `${sy}px`;
-              tag.textContent = `${a.knocked ? '⚠️ REVIVE ' : '🛡️ '}${a.name} (${dist}m)`;
-              allyTagsLayer.appendChild(tag);
+              a._domTag.style.display = 'block';
+              a._domTag.className = `ally-3d-tag ${a.knocked ? 'knocked' : ''}`;
+              a._domTag.style.left = `${sx}px`;
+              a._domTag.style.top = `${sy}px`;
+              a._domTag.textContent = `${a.knocked ? '⚠️ REVIVE ' : '🛡️ '}${a.name} (${dist}m)`;
+            } else {
+              a._domTag.style.display = 'none';
             }
           });
         }
       }
+    }
+
+    // P2-2: Low-HP Crimson Heartbeat Vignette
+    const lowHpEl = document.getElementById('low-hp-vignette');
+    if (lowHpEl) {
+      lowHpEl.classList.toggle('active', p.alive && (p.hp < 38 || p.knocked));
     }
 
     // Player Segmented 25-HP Evo Shield Cells & Health Card
@@ -4112,6 +4207,15 @@ class GodWarsGame {
     setTimeout(() => {
       flashEl.style.opacity = '0';
     }, 1800 * intensity);
+  }
+
+  triggerShieldBreakFlash() {
+    const el = document.getElementById('shield-break-flash');
+    if (!el) return;
+    el.classList.add('active');
+    this.vibrate(28);
+    clearTimeout(this._sbFlashTimer);
+    this._sbFlashTimer = setTimeout(() => el.classList.remove('active'), 420);
   }
 
   showBanner(text, color = '#fbbf24') {

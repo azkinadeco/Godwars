@@ -302,6 +302,11 @@ window.GODWARS_DATA = {
       adsFov: 58,
       recoilPitch: 0.0075,
       recoilYaw: 0.0055,
+      // P1-2: Apex Learnable Recoil Pattern (Pitch, Yaw per consecutive shot)
+      recoilPattern: [
+        [0.008, 0.001], [0.008, 0.002], [0.009, 0.003], [0.009, 0.002], [0.008, -0.002],
+        [0.007, -0.004], [0.007, -0.003], [0.006, 0.002], [0.006, 0.004], [0.005, 0.001]
+      ],
       color: '#38bdf8',
       hexColor: 0x38bdf8,
       hexSecondary: 0xfbbf24,
@@ -327,6 +332,10 @@ window.GODWARS_DATA = {
       adsFov: 60,
       recoilPitch: 0.006,
       recoilYaw: 0.0045,
+      recoilPattern: [
+        [0.009, -0.001], [0.010, -0.002], [0.010, -0.002], [0.009, 0.001], [0.008, 0.003],
+        [0.008, 0.003], [0.007, -0.002], [0.006, -0.003], [0.006, 0.001], [0.005, 0.002]
+      ],
       color: '#f43f5e',
       hexColor: 0xf43f5e,
       hexSecondary: 0x1e293b,
@@ -352,6 +361,11 @@ window.GODWARS_DATA = {
       adsFov: 50,
       recoilPitch: 0.010,
       recoilYaw: 0.0038,
+      // R-301 style steady vertical-right-left learnable pattern
+      recoilPattern: [
+        [0.011, 0.001], [0.011, 0.002], [0.010, 0.003], [0.010, 0.003], [0.009, 0.001],
+        [0.008, -0.003], [0.008, -0.004], [0.007, -0.003], [0.007, 0.002], [0.006, 0.002]
+      ],
       color: '#fbbf24',
       hexColor: 0xfbbf24,
       hexSecondary: 0xf8fafc,
@@ -402,6 +416,11 @@ window.GODWARS_DATA = {
       adsFov: 52,
       recoilPitch: 0.015,
       recoilYaw: 0.006,
+      // Flatline / AK-47 heavy up-left-right zigzag pattern
+      recoilPattern: [
+        [0.016, -0.004], [0.016, -0.006], [0.015, -0.005], [0.014, 0.004], [0.013, 0.007],
+        [0.013, 0.006], [0.012, -0.005], [0.011, -0.006], [0.010, 0.004], [0.010, 0.005]
+      ],
       color: '#f97316',
       hexColor: 0xf97316,
       hexSecondary: 0x7c2d12,

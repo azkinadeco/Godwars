@@ -2103,3 +2103,36 @@ body.mobile-mode #hud-range-controls {
 .touch-btn.ripple-active {
   box-shadow: 0 0 0 6px rgba(251, 191, 36, 0.45), 0 0 18px rgba(251, 191, 36, 0.75) !important;
 }
+
+
+/* P2-2: Apex Low-HP Crimson Heartbeat Vignette & Electric Shield Break Flash */
+#low-hp-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9;
+  box-shadow: inset 0 0 110px rgba(225, 29, 72, 0.85);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+#low-hp-vignette.active {
+  opacity: 1;
+  animation: lowHpHeartbeat 0.75s ease-in-out infinite alternate;
+}
+@keyframes lowHpHeartbeat {
+  from { opacity: 0.45; }
+  to   { opacity: 0.95; }
+}
+#shield-break-flash {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 14;
+  box-shadow: inset 0 0 130px rgba(56, 189, 248, 0.95);
+  background: radial-gradient(circle, transparent 52%, rgba(56, 189, 248, 0.28) 100%);
+  opacity: 0;
+  transition: opacity 0.28s ease;
+}
+#shield-break-flash.active {
+  opacity: 1;
+}
