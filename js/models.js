@@ -25,7 +25,8 @@ window.ModelFactory = {
       'bomb_solar', 'bomb_flash', 'bomb_arc', 'loot_evoshield',
       'prop_jumppad', 'prop_respawn_beacon', 'prop_survey_beacon',
       'prop_odin_statue', 'prop_bifrost_gate', 'prop_yggdrasil_tree',
-      'prop_asgard_tree', 'prop_forge_anvil'
+      'prop_asgard_tree', 'prop_forge_anvil',
+      'statue_odin', 'statue_thor', 'statue_valkyrie', 'statue_heimdall', 'statue_hela', 'prop_asgard_archway'
     ];
 
     assetList.forEach(name => {

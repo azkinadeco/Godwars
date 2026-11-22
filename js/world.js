@@ -37,6 +37,7 @@ class AsgardWorld {
     this.initMaterials();
     this.buildLightingAndSky();
     this.buildBiomesRoadsAndRivers();
+    this.buildAsgardHillsAndRidges();
     this.buildValhallaCitadel();
     this.buildBifrostObservatory();
     this.buildMjolnirForge();
@@ -262,72 +263,167 @@ class AsgardWorld {
   }
 
   /**
-   * Builds a complete Enterable 2-Story Apex Compound Building with:
-   * - Walk-in Ground Floor, 2 Interactive Doors, Shoot-through Windows
-   * - Walkable 2nd Floor & Rooftop
-   * - Interior/Side Staircase Ramp from Ground Floor (y=0) to 2nd Floor (y=4.5) and Roof (y=9.0)
-   * - Rooftop Half-Wall Cover Battlements
+   * Builds a complete Enterable 1, 2, or 3-Story Apex Legends Compound Building with:
+   * - True Apex Proportions (4.6m floor height, 3.6m wide doors, 1.2m peek windows, interior cover crates!)
+   * - Walkable Ground Floor, 2nd Floor (4.6m), 3rd Floor (9.2m), & Overwatch Rooftop (13.8m)
+   * - Wide Exterior & Flanking Staircase Ramps connecting every single floor smoothly
+   * - Rooftop Battlement Parapets & Golden Architectural Roof Trims
    */
-  buildApexCompoundBuilding(cx, cz, width, depth, wallMat, trimMat, hasSecondFloor = true) {
-    const h1 = 4.5;
-    const h2 = 9.0;
-    const wallT = 0.55;
-    const doorW = 3.4;
+  buildApexCompoundBuilding(cx, cz, width, depth, wallMat, trimMat, stories = 2) {
+    const floorCount = typeof stories === 'boolean' ? (stories ? 2 : 1) : stories;
+    const fh = 4.6;
+    const wallT = 0.6;
+    const doorW = 3.6;
 
-    // 1. Ground Floor Slab (flush at y = 0.08 so zero step-up snag)
+    // 1. Ground Floor Slab (flush at y = 0.06)
     this.addWalkableFloor(cx, 0.06, cz, width, depth, 0.12, this.mats.marbleFloor);
 
-    // 2. Ground Floor Front & Back Walls (with center Doorway opening!)
-    const segW = (width - doorW) / 2;
-    // South Wall (+Z)
-    this.addSolidWall(cx - (doorW / 2 + segW / 2), 0, cz + depth / 2, segW, h1, wallT, wallMat);
-    this.addSolidWall(cx + (doorW / 2 + segW / 2), 0, cz + depth / 2, segW, h1, wallT, wallMat);
+    // Interior Tactical Cover Crates on Ground Floor (Real Apex indoor CQC cover!)
+    this.addSolidWall(cx - width * 0.22, 0.06, cz, 2.2, 1.35, 2.2, trimMat, true);
+    this.addSolidWall(cx + width * 0.22, 0.06, cz, 2.2, 1.35, 2.2, trimMat, true);
+
+    // 2. Ground Floor North & South Walls with Interactive Apex Energy Doors!
+    const segW = Math.max(1.5, (width - doorW) / 2);
+    this.addSolidWall(cx - (doorW / 2 + segW / 2), 0, cz + depth / 2, segW, fh, wallT, wallMat);
+    this.addSolidWall(cx + (doorW / 2 + segW / 2), 0, cz + depth / 2, segW, fh, wallT, wallMat);
     this.addApexDoor(cx, 0, cz + depth / 2, doorW, 3.2, 'X');
 
-    // North Wall (-Z)
-    this.addSolidWall(cx - (doorW / 2 + segW / 2), 0, cz - depth / 2, segW, h1, wallT, wallMat);
-    this.addSolidWall(cx + (doorW / 2 + segW / 2), 0, cz - depth / 2, segW, h1, wallT, wallMat);
+    this.addSolidWall(cx - (doorW / 2 + segW / 2), 0, cz - depth / 2, segW, fh, wallT, wallMat);
+    this.addSolidWall(cx + (doorW / 2 + segW / 2), 0, cz - depth / 2, segW, fh, wallT, wallMat);
     this.addApexDoor(cx, 0, cz - depth / 2, doorW, 3.2, 'X');
 
-    // East & West Walls with Shoot-Through Window Cutouts!
+    // East & West Ground Walls with Shoot-Through Chest-High Window Embrasures!
     for (let side of [-1, 1]) {
       const wx = cx + side * (width / 2);
-      // Lower windowsill wall (0 to 1.25m)
       this.addSolidWall(wx, 0, cz, wallT, 1.25, depth, wallMat);
-      // Upper lintel wall (2.8m to 4.5m)
-      this.addSolidWall(wx, 2.8, cz, wallT, h1 - 2.8, depth, wallMat);
-      // Corner wall pillars
-      this.addSolidWall(wx, 1.25, cz - depth * 0.35, wallT, 1.55, depth * 0.28, trimMat);
-      this.addSolidWall(wx, 1.25, cz + depth * 0.35, wallT, 1.55, depth * 0.28, trimMat);
+      this.addSolidWall(wx, 2.9, cz, wallT, fh - 2.9, depth, wallMat);
+      this.addSolidWall(wx, 1.25, cz - depth * 0.36, wallT, 1.65, depth * 0.26, trimMat);
+      this.addSolidWall(wx, 1.25, cz + depth * 0.36, wallT, 1.65, depth * 0.26, trimMat);
     }
 
-    // 3. Second Floor Deck Slab (y = 4.5m) + Exterior Side Staircase Ramp (y = 0 -> 4.5m)
-    this.addWalkableFloor(cx, h1, cz, width + 1.2, depth + 1.2, 0.4, trimMat);
-    this.addStairRamp(cx + width / 2 + 2.0, cz, 3.0, depth * 0.78, 0, h1, 'N', trimMat);
+    // 3. Build Upper Stories (2nd Floor y=4.6m, 3rd Floor y=9.2m, Overwatch Roof y=13.8m)
+    for (let lvl = 1; lvl <= floorCount; lvl++) {
+      const slabY = lvl * fh;
+      const prevY = (lvl - 1) * fh;
 
-    if (hasSecondFloor) {
-      // 2nd Floor Walls with large open balcony arches & windows
-      this.addSolidWall(cx - width * 0.32, h1, cz + depth / 2, width * 0.32, h1, wallT, wallMat);
-      this.addSolidWall(cx + width * 0.32, h1, cz + depth / 2, width * 0.32, h1, wallT, wallMat);
-      this.addSolidWall(cx - width * 0.32, h1, cz - depth / 2, width * 0.32, h1, wallT, wallMat);
-      this.addSolidWall(cx + width * 0.32, h1, cz - depth / 2, width * 0.32, h1, wallT, wallMat);
+      // Walkable Floor / Roof Deck Slab
+      this.addWalkableFloor(cx, slabY, cz, width + 1.4, depth + 1.4, 0.42, lvl === floorCount ? trimMat : this.mats.marbleFloor);
 
-      // East & West 2nd floor half-walls for cover
-      this.addSolidWall(cx - width / 2, h1, cz, wallT, 1.35, depth * 0.7, trimMat);
-      this.addSolidWall(cx + width / 2, h1, cz, wallT, 1.35, depth * 0.7, trimMat);
+      // Alternating East / West Wide Exterior Staircase Ramp connecting prevY -> slabY!
+      const rampOnEast = (lvl % 2 === 1);
+      const rx = rampOnEast ? (cx + width / 2 + 2.1) : (cx - width / 2 - 2.1);
+      const rDir = rampOnEast ? 'N' : 'S';
+      this.addStairRamp(rx, cz, 3.2, depth * 0.82, prevY, slabY, rDir, trimMat);
 
-      // Rooftop Slab at y = 9.0m + West Staircase Ramp from 2nd Floor (y = 4.5m) to Roof (y = 9.0m)
-      this.addWalkableFloor(cx, h2, cz, width + 0.8, depth + 0.8, 0.4, trimMat);
-      this.addStairRamp(cx - width / 2 - 2.0, cz, 3.0, depth * 0.78, h1, h2, 'S', trimMat);
+      if (lvl < floorCount) {
+        // Upper Interior Floor Walls with Wide Balcony Doors, Windows & Interior Cover!
+        this.addSolidWall(cx - width * 0.33, slabY, cz + depth / 2, width * 0.30, fh, wallT, wallMat);
+        this.addSolidWall(cx + width * 0.33, slabY, cz + depth / 2, width * 0.30, fh, wallT, wallMat);
+        this.addSolidWall(cx - width * 0.33, slabY, cz - depth / 2, width * 0.30, fh, wallT, wallMat);
+        this.addSolidWall(cx + width * 0.33, slabY, cz - depth / 2, width * 0.30, fh, wallT, wallMat);
 
-      // Rooftop Battlement Cover Parapets (1.15m tall crouch cover)
-      this.addSolidWall(cx, h2, cz + depth / 2, width * 0.7, 1.15, 0.45, trimMat);
-      this.addSolidWall(cx, h2, cz - depth / 2, width * 0.7, 1.15, 0.45, trimMat);
-    } else {
-      // 1-Story Roof Battlements at y = 4.5m
-      this.addSolidWall(cx, h1, cz + depth / 2, width * 0.65, 1.15, 0.45, trimMat);
-      this.addSolidWall(cx, h1, cz - depth / 2, width * 0.65, 1.15, 0.45, trimMat);
+        // Chest-high peek walls on East/West balconies
+        this.addSolidWall(cx - width / 2, slabY, cz, wallT, 1.3, depth * 0.72, trimMat);
+        this.addSolidWall(cx + width / 2, slabY, cz, wallT, 1.3, depth * 0.72, trimMat);
+
+        // Interior Cover Box on Upper Floor
+        this.addSolidWall(cx, slabY, cz, 2.4, 1.25, 2.0, trimMat, true);
+      } else {
+        // Topmost Rooftop High-Ground Battlement Cover Parapets + Corner Spires!
+        this.addSolidWall(cx, slabY, cz + depth / 2, width * 0.72, 1.25, 0.48, trimMat);
+        this.addSolidWall(cx, slabY, cz - depth / 2, width * 0.72, 1.25, 0.48, trimMat);
+        this.addSolidWall(cx - width / 2, slabY, cz, 0.48, 1.25, depth * 0.55, trimMat);
+        this.addSolidWall(cx + width / 2, slabY, cz, 0.48, 1.25, depth * 0.55, trimMat);
+
+        // Decorative Golden Corner Finials on Rooftop
+        [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => {
+          const finial = new THREE.Mesh(new THREE.ConeGeometry(0.65, 2.2, 4), this.mats.brightGold);
+          finial.position.set(cx + sx * (width / 2), slabY + 1.8, cz + sz * (depth / 2));
+          this.scene.add(finial);
+        });
+      }
     }
+  }
+
+  /**
+   * Builds a Playable Multi-Tiered Asgardian Hill / Elevated Plateau with Wide Sloped Ramps
+   * so players can fight uphill for Apex high ground and Apex-Slide downhill!
+   */
+  addPlayableHill(cx, cz, width, depth, height, biomeMat = null) {
+    const hillMat = biomeMat || this.mats.stone;
+    const grassTopMat = this.mats.grass;
+
+    // Lower Terraced Base Skirt
+    this.addWalkableFloor(cx, height * 0.5, cz, width + 10, depth + 10, height * 0.5, hillMat);
+    // Upper Hilltop Plateau
+    this.addWalkableFloor(cx, height, cz, width, depth, height * 0.5, grassTopMat);
+
+    // 4 Wide Playable Sloped Ramps climbing from Ground (0) -> Mid Terrace -> Hilltop!
+    const rampW = Math.min(8, width * 0.45);
+    this.addStairRamp(cx, cz + (depth / 2 + 9), rampW, 10, 0, height * 0.5, 'N', hillMat);
+    this.addStairRamp(cx, cz + (depth / 2 + 2.5), rampW, 5, height * 0.5, height, 'N', hillMat);
+
+    this.addStairRamp(cx, cz - (depth / 2 + 9), rampW, 10, 0, height * 0.5, 'S', hillMat);
+    this.addStairRamp(cx, cz - (depth / 2 + 2.5), rampW, 5, height * 0.5, height, 'S', hillMat);
+
+    // Tactical Rock Cover Boulders on the Hilltop
+    this.addSolidWall(cx - width * 0.3, height, cz, 2.6, 1.6, 4.2, hillMat, true);
+    this.addSolidWall(cx + width * 0.3, height, cz, 2.6, 1.6, 4.2, hillMat, true);
+  }
+
+  placeBlenderStatue(glbName, x, y, z, rotY = 0, scale = 1.0) {
+    const group = new THREE.Group();
+    group.position.set(x, y, z);
+    group.rotation.y = rotY;
+    group.scale.set(scale, scale, scale);
+    this.scene.add(group);
+    if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
+      window.ModelFactory.attachBlenderGLB(glbName, group);
+    }
+    // Solid pedestal base collider so players don't walk through the colossal statue base
+    this.addSolidWall(x, y, z, 5.2 * scale, 2.8 * scale, 5.2 * scale, this.mats.gold, true);
+    return group;
+  }
+
+  // =========================================================================
+  // CONTORED ASGARDIAN HILLS, TERRACED PLATEAUS, CANYON RIDGES & HIGHWAY ARCHES
+  // =========================================================================
+  buildAsgardHillsAndRidges() {
+    // 6 Large Playable Hills & Plateaus framing the valleys between POIs (Apex High-Ground!)
+    this.addPlayableHill(-62, -25, 22, 18, 6.4, this.mats.stone);        // West-Central Ridge Hill
+    this.addPlayableHill(62, -25, 22, 18, 6.4, this.mats.stone);         // East-Central Ridge Hill
+    this.addPlayableHill(-58, 92, 20, 16, 5.6, this.mats.stone);         // South-West Cliff Hill
+    this.addPlayableHill(58, 92, 20, 16, 5.6, this.mats.stone);          // South-East Cliff Hill
+    this.addPlayableHill(0, -88, 26, 18, 7.2, this.mats.obsidian);       // North Overlook Ridge Hill
+    this.addPlayableHill(-148, -28, 22, 22, 7.6, this.mats.darkSteel);   // Far-West Forge Mountain Plateau
+
+    // Natural Mountain Cliff Ridges at Island Edges for Scenic Apex Horizon & Choke-Points
+    const ridgeSpots = [
+      [-172, 65, 26, 18, 16], [172, 65, 26, 18, 16],
+      [-155, -110, 24, 22, 18], [155, -110, 24, 22, 18],
+      [-75, 168, 28, 16, 15], [75, 168, 28, 16, 15]
+    ];
+    ridgeSpots.forEach(([rx, rz, rw, rh, rd]) => {
+      this.addSolidWall(rx, 0, rz, rw, rh, rd, this.mats.stone, false);
+      const peak = new THREE.Mesh(new THREE.ConeGeometry(rw * 0.55, rh * 0.9, 6), this.mats.stone);
+      peak.position.set(rx, rh + rh * 0.4, rz);
+      this.scene.add(peak);
+    });
+
+    // Place Ornate Golden Blender Triumphal Archways along the 5 Major Asgardian Highways!
+    window.GODWARS_DATA.POIS.forEach(poi => {
+      if (poi.id === 'valhalla') return;
+      const angle = Math.atan2(poi.x, poi.z);
+      const ax = poi.x * 0.44;
+      const az = poi.z * 0.44;
+      const archGroup = new THREE.Group();
+      archGroup.position.set(ax, 0, az);
+      archGroup.rotation.y = angle;
+      this.scene.add(archGroup);
+      if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
+        window.ModelFactory.attachBlenderGLB('prop_asgard_archway', archGroup);
+      }
+    });
   }
 
   // =========================================================================
@@ -484,42 +580,37 @@ class AsgardWorld {
 
   // =========================================================================
   // POI 1: VALHALLA GOLDEN CITADEL (CENTER [0, 0])
-  // Multi-Story Enterable Royal Palace, Courtyard, 4 Corner Watchtowers & Odin Statue
+  // Expanded 3-Story Grand Palace Complex + Dual Skybridges + Colossal Odin Statue!
   // =========================================================================
   buildValhallaCitadel() {
-    // Royal Marble Courtyard (Flush at y = 0.03 so player never sinks into floor!)
-    const plaza = new THREE.Mesh(new THREE.CircleGeometry(44, 36), this.mats.marbleFloor);
+    const plaza = new THREE.Mesh(new THREE.CircleGeometry(52, 40), this.mats.marbleFloor);
     plaza.rotation.x = -Math.PI / 2;
     plaza.position.set(0, 0.03, 0);
     this.scene.add(plaza);
 
-    // North & South Enterable 2-Story Palace Halls flanking the Central Throne Courtyard
-    this.buildApexCompoundBuilding(0, -20, 22, 12, this.mats.marbleWall, this.mats.gold, true);
-    this.buildApexCompoundBuilding(0, 20, 22, 12, this.mats.marbleWall, this.mats.gold, true);
+    // North & South EXPANDED 3-Story Royal Palace Halls (30m x 14m, Roof at y = 13.8m!)
+    this.buildApexCompoundBuilding(0, -24, 30, 14, this.mats.marbleWall, this.mats.gold, 3);
+    this.buildApexCompoundBuilding(0, 24, 30, 14, this.mats.marbleWall, this.mats.gold, 3);
 
-    // Elevated Sky-Bridge connecting the North & South Palace 2nd Floors across the Courtyard!
-    this.addWalkableFloor(-11, 4.5, 0, 4.2, 16, 0.4, this.mats.gold);
-    this.addWalkableFloor(11, 4.5, 0, 4.2, 16, 0.4, this.mats.gold);
+    // East & West Flanking 2-Story Palace Guard Wings
+    this.buildApexCompoundBuilding(-26, 0, 12, 20, this.mats.marbleWall, this.mats.gold, 2);
+    this.buildApexCompoundBuilding(26, 0, 12, 20, this.mats.marbleWall, this.mats.gold, 2);
 
-    // Central Elevated Odin Allfather Altar (with 4 walkable staircases so you can run right up!)
-    this.addWalkableFloor(0, 1.8, 0, 10, 10, 1.8, this.mats.gold);
-    this.addStairRamp(0, 6.8, 4.2, 3.6, 0, 1.8, 'N', this.mats.brightGold);
-    this.addStairRamp(0, -6.8, 4.2, 3.6, 0, 1.8, 'S', this.mats.brightGold);
-    this.addStairRamp(6.8, 0, 3.6, 4.2, 0, 1.8, 'W', this.mats.brightGold);
-    this.addStairRamp(-6.8, 0, 3.6, 4.2, 0, 1.8, 'E', this.mats.brightGold);
+    // Multi-Tiered Elevated Sky-Bridges connecting North & South Palaces on 2nd Floor (4.6m) & 3rd Floor (9.2m)!
+    this.addWalkableFloor(-14, 4.6, 0, 4.5, 34, 0.4, this.mats.gold);
+    this.addWalkableFloor(14, 4.6, 0, 4.5, 34, 0.4, this.mats.gold);
+    this.addWalkableFloor(-14, 9.2, 0, 3.8, 34, 0.4, this.mats.brightGold);
+    this.addWalkableFloor(14, 9.2, 0, 3.8, 34, 0.4, this.mats.brightGold);
 
-    // Golden Odin Gungnir Obelisk Monument on top of the Central Altar (Blender GLB!)
-    const odinGroup = new THREE.Group();
-    odinGroup.position.set(0, 1.8, 0);
-    const fallbackObelisk = this.addSolidWall(0, 1.8, 0, 2.2, 9.5, 2.2, this.mats.brightGold, false);
-    this.scene.add(odinGroup);
-    if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
-      window.ModelFactory.attachBlenderGLB('prop_odin_statue', odinGroup, null, fallbackObelisk);
-    }
-    const crownRing = new THREE.Mesh(new THREE.TorusGeometry(4.2, 0.3, 8, 24), this.mats.brightGold);
-    crownRing.position.set(0, 9.5, 0);
-    this.scene.add(crownRing);
-    this.animatedProps.push({ mesh: crownRing, rotY: 1.2 });
+    // Central Elevated Odin Allfather Altar (with 4 wide walkable royal staircases!)
+    this.addWalkableFloor(0, 1.8, 0, 12, 12, 1.8, this.mats.gold);
+    this.addStairRamp(0, 7.8, 5.0, 4.0, 0, 1.8, 'N', this.mats.brightGold);
+    this.addStairRamp(0, -7.8, 5.0, 4.0, 0, 1.8, 'S', this.mats.brightGold);
+    this.addStairRamp(7.8, 0, 4.0, 5.0, 0, 1.8, 'W', this.mats.brightGold);
+    this.addStairRamp(-7.8, 0, 4.0, 5.0, 0, 1.8, 'E', this.mats.brightGold);
+
+    // COLOSSAL 25-METER BLENDER STATUE OF ODIN ALLFATHER crowning Valhalla Citadel!
+    this.placeBlenderStatue('statue_odin', 0, 1.8, 0, 0, 1.05);
   }
 
   // =========================================================================
@@ -528,29 +619,31 @@ class AsgardWorld {
   buildBifrostObservatory() {
     const cx = 0, cz = 135;
 
-    // Elevated Walkable Rainbow Bridge Deck (y = 1.6m) with Approach Ramps & Cover Railings
-    this.addWalkableFloor(0, 1.6, 82, 12, 56, 0.6, this.mats.bifrostWater);
-    this.addStairRamp(0, 50, 12, 8, 0, 1.6, 'S', this.mats.bifrostWater);
-    this.addStairRamp(0, 114, 12, 8, 1.6, 0, 'N', this.mats.bifrostWater);
+    // Widened Elevated Walkable Rainbow Bridge Deck (y = 1.6m) with Approach Ramps & Cover Railings
+    this.addWalkableFloor(0, 1.6, 82, 14, 58, 0.6, this.mats.bifrostWater);
+    this.addStairRamp(0, 49, 14, 8, 0, 1.6, 'S', this.mats.bifrostWater);
+    this.addStairRamp(0, 115, 14, 8, 1.6, 0, 'N', this.mats.bifrostWater);
 
-    // Bridge Crystalline Cover Arches & Side Parapets
     for (let z = 62; z <= 102; z += 13) {
-      this.addSolidWall(-5.6, 1.6, z, 0.8, 1.3, 4.5, this.mats.gold);
-      this.addSolidWall(5.6, 1.6, z, 0.8, 1.3, 4.5, this.mats.gold);
+      this.addSolidWall(-6.6, 1.6, z, 0.8, 1.35, 4.5, this.mats.gold);
+      this.addSolidWall(6.6, 1.6, z, 0.8, 1.35, 4.5, this.mats.gold);
       const arch = new THREE.Mesh(
-        new THREE.TorusGeometry(6.2, 0.35, 8, 20, Math.PI),
+        new THREE.TorusGeometry(7.2, 0.38, 8, 22, Math.PI),
         this.mats.bifrostWater
       );
       arch.position.set(0, 1.6, z);
       this.scene.add(arch);
     }
 
-    // 2-Story Enterable Heimdall Observatory Main Building
-    this.buildApexCompoundBuilding(cx, cz, 20, 16, this.mats.darkSteel, this.mats.bifrostWater, true);
+    // EXPANDED 3-Story Enterable Heimdall Observatory Main Building (26m x 18m)
+    this.buildApexCompoundBuilding(cx, cz, 26, 18, this.mats.darkSteel, this.mats.bifrostWater, 3);
+
+    // COLOSSAL BLENDER GUARDIAN STATUE OF HEIMDALL guarding the Rainbow Bridge entrance!
+    this.placeBlenderStatue('statue_heimdall', 18, 0, 120, -Math.PI * 0.25, 1.0);
 
     // Giant Spinning Bifrost Stargate Portal behind the Observatory (Blender GLB!)
     const portalGroup = new THREE.Group();
-    portalGroup.position.set(0, 0, 164);
+    portalGroup.position.set(0, 0, 166);
     const outerGate = new THREE.Mesh(new THREE.TorusGeometry(10, 0.9, 10, 32), this.mats.gold);
     outerGate.position.y = 11;
     const innerPortal = new THREE.Mesh(
@@ -572,38 +665,37 @@ class AsgardWorld {
   buildMjolnirForge() {
     const cx = -115, cz = 35;
 
-    // Glowing Lava Canal cutting through the Forge Courtyard
-    const lavaCanal = new THREE.Mesh(new THREE.BoxGeometry(46, 0.1, 8), this.mats.lava);
+    const lavaCanal = new THREE.Mesh(new THREE.BoxGeometry(56, 0.1, 9), this.mats.lava);
     lavaCanal.position.set(cx, 0.04, cz);
     this.scene.add(lavaCanal);
 
-    // 2 Walkable Iron Bridges crossing over the Lava Canal
-    this.addWalkableFloor(cx - 12, 0.8, cz, 6, 12, 0.5, this.mats.darkSteel);
-    this.addStairRamp(cx - 12, cz - 7.5, 6, 3, 0, 0.8, 'S', this.mats.stone);
-    this.addStairRamp(cx - 12, cz + 7.5, 6, 3, 0, 0.8, 'N', this.mats.stone);
+    this.addWalkableFloor(cx - 14, 0.8, cz, 6.5, 13, 0.5, this.mats.darkSteel);
+    this.addStairRamp(cx - 14, cz - 8.0, 6.5, 3, 0, 0.8, 'S', this.mats.stone);
+    this.addStairRamp(cx - 14, cz + 8.0, 6.5, 3, 0, 0.8, 'N', this.mats.stone);
 
-    this.addWalkableFloor(cx + 12, 0.8, cz, 6, 12, 0.5, this.mats.darkSteel);
-    this.addStairRamp(cx + 12, cz - 7.5, 6, 3, 0, 0.8, 'S', this.mats.stone);
-    this.addStairRamp(cx + 12, cz + 7.5, 6, 3, 0, 0.8, 'N', this.mats.stone);
+    this.addWalkableFloor(cx + 14, 0.8, cz, 6.5, 13, 0.5, this.mats.darkSteel);
+    this.addStairRamp(cx + 14, cz - 8.0, 6.5, 3, 0, 0.8, 'S', this.mats.stone);
+    this.addStairRamp(cx + 14, cz + 8.0, 6.5, 3, 0, 0.8, 'N', this.mats.stone);
 
-    // North & South Enterable 2-Story Smelting Foundry Halls
-    this.buildApexCompoundBuilding(cx, cz - 19, 20, 12, this.mats.darkSteel, this.mats.gold, true);
-    this.buildApexCompoundBuilding(cx, cz + 19, 20, 12, this.mats.darkSteel, this.mats.gold, true);
+    // EXPANDED Twin 3-Story Smelting Foundry Halls (26m x 14m)
+    this.buildApexCompoundBuilding(cx, cz - 21, 26, 14, this.mats.darkSteel, this.mats.gold, 3);
+    this.buildApexCompoundBuilding(cx, cz + 21, 26, 14, this.mats.darkSteel, this.mats.gold, 3);
 
-    // Elevated Overhead Catwalk Skybridge connecting the two Foundry 2nd Floors (y = 4.5m)!
-    this.addWalkableFloor(cx, 4.5, cz, 5.0, 26, 0.4, this.mats.gold);
-    this.addSolidWall(cx - 2.3, 4.5, cz, 0.35, 1.1, 18, this.mats.darkSteel);
-    this.addSolidWall(cx + 2.3, 4.5, cz, 0.35, 1.1, 18, this.mats.darkSteel);
+    // Dual Elevated Overhead Catwalk Skybridges (2nd Floor y=4.6m & 3rd Floor y=9.2m)
+    this.addWalkableFloor(cx, 4.6, cz, 5.5, 28, 0.4, this.mats.gold);
+    this.addWalkableFloor(cx, 9.2, cz, 4.5, 28, 0.4, this.mats.darkSteel);
 
-    // Animated Giant Dwarven Forge Hammer + Blender Star-Metal Anvil on West Platform
+    // COLOSSAL BLENDER STATUE OF THOR raising Mjölnir overlooking the Forge!
+    this.placeBlenderStatue('statue_thor', cx - 28, 0, cz - 14, Math.PI * 0.45, 1.05);
+
     const anvilGroup = new THREE.Group();
-    anvilGroup.position.set(cx - 26, 0, cz + 3.2);
+    anvilGroup.position.set(cx - 26, 0, cz + 4.5);
     this.scene.add(anvilGroup);
     if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
       window.ModelFactory.attachBlenderGLB('prop_forge_anvil', anvilGroup);
     }
     const hammerGroup = new THREE.Group();
-    hammerGroup.position.set(cx - 26, 6, cz);
+    hammerGroup.position.set(cx - 26, 6, cz + 1.5);
     const arm = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.4, 8), this.mats.gold);
     const head = new THREE.Mesh(new THREE.BoxGeometry(3.6, 4.5, 3.6), this.mats.darkSteel);
     head.position.set(0, -1.5, 3.2);
@@ -613,7 +705,7 @@ class AsgardWorld {
   }
 
   // =========================================================================
-  // POI 4: YGGDRASIL SANCTUARY & WORLD TREE BASTION (EAST [115, 30])
+  // POI 4: YGGDRASIL SANCTUARY & 2-TIER TREEHOUSE BASTION (EAST [115, 30])
   // =========================================================================
   buildYggdrasilSanctuary() {
     const cx = 115, cz = 30;
@@ -625,7 +717,6 @@ class AsgardWorld {
       roughness: 0.4
     });
 
-    // Colossal Yggdrasil World Tree (Blender GLB!)
     const yggGroup = new THREE.Group();
     yggGroup.position.set(cx, 0, cz);
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(5.2, 8.2, 34, 14), barkMat);
@@ -642,29 +733,20 @@ class AsgardWorld {
       isClimbable: false
     });
 
-    // Walkable Wrap-Around Golden Treehouse Platform Deck around Yggdrasil at y = 4.6m!
-    this.addWalkableFloor(cx, 4.6, cz, 22, 22, 0.5, this.mats.woodGold);
-    // 2 Wide Ramps leading up onto the Yggdrasil Treehouse Deck
-    this.addStairRamp(cx - 14.5, cz, 7, 4.2, 0, 4.6, 'E', this.mats.gold);
-    this.addStairRamp(cx + 14.5, cz, 7, 4.2, 0, 4.6, 'W', this.mats.gold);
+    // TIER 1 Treehouse Deck (y = 4.6m) + TIER 2 Upper Canopy Deck (y = 9.2m)!
+    this.addWalkableFloor(cx, 4.6, cz, 26, 26, 0.5, this.mats.woodGold);
+    this.addStairRamp(cx - 16.5, cz, 7, 4.6, 0, 4.6, 'E', this.mats.gold);
+    this.addStairRamp(cx + 16.5, cz, 7, 4.6, 0, 4.6, 'W', this.mats.gold);
 
-    // Treehouse Perimeter Cover Railings
-    this.addSolidWall(cx, 4.6, cz + 10.7, 16, 1.2, 0.5, this.mats.gold);
-    this.addSolidWall(cx, 4.6, cz - 10.7, 16, 1.2, 0.5, this.mats.gold);
+    this.addWalkableFloor(cx, 9.2, cz, 20, 20, 0.5, this.mats.gold);
+    this.addStairRamp(cx, cz - 11.5, 4.6, 7, 4.6, 9.2, 'S', this.mats.brightGold);
 
-    // Glowing Canopy Clusters
-    [
-      [0, 32, 0, 20], [-12, 27, 9, 13], [13, 28, -8, 14],
-      [7, 26, 12, 12], [-10, 27, -11, 13]
-    ].forEach(([ox, oy, oz, r]) => {
-      const canopy = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 1), leafMat);
-      canopy.position.set(cx + ox, oy, cz + oz);
-      this.scene.add(canopy);
-    });
+    this.addSolidWall(cx, 4.6, cz + 12.7, 18, 1.25, 0.5, this.mats.gold);
+    this.addSolidWall(cx, 4.6, cz - 12.7, 18, 1.25, 0.5, this.mats.gold);
 
-    // 2 Enterable Sanctuary Shrine Buildings North & South of the World Tree
-    this.buildApexCompoundBuilding(cx, cz - 24, 16, 10, this.mats.marbleWall, this.mats.gold, false);
-    this.buildApexCompoundBuilding(cx, cz + 24, 16, 10, this.mats.marbleWall, this.mats.gold, false);
+    // 2 Expanded 2-Story Sanctuary Shrine Buildings North & South of Yggdrasil
+    this.buildApexCompoundBuilding(cx, cz - 28, 22, 12, this.mats.marbleWall, this.mats.gold, 2);
+    this.buildApexCompoundBuilding(cx, cz + 28, 22, 12, this.mats.marbleWall, this.mats.gold, 2);
   }
 
   // =========================================================================
@@ -673,18 +755,20 @@ class AsgardWorld {
   buildHelheimCrypts() {
     const cx = -85, cz = -105;
 
-    // Main 2-Story Enterable Obsidian Citadel of Hel
-    this.buildApexCompoundBuilding(cx, cz, 22, 16, this.mats.obsidian, this.mats.necroGlow, true);
+    // EXPANDED 3-Story Obsidian Citadel of Hel (28m x 18m)
+    this.buildApexCompoundBuilding(cx, cz, 28, 18, this.mats.obsidian, this.mats.necroGlow, 3);
 
-    // Flanking East & West Crypt Bunkers (1-Story Enterable with Rooftop Ramps)
-    this.buildApexCompoundBuilding(cx - 22, cz + 6, 12, 12, this.mats.obsidian, this.mats.stone, false);
-    this.buildApexCompoundBuilding(cx + 22, cz + 6, 12, 12, this.mats.obsidian, this.mats.stone, false);
+    // Flanking 2-Story Crypt Towers connected via Elevated Battlement Walkways
+    this.buildApexCompoundBuilding(cx - 26, cz + 6, 14, 14, this.mats.obsidian, this.mats.stone, 2);
+    this.buildApexCompoundBuilding(cx + 26, cz + 6, 14, 14, this.mats.obsidian, this.mats.stone, 2);
 
-    // 6 Glowing Emerald Soul Monoliths around the Courtyard
+    // COLOSSAL OBSIDIAN BLENDER STATUE OF HELA overlooking Helheim Fortress!
+    this.placeBlenderStatue('statue_hela', cx, 0, cz - 22, 0, 1.05);
+
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
-      const px = cx + Math.cos(a) * 26;
-      const pz = cz + Math.sin(a) * 26;
+      const px = cx + Math.cos(a) * 32;
+      const pz = cz + Math.sin(a) * 32;
       this.addSolidWall(px, 0, pz, 2.8, 6.5, 2.8, this.mats.obsidian);
       const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(1.3, 0), this.mats.necroGlow);
       crystal.position.set(px, 7.8, pz);
@@ -699,18 +783,20 @@ class AsgardWorld {
   buildValkyrieSkyDocks() {
     const cx = 90, cz = -100;
 
-    // 2 Enterable Aircraft Hangar Bays (West & East Hangars) + Flight Control Tower
-    this.buildApexCompoundBuilding(cx - 16, cz, 16, 18, this.mats.darkSteel, this.mats.brightGold, true);
-    this.buildApexCompoundBuilding(cx + 16, cz, 16, 18, this.mats.darkSteel, this.mats.brightGold, true);
+    // EXPANDED Twin 3-Story Aircraft Hangar Bays (20m x 22m)
+    this.buildApexCompoundBuilding(cx - 20, cz, 20, 22, this.mats.darkSteel, this.mats.brightGold, 3);
+    this.buildApexCompoundBuilding(cx + 20, cz, 20, 22, this.mats.darkSteel, this.mats.brightGold, 3);
 
-    // Central Elevated Helipad Flight Deck connecting both Hangars at y = 4.5m with wide South Boarding Ramp!
-    this.addWalkableFloor(cx, 4.5, cz, 16, 16, 0.5, this.mats.brightGold);
-    this.addStairRamp(cx, cz + 13, 8, 10, 0, 4.5, 'N', this.mats.gold);
+    // Wide Elevated Helipad Flight Deck connecting both Hangars at y = 4.6m + Boarding Ramp
+    this.addWalkableFloor(cx, 4.6, cz, 20, 20, 0.5, this.mats.brightGold);
+    this.addStairRamp(cx, cz + 15, 9, 10, 0, 4.6, 'N', this.mats.gold);
 
-    // Docked Golden Viking Sky-Skiff on the Central Flight Deck (provides tactical cover)
+    // COLOSSAL WINGED BLENDER STATUE OF VALKYRIE crowning the Sky Docks!
+    this.placeBlenderStatue('statue_valkyrie', cx, 0, cz - 22, 0, 1.1);
+
     const skiff = window.ModelFactory.createDropshipModel();
     skiff.scale.set(0.45, 0.45, 0.45);
-    skiff.position.set(cx, 5.6, cz);
+    skiff.position.set(cx, 5.7, cz);
     this.scene.add(skiff);
   }
 
@@ -1043,10 +1129,10 @@ class AsgardWorld {
       this.respawnBeacons.push({ x: bx, y: by, z: bz, name, used: false, mesh: rGroup, beam: greenBeacon });
     });
 
-    // 3. Build 2 Rooftop Recon Survey Beacons (Valhalla Roof & Bifrost Observatory Roof)
+    // 3. Build 2 Rooftop Recon Survey Beacons (Valhalla 3rd-Story Roof & Bifrost Observatory 3rd-Story Roof)
     const beaconCoords = [
-      [0, 9.0, -20, 'Valhalla Roof Survey Beacon'],
-      [0, 9.0, 135, 'Bifrost Observatory Survey Beacon']
+      [0, 13.8, -24, 'Valhalla 3F Roof Survey Beacon'],
+      [0, 13.8, 135, 'Bifrost Observatory 3F Survey Beacon']
     ];
     beaconCoords.forEach(([bx, by, bz, name]) => {
       const bGroup = new THREE.Group();
