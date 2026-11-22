@@ -1065,10 +1065,76 @@ class GodWarsGame {
       return;
     }
 
-    // 6. Open Divine Supply Bin / Care Package / Death Box
+    // 6. Open / Close Interactive Apex Building Door
+    if (this.nearestDoor) {
+      this.world.toggleDoor(this.nearestDoor, false);
+      this.showBanner(this.nearestDoor.open ? 'DOOR OPENED' : 'DOOR CLOSED', '#38bdf8');
+      return;
+    }
+
+    // 7. Pick up 3D Ground Loot inside Buildings
+    if (this.nearestGroundLoot) {
+      this.pickupGroundLoot(this.nearestGroundLoot);
+      return;
+    }
+
+    // 8. Craft at Dwarven Replicator Terminal
+    if (this.nearestReplicator) {
+      this.useReplicator(this.nearestReplicator);
+      return;
+    }
+
+    // 9. Scan Map at Rooftop Recon Survey Beacon
+    if (this.nearestBeacon) {
+      this.useSurveyBeacon(this.nearestBeacon);
+      return;
+    }
+
+    // 10. Open Divine Supply Bin / Care Package / Death Box
     if (this.nearestBin) {
       this.interactWithLootBin();
     }
+  }
+
+  pickupGroundLoot(item) {
+    if (!item || item.pickedUp) return;
+    item.pickedUp = true;
+    item.mesh.visible = false;
+    this.applyLootPackage(item.loot, 'GROUND LOOT');
+  }
+
+  useReplicator(rep) {
+    const p = this.player;
+    if (!p) return;
+    window.SFX.playEvoUpgrade();
+    // Upgrade Evo Shield Progress +140 DMG & Upgrade Current Weapon to Mythic Gold!
+    p.damageDealt += 140;
+    const tiers = window.GODWARS_DATA.EVO_TIERS;
+    for (let tLvl = 5; tLvl >= 2; tLvl--) {
+      const prevThreshold = tiers[tLvl - 1] ? tiers[tLvl - 1].nextThreshold : 9999;
+      if (p.damageDealt >= prevThreshold && p.shieldTier < tLvl) {
+        p.shieldTier = tLvl;
+        p.maxShield = tiers[tLvl].maxShield;
+        break;
+      }
+    }
+    p.shield = p.maxShield;
+    p.heals.shield_battery += 2;
+    const curWep = p.weapons[p.activeSlot];
+    curWep.isMythicGold = true;
+    curWep.mag = curWep.data.magSize;
+    curWep.reserve += curWep.data.magSize * 3;
+    this.equipViewmodelWeapon();
+    this.showBanner(`REPLICATOR CRAFTED: ★ MYTHIC ${curWep.data.divineName} + ${tiers[p.shieldTier].name} + 2 BATTERIES!`, '#2dd4bf');
+  }
+
+  useSurveyBeacon(beacon) {
+    const p = this.player;
+    if (!p) return;
+    window.SFX.playPing('enemy');
+    p.beaconScanTimer = 15.0;
+    this.showBanner(`📡 ${beacon.name.toUpperCase()}: ALL 15 CONTENDERS SCANNED ON MAP (15s)!`, '#38bdf8');
+    window.SFX.announce('Survey beacon activated. All hostiles scanned.');
   }
 
   attachToZipline(zipInfo) {
@@ -1297,9 +1363,12 @@ class GodWarsGame {
       }
     }
 
-    const loot = bin.loot;
+    this.applyLootPackage(bin.loot, bin.isCarePackage ? 'CARE PACKAGE' : 'SUPPLY BIN');
+  }
+
+  applyLootPackage(loot, sourceLabel = 'LOOTED') {
     const wData = window.GODWARS_DATA.WEAPONS[loot.weaponId];
-    const isMythic = Boolean(loot.isMythicGold || bin.isCarePackage);
+    const isMythic = Boolean(loot.isMythicGold);
 
     if (loot.shieldTier > this.player.shieldTier) {
       this.player.shieldTier = loot.shieldTier;
@@ -1336,7 +1405,7 @@ class GodWarsGame {
     window.SFX.playReload();
     const tierName = window.GODWARS_DATA.EVO_TIERS[this.player.shieldTier].name;
     this.showBanner(
-      `LOOTED: ${isMythic ? '★ MYTHIC GOLD ' : ''}${wData.divineName} + ${tierName}`,
+      `${sourceLabel}: ${isMythic ? '★ MYTHIC GOLD ' : ''}${wData.divineName} + ${tierName}`,
       isMythic ? '#fde047' : wData.color
     );
   }
@@ -1610,8 +1679,29 @@ class GodWarsGame {
       p.position.x = col.x;
       p.position.z = col.z;
 
+      // Apex Legends Ledge Mantle / Wall-Climb Physics:
+      // If moving forward while jumping against a wall/ledge, smoothly climb up onto the ledge!
+      if (!p.onGround && moveForward > 0.25 && (this.keys['Space'] || p.velocity.y > -6)) {
+        const ledgeY = this.world.findClimbableLedge(p.position.x, p.position.y, p.position.z, forwardVec);
+        if (ledgeY !== null && p.position.y < ledgeY) {
+          p.position.y = Math.min(ledgeY, p.position.y + 11.5 * dt);
+          p.velocity.y = Math.max(0, p.velocity.y);
+          if (Math.abs(p.position.y - ledgeY) < 0.35) {
+            p.position.y = ledgeY;
+            p.position.x += forwardVec.x * 0.55;
+            p.position.z += forwardVec.z * 0.55;
+            p.onGround = true;
+          }
+        }
+      }
+
       const groundY = this.world.getGroundHeight(p.position.x, p.position.z, p.position.y);
       if (p.position.y <= groundY) {
+        // Downhill ramp slide boost!
+        if (p.isSliding && groundY < (p.prevGroundY || 0) - 0.01) {
+          p.slideTimer = Math.min(1.1, p.slideTimer + dt * 0.8);
+        }
+        p.prevGroundY = groundY;
         p.position.y = groundY;
         p.velocity.y = 0;
         p.onGround = true;
@@ -1767,7 +1857,11 @@ class GodWarsGame {
       }
     }
 
-    // Context Proximity Scanning (Knocked Bot for Finisher, Zipline, Jump Tower, Supply Bin)
+    if (p.beaconScanTimer && p.beaconScanTimer > 0) {
+      p.beaconScanTimer = Math.max(0, p.beaconScanTimer - dt);
+    }
+
+    // Context Proximity Scanning (Knocked Bot for Finisher, Zipline, Jump Tower, Door, Ground Loot, Replicator, Beacon, Supply Bin)
     this.nearestKnockedBot = null;
     for (const bot of this.bots) {
       if (bot.alive && bot.knocked && bot.position.distanceTo(p.position) < 3.6) {
@@ -1777,7 +1871,7 @@ class GodWarsGame {
     }
 
     this.nearJumpTower = false;
-    if (this.world.jumpTower && Math.hypot(p.position.x - this.world.jumpTower.x, p.position.z - this.world.jumpTower.z) < 4.0) {
+    if (this.world.jumpTower && Math.hypot(p.position.x - this.world.jumpTower.x, p.position.z - this.world.jumpTower.z) < 4.2) {
       this.nearJumpTower = true;
     }
 
@@ -1793,6 +1887,44 @@ class GodWarsGame {
           this.nearestZipline = { zip: z, t: 0.96, dir: -1 };
           break;
         }
+      }
+    }
+
+    this.nearestDoor = null;
+    let bestDoorDist = 3.2;
+    for (const door of (this.world.doors || [])) {
+      if (door.broken) continue;
+      const d = Math.hypot(p.position.x - door.closedX, p.position.z - door.closedZ);
+      if (d < bestDoorDist && Math.abs(p.position.y - door.y) < 2.5) {
+        bestDoorDist = d;
+        this.nearestDoor = door;
+      }
+    }
+
+    this.nearestGroundLoot = null;
+    let bestGroundDist = 3.0;
+    for (const gl of (this.world.groundLoot || [])) {
+      if (gl.pickedUp) continue;
+      const d = Math.hypot(p.position.x - gl.x, p.position.z - gl.z);
+      if (d < bestGroundDist && Math.abs(p.position.y - gl.y) < 2.2) {
+        bestGroundDist = d;
+        this.nearestGroundLoot = gl;
+      }
+    }
+
+    this.nearestReplicator = null;
+    for (const rep of (this.world.replicators || [])) {
+      if (Math.hypot(p.position.x - rep.x, p.position.z - rep.z) < 3.8) {
+        this.nearestReplicator = rep;
+        break;
+      }
+    }
+
+    this.nearestBeacon = null;
+    for (const b of (this.world.surveyBeacons || [])) {
+      if (Math.hypot(p.position.x - b.x, p.position.z - b.z) < 3.6 && Math.abs(p.position.y - b.y) < 2.5) {
+        this.nearestBeacon = b;
+        break;
       }
     }
 
@@ -2031,6 +2163,19 @@ class GodWarsGame {
     } else if (this.nearestZipline) {
       promptHtml = `<b style="color:#fde047">[E / TAP] RIDE BIFROST ZIPLINE (${this.nearestZipline.zip.name})</b>`;
       mobileBtnText = `⚡ RIDE ZIPLINE`;
+    } else if (this.nearestDoor) {
+      promptHtml = `<b style="color:#38bdf8">[E / TAP] ${this.nearestDoor.open ? 'CLOSE' : 'OPEN'} DOOR • [V] MELEE KICK TO SMASH</b>`;
+      mobileBtnText = `🚪 ${this.nearestDoor.open ? 'CLOSE' : 'OPEN'} DOOR`;
+    } else if (this.nearestGroundLoot) {
+      const glWep = window.GODWARS_DATA.WEAPONS[this.nearestGroundLoot.loot.weaponId];
+      promptHtml = `<b>[E / TAP] PICK UP:</b> <span style="color:${glWep.color}">${glWep.divineName}</span> + LV${this.nearestGroundLoot.loot.shieldTier} EVO SHIELD`;
+      mobileBtnText = `🔫 EQUIP ${glWep.baseName}`;
+    } else if (this.nearestReplicator) {
+      promptHtml = `<b style="color:#2dd4bf">[E / TAP] ${this.nearestReplicator.name.toUpperCase()}: CRAFT ★ MYTHIC WEAPON & EVO UPGRADE</b>`;
+      mobileBtnText = `🛠️ CRAFT MYTHIC`;
+    } else if (this.nearestBeacon) {
+      promptHtml = `<b style="color:#38bdf8">[E / TAP] ${this.nearestBeacon.name.toUpperCase()}: SCAN ALL 15 ENEMIES ON MAP</b>`;
+      mobileBtnText = `📡 SCAN MAP`;
     } else if (this.nearestBin) {
       const binWep = window.GODWARS_DATA.WEAPONS[this.nearestBin.loot.weaponId];
       const title = this.nearestBin.isCarePackage
@@ -2132,7 +2277,7 @@ class GodWarsGame {
 
       ctx.clearRect(0, 0, w, h);
 
-      ctx.fillStyle = '#0b1120';
+      ctx.fillStyle = '#0b1526';
       ctx.beginPath();
       ctx.arc(cx, cy, this.world.islandRadius * scale, 0, Math.PI * 2);
       ctx.fill();
@@ -2140,9 +2285,40 @@ class GodWarsGame {
       ctx.strokeStyle = '#d97706';
       ctx.stroke();
 
+      // Draw Paved Golden Highways connecting Valhalla to POIs
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.32)';
+      ctx.lineWidth = idx === 1 ? 5 : 3;
+      window.GODWARS_DATA.POIS.forEach(poi => {
+        if (poi.id === 'valhalla') return;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + poi.x * scale, cy + poi.z * scale);
+        ctx.stroke();
+      });
+
+      // Draw Enterable Building Footprints on Minimap & Tactical Map!
+      ctx.fillStyle = 'rgba(226, 232, 240, 0.24)';
+      ctx.strokeStyle = 'rgba(251, 191, 36, 0.65)';
+      ctx.lineWidth = 1;
+      (this.world.walkableSurfaces || []).forEach(s => {
+        const bw = (s.maxX - s.minX) * scale;
+        const bd = (s.maxZ - s.minZ) * scale;
+        if (bw < 3) return; // Skip tiny crates on minimap
+        const bx = cx + s.minX * scale;
+        const bz = cy + s.minZ * scale;
+        ctx.fillRect(bx, bz, bw, bd);
+        ctx.strokeRect(bx, bz, bw, bd);
+      });
+
+      // Draw Replicators on Map (Cyan Squares)
+      (this.world.replicators || []).forEach(rep => {
+        ctx.fillStyle = '#2dd4bf';
+        ctx.fillRect(cx + rep.x * scale - 3, cy + rep.z * scale - 3, 6, 6);
+      });
+
       // Draw Bifrost Ziplines on Map
-      ctx.strokeStyle = 'rgba(253, 224, 71, 0.35)';
-      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = 'rgba(253, 224, 71, 0.45)';
+      ctx.lineWidth = 1.4;
       this.world.ziplines.forEach(z => {
         ctx.beginPath();
         ctx.moveTo(cx + z.start.x * scale, cy + z.start.z * scale);
@@ -2197,9 +2373,14 @@ class GodWarsGame {
       );
       ctx.stroke();
 
-      // Draw Detected Enemies
+      // Draw Detected Enemies (Valkyrie Sky Scan, Loki Recon, or Rooftop Survey Beacon Scan!)
       const p = this.player;
-      const scanActive = p && ((p.heroId === 'valkyrie' && p.ultBuffTimer > 0) || p.heroId === 'loki' || this.isFiringRange);
+      const scanActive = p && (
+        (p.heroId === 'valkyrie' && p.ultBuffTimer > 0) ||
+        (p.beaconScanTimer && p.beaconScanTimer > 0) ||
+        p.heroId === 'loki' ||
+        this.isFiringRange
+      );
       this.bots.forEach(b => {
         if (!b.alive || b.inDropship) return;
         const distToPlayer = p ? p.position.distanceTo(b.position) : 999;

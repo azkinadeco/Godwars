@@ -117,6 +117,16 @@ class CombatManager {
     const endPt = origin.clone().addScaledVector(lookDir, 3.5);
     this.spawnTracer(origin.clone().addScaledVector(lookDir, 0.5), endPt, hData.hexColor, 3);
 
+    // Check if Melee Kicking an Apex Energy Door!
+    for (const door of (this.game.world.doors || [])) {
+      if (!door.broken && Math.hypot(actor.position.x - door.x, actor.position.z - door.z) < 3.5) {
+        this.game.world.toggleDoor(door, true);
+        this.spawnExplosionVFX(new THREE.Vector3(door.x, door.y + 1.5, door.z), 2.5, 0x38bdf8, 0.3);
+        if (actor.isPlayer) this.game.showBanner('DOOR SMASHED OPEN!', '#38bdf8');
+        return;
+      }
+    }
+
     const candidates = [...this.game.bots];
     if (this.game.player && this.game.player.alive) candidates.push(this.game.player);
 
@@ -154,6 +164,7 @@ class CombatManager {
     let hitPoint = origin.clone().addScaledVector(dir, range);
 
     for (const c of this.game.world.colliders) {
+      if (c.isDoor && !c.active) continue;
       const boxMin = new THREE.Vector3(c.minX, c.minY, c.minZ);
       const boxMax = new THREE.Vector3(c.maxX, c.maxY, c.maxZ);
       const ray = new THREE.Ray(origin, dir);
