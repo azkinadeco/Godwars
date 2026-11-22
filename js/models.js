@@ -123,6 +123,172 @@ window.ModelFactory = {
     return tex;
   },
 
+  // =========================================================================
+  // EUPHORIA-INSPIRED 4-CHANNEL FBM DETAIL TEXTURE & PAINTED PBR SURFACES
+  // Generated in memory at load time (zero network downloads, high-res detail!)
+  // =========================================================================
+  getDetailTexture() {
+    if (this._texCache._euphoriaDetail) return this._texCache._euphoriaDetail;
+    const S = 128;
+    const data = new Uint8Array(S * S * 4);
+    const hash = (x, y, seed) => {
+      const n = Math.sin(x * 12.9898 + y * 78.233 + seed * 43.12) * 43758.5453;
+      return n - Math.floor(n);
+    };
+    const smoothNoise = (x, y, per, seed) => {
+      const xi = Math.floor(x), yi = Math.floor(y);
+      const fx = x - xi, fy = y - yi;
+      const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+      const m = (n) => ((n % per) + per) % per;
+      const a = hash(m(xi), m(yi), seed), b = hash(m(xi + 1), m(yi), seed);
+      const c = hash(m(xi), m(yi + 1), seed), d = hash(m(xi + 1), m(yi + 1), seed);
+      return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+    };
+    const fbm = (x, y, base, oct, seed) => {
+      let val = 0, amp = 0.5, freq = base / S, tot = 0;
+      for (let o = 0; o < oct; o++) {
+        val += smoothNoise(x * freq, y * freq, base << o, seed + o * 17) * amp;
+        tot += amp;
+        amp *= 0.5;
+        freq *= 2;
+      }
+      return val / tot;
+    };
+    const clampByte = (v) => Math.max(0, Math.min(255, Math.round(v * 255)));
+    for (let y = 0; y < S; y++) {
+      for (let x = 0; x < S; x++) {
+        const i = (y * S + x) * 4;
+        const g = fbm(x, y, 16, 3, 11);
+        const s = fbm(x, y, 8, 3, 23);
+        const r = fbm(x, y, 8, 4, 37);
+        const w = fbm(x, y, 12, 3, 53);
+        data[i]     = clampByte((g - 0.5) * 2.2 + 0.52); // R: grass micro-grain
+        data[i + 1] = clampByte((s - 0.5) * 2.1 + 0.50); // G: cloud & soil FBM
+        data[i + 2] = clampByte((r - 0.5) * 2.3 + 0.52); // B: rock & cliff strata
+        data[i + 3] = clampByte((w - 0.5) * 2.0 + 0.50); // A: marble & water ripple
+      }
+    }
+    const tex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.magFilter = THREE.LinearFilter;
+    tex.minFilter = THREE.LinearFilter;
+    tex.needsUpdate = true;
+    this._texCache._euphoriaDetail = tex;
+    return tex;
+  },
+
+  getSurfaceTexture(type = 'marble_wall', repeatX = 4, repeatY = 4) {
+    const key = `surf_${type}_${repeatX}_${repeatY}`;
+    if (this._texCache[key]) return this._texCache[key];
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+
+    if (type === 'marble_wall') {
+      // Asgard Royal Carved White-Gold Marble Ashlar Masonry + Subtle Veins
+      ctx.fillStyle = '#e8eef5';
+      ctx.fillRect(0, 0, 256, 256);
+      // Soft marble veining
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 14; i++) {
+        ctx.beginPath();
+        ctx.moveTo(0, i * 20);
+        ctx.lineTo(128, i * 20 + (i % 2 === 0 ? 14 : -12));
+        ctx.lineTo(256, i * 20 + 4);
+        ctx.stroke();
+      }
+      // Ashlar stone courses & golden frieze lines
+      ctx.strokeStyle = 'rgba(100, 116, 139, 0.42)';
+      ctx.lineWidth = 2;
+      for (let row = 0; row < 4; row++) {
+        const y = row * 64;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(256, y); ctx.stroke();
+        const offset = (row % 2) * 64;
+        for (let col = 0; col < 2; col++) {
+          const x = (offset + col * 128) % 256;
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 64); ctx.stroke();
+        }
+      }
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(0, 0, 256, 6);
+      ctx.fillRect(0, 126, 256, 4);
+    } else if (type === 'marble_floor') {
+      // Ornate Golden-Trimmed Valhalla Palace Floor Tiles
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(0, 0, 256, 256);
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(4, 4, 120, 120);
+      ctx.strokeRect(132, 4, 120, 120);
+      ctx.strokeRect(4, 132, 120, 120);
+      ctx.strokeRect(132, 132, 120, 120);
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.55)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(128, 16); ctx.lineTo(240, 128); ctx.lineTo(128, 240); ctx.lineTo(16, 128); ctx.closePath();
+      ctx.stroke();
+    } else if (type === 'asgard_stone') {
+      // Chiseled Geological Cliff & Castle Stone with Mossy Cracks
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(0, 0, 256, 256);
+      const shades = ['#334155', '#64748b', '#475569', '#1e293b'];
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 4; c++) {
+          ctx.fillStyle = shades[(r + c) % shades.length];
+          const x = ((c * 64) + (r % 2) * 32) % 256;
+          ctx.fillRect(x + 2, r * 32 + 2, 60, 28);
+        }
+      }
+      ctx.strokeStyle = 'rgba(20, 83, 45, 0.45)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(8, 8, 240, 240);
+    } else if (type === 'lush_grass') {
+      // Euphoria-Style Sunlit Emerald-Olive Fantasy Meadow Texture
+      ctx.fillStyle = '#1e5631';
+      ctx.fillRect(0, 0, 256, 256);
+      const bladeCols = ['#15803d', '#166534', '#22c55e', '#4d7c0f', '#facc15'];
+      for (let i = 0; i < 420; i++) {
+        ctx.fillStyle = bladeCols[i % (i % 19 === 0 ? 5 : 4)];
+        const bx = (i * 73) % 256;
+        const by = (i * 137) % 256;
+        ctx.fillRect(bx, by, 3, 9);
+      }
+    } else if (type === 'wood_gold') {
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(0, 0, 256, 256);
+      ctx.fillStyle = '#92400e';
+      for (let y = 0; y < 256; y += 32) ctx.fillRect(0, y + 3, 256, 26);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(0, 120, 256, 14);
+    } else if (type === 'molten_lava') {
+      ctx.fillStyle = '#450a0a';
+      ctx.fillRect(0, 0, 256, 256);
+      ctx.strokeStyle = '#f97316';
+      ctx.lineWidth = 7;
+      for (let i = 0; i < 10; i++) {
+        ctx.beginPath();
+        ctx.moveTo(0, i * 28);
+        ctx.lineTo(128, i * 28 + 18);
+        ctx.lineTo(256, i * 28 - 6);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(24, 24, 208, 208);
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(repeatX, repeatY);
+    this._texCache[key] = tex;
+    return tex;
+  },
+
   createHeirloomMeleeMesh(heroId = 'thor') {
     const group = new THREE.Group();
     const goldMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.92, roughness: 0.18 });

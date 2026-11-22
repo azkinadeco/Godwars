@@ -828,6 +828,14 @@ class GodWarsGame {
       antialias: !this.detectMobile(),
       powerPreference: 'high-performance'
     });
+    // Euphoria Adventure High-Resolution Color Grading: ACES Filmic Tone Mapping + sRGB Output!
+    if (THREE.ACESFilmicToneMapping !== undefined) {
+      this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      this.renderer.toneMappingExposure = 1.16;
+    }
+    if (THREE.sRGBEncoding !== undefined) {
+      this.renderer.outputEncoding = THREE.sRGBEncoding;
+    }
     this.applyQualityPreset();
 
     window.addEventListener('resize', () => {

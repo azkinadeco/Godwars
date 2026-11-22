@@ -95,6 +95,48 @@ class CombatManager {
       age: 0,
       maxAge: duration
     });
+
+    // Euphoria-Style Additive Rising Light Pillar
+    const pillarMat = new THREE.MeshBasicMaterial({
+      color: colorHex,
+      transparent: true,
+      opacity: 0.52,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const pillar = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius * 0.16, radius * 0.38, radius * 2.2, 14, 1, true),
+      pillarMat
+    );
+    pillar.position.copy(pos);
+    pillar.position.y += radius * 1.1;
+    this.scene.add(pillar);
+    this.vfxList.push({ type: 'pillar', mesh: pillar, age: 0, maxAge: duration * 1.15 });
+  }
+
+  // Euphoria-Style 3-Claw / Crescent Energy Slash Arc on Melee & Abilities!
+  spawnSlashArc(origin, lookDir, colorHex = 0xfbbf24) {
+    const grp = new THREE.Group();
+    const yaw = Math.atan2(lookDir.x, lookDir.z);
+    for (let k = -1; k <= 1; k++) {
+      const arcMat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity: 0.88,
+        blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const arcMesh = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.045, 6, 18, Math.PI * 0.75), arcMat);
+      arcMesh.position.y = k * 0.14;
+      arcMesh.rotation.x = Math.PI * 0.5 + k * 0.18;
+      grp.add(arcMesh);
+    }
+    grp.position.copy(origin).addScaledVector(lookDir, 1.35);
+    grp.rotation.y = yaw;
+    this.scene.add(grp);
+    this.vfxList.push({ type: 'slash', mesh: grp, age: 0, maxAge: 0.26 });
   }
 
   spawnLightningBolt(startPos, endPos, colorHex = 0x38bdf8, duration = 0.35) {
@@ -120,6 +162,7 @@ class CombatManager {
   performMelee(actor, origin, lookDir) {
     window.SFX.playMelee();
     const hData = window.GODWARS_DATA.HEROES[actor.heroId] || window.GODWARS_DATA.HEROES.thor;
+    this.spawnSlashArc(origin, lookDir, hData.hexColor);
     const endPt = origin.clone().addScaledVector(lookDir, 3.5);
     this.spawnTracer(origin.clone().addScaledVector(lookDir, 0.5), endPt, hData.hexColor, 3);
 
@@ -1034,6 +1077,21 @@ class CombatManager {
       } else if (v.type === 'holospray') {
         v.mesh.rotation.y += 1.4 * dt;
         v.mesh.position.y = v.baseY + Math.sin(v.age * 3.0) * 0.14;
+        if (v.age >= v.maxAge) {
+          this.scene.remove(v.mesh);
+          this.vfxList.splice(i, 1);
+        }
+      } else if (v.type === 'pillar') {
+        v.mesh.scale.set(1 + t * 0.85, 1 + t * 0.35, 1 + t * 0.85);
+        v.mesh.rotation.y += dt * 3.5;
+        v.mesh.material.opacity = Math.max(0, 0.52 * (1 - t));
+        if (v.age >= v.maxAge) {
+          this.scene.remove(v.mesh);
+          this.vfxList.splice(i, 1);
+        }
+      } else if (v.type === 'slash') {
+        v.mesh.scale.setScalar(0.85 + t * 0.65);
+        v.mesh.children.forEach(c => { if (c.material) c.material.opacity = Math.max(0, 0.88 * (1 - t)); });
         if (v.age >= v.maxAge) {
           this.scene.remove(v.mesh);
           this.vfxList.splice(i, 1);
