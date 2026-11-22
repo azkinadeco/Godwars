@@ -2234,3 +2234,23 @@ body.mobile-mode #hud-combo-meter {
   right: calc(12px + env(safe-area-inset-right));
   padding: 4px 9px;
 }
+
+
+/* =========================================================================
+   BATCH 1 & 10: OFFICIAL GOD WARS LOGO STYLING (NEON ORANGE x ELECTRIC CYAN)
+   ========================================================================= */
+.brand-logo-img {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  object-fit: cover;
+  border: 1.5px solid #f97316;
+  box-shadow: 0 0 12px rgba(249, 115, 22, 0.55), 0 0 16px rgba(56, 189, 248, 0.35);
+}
+@media (max-width: 960px), (max-height: 520px) {
+  .brand-logo-img {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+  }
+}

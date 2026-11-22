@@ -424,6 +424,15 @@ class AIContender {
             this.game.combat.triggerHeroTactical(this, eyeOrigin, aimDir);
           }
         }
+
+        // BATCH 8: Smart Tactical Bot Grenade Throwing (Solar Bomb / Arc Star!)
+        this.grenadeTimer = (this.grenadeTimer === undefined) ? (8 + Math.random() * 9) : (this.grenadeTimer - dt);
+        if (this.grenadeTimer <= 0 && dist > 10 && dist < 32) {
+          this.grenadeTimer = 15 + Math.random() * 8;
+          const aimDir = targetCenter.clone().sub(eyeOrigin).normalize();
+          const gType = Math.random() < 0.5 ? 'solar_bomb' : 'yggdrasil_arc';
+          this.game.combat.throwGrenade(this, eyeOrigin, aimDir, gType);
+        }
       }
     } else if (this.hp < this.maxHp * 0.7 || this.shield < this.maxShield * 0.6) {
       this.shield = Math.min(this.maxShield, this.shield + 5 * dt);

@@ -17,7 +17,9 @@ class CombatManager {
     this.decoys = [];
     this.activeZones = [];
     this.energyOrbs = [];
+    this.projectiles = [];
     this._orbGeo = new THREE.OctahedronGeometry(0.18, 0);
+    this._boltGeo = new THREE.SphereGeometry(0.085, 6, 6);
   }
 
   isEnemy(actorA, actorB) {
@@ -75,6 +77,29 @@ class CombatManager {
     this.scene.add(spark);
 
     this.tracers.push({ line, spark, age: 0, maxAge: 0.15 });
+
+    // BATCH 2: Physical Fast-Flying 3D Glowing Bullet Projectile Bolt!
+    const projMesh = new THREE.Mesh(
+      this._boltGeo,
+      new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    projMesh.position.copy(startPos);
+    this.scene.add(projMesh);
+    const travelDir = diff.clone().normalize();
+    const travelTime = Math.min(0.45, len / 175);
+    this.projectiles.push({ mesh: projMesh, vel: travelDir.multiplyScalar(175), age: 0, maxAge: Math.max(0.06, travelTime) });
+  }
+
+  // BATCH 6: Molten Bullet Impact Scorch Ring on Wall/Floor Hits!
+  spawnImpactScorch(pos, colorHex = 0xf97316) {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.06, 0.22, 12),
+      new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false })
+    );
+    ring.position.copy(pos);
+    ring.rotation.x = -Math.PI / 2;
+    this.scene.add(ring);
+    this.vfxList.push({ type: 'scorch', mesh: ring, age: 0, maxAge: 0.9 });
   }
 
   // Euphoria-Style Homing Divine Energy Orbs (Pop out on Shield Break / Kill and fly into Player!)
@@ -415,8 +440,9 @@ class CombatManager {
         hitPoint
       );
     } else if (bestDist < weaponData.range - 1) {
-      // BATCH 4: Metallic 3D Impact Sparks on Asgard stone/metal surfaces
+      // BATCH 4 & 6: Metallic 3D Impact Sparks + Molten Scorch Ring on Asgard surfaces
       this.spawnImpactSparks(hitPoint, isMythicGold ? 0xfde047 : 0xfbbf24, 5);
+      this.spawnImpactScorch(hitPoint, isMythicGold ? 0xfde047 : weaponData.hexColor);
     }
   }
 
@@ -681,6 +707,7 @@ class CombatManager {
         window.SFX.playKillSound();
         this.spawnEnergyOrbs(victim.position, 0xfde047, 5);
         this.game.showEliminationPopup(victim.name, victim.heroId, killer.kills);
+        if (this.game.registerMultiKillStreak) this.game.registerMultiKillStreak();
       }
 
       this.game.updateKillLeader(killer);
@@ -1174,6 +1201,12 @@ class CombatManager {
           this.scene.remove(v.mesh);
           this.vfxList.splice(i, 1);
         }
+      } else if (v.type === 'scorch') {
+        v.mesh.material.opacity = Math.max(0, 0.85 * (1 - t));
+        if (v.age >= v.maxAge) {
+          this.scene.remove(v.mesh);
+          this.vfxList.splice(i, 1);
+        }
       }
     }
 
@@ -1250,6 +1283,18 @@ class CombatManager {
         }
         toP.normalize();
         o.mesh.position.addScaledVector(toP, Math.min(dist, (15 + o.age * 22) * dt));
+      }
+    }
+
+    // BATCH 2: Update Physical Flying 3D Bullet Projectiles (with slight realistic gravity drop!)
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const pr = this.projectiles[i];
+      pr.age += dt;
+      pr.vel.y -= 9.8 * dt;
+      pr.mesh.position.addScaledVector(pr.vel, dt);
+      if (pr.age >= pr.maxAge) {
+        this.scene.remove(pr.mesh);
+        this.projectiles.splice(i, 1);
       }
     }
   }

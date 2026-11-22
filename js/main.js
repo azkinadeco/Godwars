@@ -40,6 +40,13 @@ class GodWarsGame {
     this.comboTimer = 0;
     this.slowMoTimer = 0;
     this.fovKick = 0;
+    this.camShake = 0;
+    this.multiKillCount = 0;
+    this.lastKillTimestamp = 0;
+    this.prevPlayerYaw = 0;
+    this.prevPlayerPitch = 0;
+    this.swayX = 0;
+    this.swayY = 0;
     this.gyroLastBeta = null;
     this.gyroLastGamma = null;
     this.touchScale = parseFloat(localStorage.getItem('godwars_touch_scale') || '1.0');
@@ -2735,6 +2742,28 @@ class GodWarsGame {
     );
   }
 
+  // BATCH 9: Apex Multi-Kill Streak Announcer + Micro Camera Shake!
+  registerMultiKillStreak() {
+    const now = performance.now();
+    if (now - (this.lastKillTimestamp || 0) <= 8500) {
+      this.multiKillCount = (this.multiKillCount || 1) + 1;
+    } else {
+      this.multiKillCount = 1;
+    }
+    this.lastKillTimestamp = now;
+    this.camShake = Math.max(this.camShake || 0, 0.22);
+    if (this.multiKillCount === 2) {
+      this.showBanner('🔥 DOUBLE KILL! UNSTOPPABLE!', '#f97316');
+      window.SFX.announce('Double kill.');
+    } else if (this.multiKillCount === 3) {
+      this.showBanner('⚡ TRIPLE KILL! GOD OF WAR!', '#fbbf24');
+      window.SFX.announce('Triple kill.');
+    } else if (this.multiKillCount >= 4) {
+      this.showBanner(`👑 ${this.multiKillCount}X ASGARD RAMPAGE! GODLIKE!`, '#f43f5e');
+      window.SFX.announce('Godlike rampage.');
+    }
+  }
+
   getComboStyleRank(hits) {
     if (hits >= 32) return 'SSS';
     if (hits >= 22) return 'SS';
@@ -3432,9 +3461,21 @@ class GodWarsGame {
       const eyeHeight = (p.knocked ? 0.65 : p.isSliding ? 0.92 : 1.68) - (p.landingDip || 0);
       const targetRoll = p.isSliding ? -0.115 : (p.wallJumpCd > 0.3 ? 0.095 : 0);
       p.camRoll = (p.camRoll || 0) + (targetRoll - (p.camRoll || 0)) * Math.min(1, dt * 14);
-      this.camera.position.set(p.position.x, p.position.y + eyeHeight, p.position.z);
+      // BATCH 9: Dynamic Micro Camera Shake on Explosions/Kills/Hits
+      let shakeX = 0, shakeY = 0;
+      if (this.camShake > 0.002) {
+        shakeX = (Math.random() - 0.5) * this.camShake * 0.25;
+        shakeY = (Math.random() - 0.5) * this.camShake * 0.25;
+        this.camShake = Math.max(0, this.camShake - dt * 1.4);
+      }
+      this.camera.position.set(p.position.x + shakeX, p.position.y + eyeHeight + shakeY, p.position.z);
       this.camera.rotation.set(p.pitch, p.yaw, p.camRoll, 'YXZ');
       this.viewmodelHolder.visible = !p.knocked;
+
+      // BATCH 7: Glowing Slide Friction Sparks behind boots when Apex Sliding!
+      if (p.isSliding && Math.random() < 0.35 && this.combat) {
+        this.combat.spawnImpactSparks(p.position.clone().add(new THREE.Vector3(0, 0.15, 0)), 0x38bdf8, 1);
+      }
     }
 
     // Apply Optic Attachment Zoom Multiplier + Euphoria Style FOV Kick!
@@ -3446,10 +3487,18 @@ class GodWarsGame {
     this.camera.fov += (targetFov - this.camera.fov) * Math.min(1, dt * 14);
     this.camera.updateProjectionMatrix();
 
-    // Update First-Person Weapon Viewmodel
+    // Update First-Person Weapon Viewmodel + BATCH 7 Apex Weapon Look-Lag / Inertia Sway!
     if (this.activeViewmodel && !p.skydiving) {
-      const targetX = p.isADS ? 0.0 : p.inspectTimer > 0 ? 0.06 : 0.24;
-      const targetY = p.isADS ? -0.132 : p.inspectTimer > 0 ? -0.14 : -0.22;
+      const dYaw = p.yaw - (this.prevPlayerYaw || p.yaw);
+      const dPitch = p.pitch - (this.prevPlayerPitch || p.pitch);
+      this.prevPlayerYaw = p.yaw;
+      this.prevPlayerPitch = p.pitch;
+      const swayClamp = (v) => Math.max(-0.045, Math.min(0.045, v));
+      this.swayX += (swayClamp(-dYaw * 0.45) - this.swayX) * Math.min(1, dt * 12);
+      this.swayY += (swayClamp(-dPitch * 0.45) - this.swayY) * Math.min(1, dt * 12);
+
+      const targetX = (p.isADS ? 0.0 : p.inspectTimer > 0 ? 0.06 : 0.24) + this.swayX * (p.isADS ? 0.25 : 1.0);
+      const targetY = (p.isADS ? -0.132 : p.inspectTimer > 0 ? -0.14 : -0.22) + this.swayY * (p.isADS ? 0.25 : 1.0);
       const targetZ = p.isADS ? -0.32 : p.meleeTimer > 0 ? -0.24 : -0.45;
       const bob = (inputLen > 0.1 && p.onGround && !p.isADS) ? Math.sin(this.matchTime * 11) * 0.012 : 0;
 

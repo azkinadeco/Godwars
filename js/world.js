@@ -1536,6 +1536,24 @@ class AsgardWorld {
       this.skyUniforms.time.value = time;
     }
 
+    // BATCH 3: Animated Flowing Molten Lava & Rising Brazier Fire Embers!
+    if (this.mats && this.mats.lava && this.mats.lava.map) {
+      this.mats.lava.map.offset.y = (time * 0.22) % 1;
+    }
+    if (this.sunMotes) {
+      this.sunMotes.rotation.y = time * 0.015;
+      this.sunMotes.position.y = Math.sin(time * 0.6) * 0.8;
+    }
+    if (this.brazierEmbers) {
+      const pos = this.brazierEmbers.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        let y = pos.getY(i) + dt * (2.2 + (i % 3) * 0.8);
+        if (y > 6.5) y = 1.4;
+        pos.setY(i, y);
+      }
+      pos.needsUpdate = true;
+    }
+
     // P0-3: Follow Player with Tight Directional Sun Shadow Camera for Crisp Shadows Everywhere!
     if (this.sunLight && arguments[2]) {
       const pPos = arguments[2];
@@ -1837,6 +1855,81 @@ class AsgardWorld {
     placeSculpted('aurora_shrine', 0, 0.1, -36, 1.25, 0);
     placeSculpted('giant_sword', 36, 0, 0, 1.6, -Math.PI / 2);
     placeSculpted('frost_arch', -36, 0, 0, 1.4, Math.PI / 2);
+
+    // BATCH 5: Deploy Sculpted Euphoria Asgard/Citadel GLBs Across ALL 5 Outer POIs!
+    // 1. Bifrost Observatory (South: 0, 135)
+    placeSculpted('frost_arch', 0, 0, 118, 1.55, 0);
+    placeSculpted('aurora_shrine', 0, 0, 152, 1.45, Math.PI);
+    placeSculpted('asgard_column', -16, 0, 135, 1.35, 0);
+    placeSculpted('asgard_column', 16, 0, 135, 1.35, 0);
+
+    // 2. Mjölnir Dwarven Forge (West: -115, 35)
+    placeSculpted('fire_pillar', -102, 0, 22, 1.5, 0);
+    placeSculpted('fire_pillar', -102, 0, 48, 1.5, 0);
+    placeSculpted('blade_dais', -115, 0, 35, 1.45, 0);
+    placeSculpted('citadel_wall', -132, 0, 35, 1.4, Math.PI / 2);
+
+    // 3. Yggdrasil Sanctuary (East: 115, 30)
+    placeSculpted('asgard_dais', 115, 0, 14, 1.5, 0);
+    placeSculpted('aurora_shrine', 132, 0, 30, 1.3, -Math.PI / 2);
+    placeSculpted('asgard_column', 98, 0, 22, 1.3, 0);
+    placeSculpted('asgard_column', 98, 0, 38, 1.3, 0);
+
+    // 4. Helheim Crypts (North-West: -85, -105)
+    placeSculpted('den_pillar', -72, 0, -94, 1.5, 0);
+    placeSculpted('den_pillar', -98, 0, -94, 1.5, 0);
+    placeSculpted('citadel_tower', -85, 0, -124, 1.55, 0);
+    placeSculpted('frost_arch', -85, 0, -86, 1.4, 0);
+
+    // 5. Valkyrie Sky Docks (North-East: 90, -100)
+    placeSculpted('citadel_gatetower', 90, 0, -82, 1.45, 0);
+    placeSculpted('giant_sword', 110, 0, -100, 1.65, Math.PI / 4);
+    placeSculpted('brazier', 74, 0, -100, 1.35, 0);
+
+    // BATCH 3 & 4: 220 Floating Golden Asgardian Sun-Motes + Rising Brazier Fire Embers (2 Draw Calls Total!)
+    const moteCount = 220;
+    const motePos = new Float32Array(moteCount * 3);
+    for (let i = 0; i < moteCount; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * (this.islandRadius - 12);
+      motePos[i * 3] = Math.cos(a) * r;
+      motePos[i * 3 + 1] = 1.5 + Math.random() * 24;
+      motePos[i * 3 + 2] = Math.sin(a) * r;
+    }
+    const moteGeo = new THREE.BufferGeometry();
+    moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
+    this.sunMotes = new THREE.Points(moteGeo, new THREE.PointsMaterial({
+      color: 0xfde047,
+      size: 0.45,
+      transparent: true,
+      opacity: 0.72,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    }));
+    this.scene.add(this.sunMotes);
+
+    const brazierSpots = [[-10, -14], [10, -14], [-10, 14], [10, 14], [-22, 0], [22, 0], [-102, 22], [-102, 48]];
+    const emberPos = new Float32Array(brazierSpots.length * 8 * 3);
+    let ei = 0;
+    brazierSpots.forEach(([bx, bz]) => {
+      for (let k = 0; k < 8; k++) {
+        emberPos[ei * 3] = bx + (Math.random() - 0.5) * 1.1;
+        emberPos[ei * 3 + 1] = 1.5 + Math.random() * 4.5;
+        emberPos[ei * 3 + 2] = bz + (Math.random() - 0.5) * 1.1;
+        ei++;
+      }
+    });
+    const emberGeo = new THREE.BufferGeometry();
+    emberGeo.setAttribute('position', new THREE.BufferAttribute(emberPos, 3));
+    this.brazierEmbers = new THREE.Points(emberGeo, new THREE.PointsMaterial({
+      color: 0xf97316,
+      size: 0.52,
+      transparent: true,
+      opacity: 0.9,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    }));
+    this.scene.add(this.brazierEmbers);
   }
 }
 
