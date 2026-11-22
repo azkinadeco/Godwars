@@ -356,6 +356,12 @@ class AIContender {
       }
     }
 
+    // P0-4 FIXED: Smart Wall-Sliding & Obstacle Steering so bots never get stuck on building walls!
+    if (this.wallAvoidTimer > 0 && this.wallAvoidDir) {
+      this.wallAvoidTimer -= dt;
+      moveVec.lerp(this.wallAvoidDir, 0.85);
+    }
+
     if (moveVec.lengthSq() > 0.01) {
       moveVec.normalize();
       this.position.x += moveVec.x * speed * dt;
@@ -423,9 +429,28 @@ class AIContender {
     this.velocity.y -= 24 * dt;
     this.position.y += this.velocity.y * dt;
 
+    const preX = this.position.x;
+    const preZ = this.position.z;
     const col = this.game.world.resolveHorizontalCollision(this.position.x, this.position.z, this.position.y, 0.48);
+    const pushX = col.x - preX;
+    const pushZ = col.z - preZ;
     this.position.x = col.x;
     this.position.z = col.z;
+
+    // P0-4: If pushed by a building wall, steer tangentially around the corner & vault low cover!
+    const pushMag = Math.hypot(pushX, pushZ);
+    if (pushMag > 0.015) {
+      const side = (this.id % 2 === 0) ? 1 : -1;
+      this.wallAvoidDir = new THREE.Vector3(-pushZ * side, 0, pushX * side).normalize();
+      this.wallAvoidTimer = 0.72;
+      this.stuckCounter = (this.stuckCounter || 0) + dt;
+      if (this.stuckCounter > 0.45 && this.velocity.y === 0) {
+        this.velocity.y = 10.2; // Auto-jump over low cover/walls
+        this.stuckCounter = 0;
+      }
+    } else {
+      this.stuckCounter = 0;
+    }
 
     const groundY = this.game.world.getGroundHeight(this.position.x, this.position.z, this.position.y);
     if (this.position.y <= groundY) {

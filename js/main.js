@@ -846,6 +846,9 @@ class GodWarsGame {
     if (THREE.sRGBEncoding !== undefined) {
       this.renderer.outputEncoding = THREE.sRGBEncoding;
     }
+    // P0-3 FIXED: Enable Real-Time Crisp Sun Shadows (Follow-Player 1024x1024 PCFSoftShadowMap!)
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.applyQualityPreset();
 
     window.addEventListener('resize', () => {
@@ -1776,6 +1779,8 @@ class GodWarsGame {
       if (!el) return;
       let lpTimer = null;
       let lpFired = false;
+      let btnTouchId = null;
+      let lastX = 0, lastY = 0;
       const triggerRipple = () => {
         el.classList.add('ripple-active');
         setTimeout(() => el.classList.remove('ripple-active'), 180);
@@ -1784,6 +1789,10 @@ class GodWarsGame {
         e.preventDefault();
         window.SFX.init();
         triggerRipple();
+        const t = e.changedTouches[0];
+        btnTouchId = t.identifier;
+        lastX = t.clientX;
+        lastY = t.clientY;
         lpFired = false;
         if (onLongPress) {
           lpTimer = setTimeout(() => {
@@ -1795,8 +1804,30 @@ class GodWarsGame {
           onDown();
         }
       }, { passive: false });
+      // P1-1 FIXED: Allow dragging right thumb on ADS/JUMP/SLIDE/SKILL/ULT to smoothly rotate camera!
+      el.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (!this.player) return;
+        for (const t of e.changedTouches) {
+          if (t.identifier === btnTouchId) {
+            const dx = t.clientX - lastX;
+            const dy = t.clientY - lastY;
+            lastX = t.clientX;
+            lastY = t.clientY;
+            if (Math.abs(dx) + Math.abs(dy) > 3 && lpTimer) {
+              clearTimeout(lpTimer);
+              lpTimer = null;
+            }
+            const onTargetSlow = (this.mobileAimAssist && this.isCrosshairOnEnemy()) ? 0.62 : 1.0;
+            const sens = 0.0042 * this.lookSensitivity * (this.player.isADS ? 0.6 : 1.0) * onTargetSlow;
+            this.player.yaw -= dx * sens;
+            this.player.pitch = Math.max(-1.42, Math.min(1.42, this.player.pitch - dy * sens));
+          }
+        }
+      }, { passive: false });
       el.addEventListener('touchend', (e) => {
         e.preventDefault();
+        btnTouchId = null;
         if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
         if (onLongPress && !lpFired) onDown();
         if (onUp) onUp();
@@ -2963,6 +2994,13 @@ class GodWarsGame {
     } else {
       this.world.updateRingVisual(0, 0, this.world.islandRadius, this.matchTime, dt);
     }
+    // P0-3: Follow Player with Tight Directional Sun Shadow Camera for Crisp Shadows Everywhere!
+    if (this.world && this.world.sunLight && this.player) {
+      const pp = this.player.position;
+      this.world.sunLight.position.set(pp.x + 55, pp.y + 92, pp.z + 48);
+      this.world.sunLight.target.position.set(pp.x, pp.y, pp.z);
+      this.world.sunLight.target.updateMatrixWorld();
+    }
     this.updateHUD(dt);
     this.drawMinimap();
 
@@ -3294,9 +3332,28 @@ class GodWarsGame {
         }
       }
       const shoulderDist = p.isADS ? 2.15 : 3.35;
+      const headPivot = new THREE.Vector3(p.position.x, p.position.y + (p.isSliding ? 1.2 : 1.75), p.position.z);
       const rightOff = new THREE.Vector3(Math.cos(p.yaw) * 0.68, 0, -Math.sin(p.yaw) * 0.68);
-      const backOff = new THREE.Vector3(Math.sin(p.yaw) * shoulderDist, (p.isSliding ? 1.35 : 2.05) - p.pitch * 1.1, Math.cos(p.yaw) * shoulderDist);
-      this.camera.position.copy(p.position).add(rightOff).add(backOff);
+      const backOff = new THREE.Vector3(Math.sin(p.yaw) * shoulderDist, (p.isSliding ? 0.15 : 0.32) - p.pitch * 1.1, Math.cos(p.yaw) * shoulderDist);
+      const desiredCam = headPivot.clone().add(rightOff).add(backOff);
+
+      // P1-1 FIXED: 3rd-Person Camera Wall-Collision Raycast so camera NEVER clips behind walls!
+      const camDir = desiredCam.clone().sub(headPivot);
+      let camDist = camDir.length();
+      if (camDist > 0.1) {
+        camDir.normalize();
+        const camRay = new THREE.Ray(headPivot, camDir);
+        const hitPt = new THREE.Vector3();
+        for (const c of this.world.colliders) {
+          if (c.isDoor && !c.active) continue;
+          if (camRay.intersectBox(new THREE.Box3(new THREE.Vector3(c.minX, c.minY, c.minZ), new THREE.Vector3(c.maxX, c.maxY, c.maxZ)), hitPt)) {
+            const d = headPivot.distanceTo(hitPt);
+            if (d < camDist) camDist = Math.max(0.55, d - 0.35);
+          }
+        }
+        desiredCam.copy(headPivot).addScaledVector(camDir, camDist);
+      }
+      this.camera.position.copy(desiredCam);
       const targetRoll = p.isSliding ? -0.08 : 0;
       p.camRoll = (p.camRoll || 0) + (targetRoll - (p.camRoll || 0)) * Math.min(1, dt * 14);
       this.camera.rotation.set(p.pitch * 0.85, p.yaw, p.camRoll, 'YXZ');

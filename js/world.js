@@ -109,6 +109,8 @@ class AsgardWorld {
   addSolidWall(x, y, z, w, h, d, material, isClimbable = true) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material || this.mats.marbleWall);
     mesh.position.set(x, y + h / 2, z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     this.scene.add(mesh);
 
     this.colliders.push({
@@ -140,6 +142,8 @@ class AsgardWorld {
       material || this.mats.marbleFloor
     );
     mesh.position.set(x, topY - thickness / 2, z);
+    mesh.castShadow = topY > 1.0;
+    mesh.receiveShadow = true;
     this.scene.add(mesh);
 
     this.walkableSurfaces.push({
@@ -520,14 +524,26 @@ class AsgardWorld {
     });
     this.scene.add(new THREE.Mesh(skyGeo, skyMat));
 
-    // Euphoria Adventure High-Contrast Anime/Fantasy Lighting (Lifted Sky Bounce + Warm Golden Sun!)
-    const hemiLight = new THREE.HemisphereLight(0xdcf0ff, 0x6f7f58, 1.48);
+    // Euphoria Adventure High-Contrast Anime/Fantasy Lighting + Tight Follow-Player Sun Shadow Map (P0-3)!
+    const hemiLight = new THREE.HemisphereLight(0xdcf0ff, 0x6f7f58, 1.38);
     hemiLight.position.set(0, 180, 0);
     this.scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfff5e4, 1.82);
-    sunLight.position.set(110, 180, 95);
+    const sunLight = new THREE.DirectionalLight(0xfff5e4, 1.85);
+    sunLight.position.set(60, 95, 50);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.set(1024, 1024);
+    const sc = sunLight.shadow.camera;
+    sc.left = -46;
+    sc.right = 46;
+    sc.top = 46;
+    sc.bottom = -46;
+    sc.near = 10;
+    sc.far = 210;
+    sunLight.shadow.bias = -0.0005;
     this.scene.add(sunLight);
+    this.scene.add(sunLight.target);
+    this.sunLight = sunLight;
 
     // Regional Atmospheric POI Point Lights (Apex World's Edge / Olympus Color Mood!)
     const poiLights = [
@@ -597,6 +613,42 @@ class AsgardWorld {
     }
   }
 
+  // P0-2 FIXED: Real Sculpted 3D FBM Rolling Terrain Height Function (Euphoria-Style FLATS at POIs & Roads!)
+  terrainHeightAt(x, z) {
+    const rDist = Math.hypot(x, z);
+    if (rDist > this.islandRadius - 6) return 0;
+
+    // Smoothly flatten to y = 0 inside all 6 POI compounds & along the 5 main highways so buildings sit flush!
+    let flatMask = 1.0;
+    for (const poi of window.GODWARS_DATA.POIS) {
+      const d = Math.hypot(x - poi.x, z - poi.z);
+      const flatR = poi.id === 'valhalla' ? 56 : 46;
+      if (d < flatR) return 0;
+      if (d < flatR + 22) {
+        flatMask = Math.min(flatMask, (d - flatR) / 22);
+      }
+      // Keep main roads to each POI smoothly graded at y = 0
+      if (poi.id !== 'valhalla') {
+        const len = Math.hypot(poi.x, poi.z);
+        const ux = poi.x / len, uz = poi.z / len;
+        const proj = x * ux + z * uz;
+        if (proj > 0 && proj < len) {
+          const perp = Math.abs(x * (-uz) + z * ux);
+          if (perp < 8.5) return 0;
+          if (perp < 16.5) flatMask = Math.min(flatMask, (perp - 8.5) / 8.0);
+        }
+      }
+    }
+
+    // Organic Multi-Octave Rolling Asgardian Hills & Valleys (0m to +6.5m)
+    const h1 = Math.sin(x * 0.022 + 0.5) * Math.cos(z * 0.024 - 0.3) * 3.4;
+    const h2 = Math.sin(x * 0.048 - z * 0.036) * 1.65;
+    const h3 = Math.cos(x * 0.015 + z * 0.019) * 1.8;
+    const rawH = Math.max(0, 2.2 + h1 + h2 + h3);
+    const edgeFade = Math.max(0, Math.min(1, (this.islandRadius - 8 - rDist) / 22));
+    return rawH * flatMask * edgeFade;
+  }
+
   buildBiomesRoadsAndRivers() {
     const stoneCliffTex = window.ModelFactory.getSurfaceTexture('asgard_stone', 18, 4);
     const lushGrassTex = window.ModelFactory.getSurfaceTexture('lush_grass', 28, 28);
@@ -613,12 +665,12 @@ class AsgardWorld {
       metalness: 0.14
     });
     const island = new THREE.Mesh(islandGeo, islandMat);
-    island.position.set(0, -14.05, 0);
+    island.position.set(0, -14.25, 0);
     this.scene.add(island);
 
-    // 2. Euphoria-Inspired Vertex-Painted Multi-Biome Terrain Surface (Lush Meadows, Golden Valhalla, Forge Basalt, Bifrost Crystal!)
+    // 2. P0-2 FIXED: Single Sculpted 3D Multi-Biome Terrain Mesh (ZERO overlapping Z-fighting discs!)
     const terrainSize = this.islandRadius * 1.98;
-    const terrainGeo = new THREE.PlaneGeometry(terrainSize, terrainSize, 64, 64);
+    const terrainGeo = new THREE.PlaneGeometry(terrainSize, terrainSize, 84, 84);
     terrainGeo.rotateX(-Math.PI / 2);
     const posAttr = terrainGeo.attributes.position;
     const cols = new Float32Array(posAttr.count * 3);
@@ -627,30 +679,34 @@ class AsgardWorld {
       const vx = posAttr.getX(i);
       const vz = posAttr.getZ(i);
       const rDist = Math.hypot(vx, vz);
-      // Drop vertices outside the circular island cleanly below the cliff rim
+      let vy = 0;
       if (rDist > this.islandRadius - 2.2) {
-        posAttr.setY(i, -4.5);
+        vy = -5.5;
       } else {
-        posAttr.setY(i, 0.01);
+        vy = this.terrainHeightAt(vx, vz);
       }
+      posAttr.setY(i, vy);
 
-      // Euphoria Multi-Biome Vertex Paint
-      col.setRGB(0.28, 0.62, 0.32); // Base Lush Sunlit Asgard Meadow Green
+      // Euphoria Multi-Biome Vertex Paint + Elevation Cliff Tint
+      col.setRGB(0.24, 0.58, 0.28); // Lush Sunlit Asgard Meadow Green
+      if (vy > 3.2) {
+        col.lerp(new THREE.Color(0x64748b), Math.min(0.65, (vy - 3.2) / 4.0)); // Rocky Highland Peaks
+      }
       const dValhalla = Math.hypot(vx, vz);
       if (dValhalla < 58) {
-        col.lerp(new THREE.Color(0xeab308), Math.max(0, 1 - dValhalla / 58) * 0.75); // Golden Citadel Sandstone
+        col.lerp(new THREE.Color(0xeab308), Math.max(0, 1 - dValhalla / 58) * 0.78); // Golden Citadel Sandstone
       }
       const dForge = Math.hypot(vx + 115, vz - 35);
       if (dForge < 62) {
-        col.lerp(new THREE.Color(0x44403c), Math.max(0, 1 - dForge / 62) * 0.82); // Volcanic Basalt
+        col.lerp(new THREE.Color(0x292524), Math.max(0, 1 - dForge / 62) * 0.88); // Volcanic Basalt
       }
       const dBifrost = Math.hypot(vx, vz - 135);
       if (dBifrost < 54) {
-        col.lerp(new THREE.Color(0x38bdf8), Math.max(0, 1 - dBifrost / 54) * 0.65); // Crystalline Bifrost
+        col.lerp(new THREE.Color(0x38bdf8), Math.max(0, 1 - dBifrost / 54) * 0.68); // Crystalline Bifrost
       }
       const dHelheim = Math.hypot(vx + 85, vz + 105);
-      if (dHelheim < 54) {
-        col.lerp(new THREE.Color(0x115e59), Math.max(0, 1 - dHelheim / 54) * 0.72); // Helheim Emerald-Slate
+      if (dHelheim < 56) {
+        col.lerp(new THREE.Color(0x0f766e), Math.max(0, 1 - dHelheim / 56) * 0.82); // Helheim Obsidian-Teal
       }
       cols[i * 3] = col.r;
       cols[i * 3 + 1] = col.g;
@@ -664,10 +720,11 @@ class AsgardWorld {
       map: lushGrassTex,
       bumpMap: detailTex,
       bumpScale: 0.04,
-      roughness: 0.76,
-      metalness: 0.06
+      roughness: 0.80,
+      metalness: 0.05
     });
     const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
+    terrainMesh.receiveShadow = true;
     this.scene.add(terrainMesh);
 
     // Outer Golden Island Rim Wall
@@ -679,45 +736,21 @@ class AsgardWorld {
     rim.position.set(0, 0.3, 0);
     this.scene.add(rim);
 
-    //Distinct Regional Biome Ground Surfaces (Flush at y = 0.02 so zero camera clipping!)
-    // 1. Yggdrasil Lush Emerald Sanctuary Biome (East)
-    const eastBiome = new THREE.Mesh(new THREE.CircleGeometry(62, 32), this.mats.grass);
-    eastBiome.rotation.x = -Math.PI / 2;
-    eastBiome.position.set(115, 0.02, 30);
-    this.scene.add(eastBiome);
-
-    // 2. Mjölnir Volcanic Basalt & Lava Trench Biome (West)
-    const westBiome = new THREE.Mesh(
-      new THREE.CircleGeometry(58, 32),
-      new THREE.MeshStandardMaterial({ color: 0x1c1917, roughness: 0.85 })
-    );
-    westBiome.rotation.x = -Math.PI / 2;
-    westBiome.position.set(-115, 0.02, 35);
-    this.scene.add(westBiome);
-
-    // 3. Helheim Obsidian Frost Biome (North-West)
-    const nwBiome = new THREE.Mesh(
-      new THREE.CircleGeometry(54, 32),
-      new THREE.MeshStandardMaterial({ color: 0x090d16, roughness: 0.4, metalness: 0.6 })
-    );
-    nwBiome.rotation.x = -Math.PI / 2;
-    nwBiome.position.set(-85, 0.02, -105);
-    this.scene.add(nwBiome);
-
-    // 4. Paved Golden Asgardian Highways connecting Valhalla Citadel to all 6 POIs
-    const roadMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.5, metalness: 0.3 });
+    // Paved Golden Asgardian Highways connecting Valhalla Citadel to all 6 POIs (Raised cleanly to y = 0.08!)
+    const roadMat = new THREE.MeshStandardMaterial({ color: 0x334155, map: window.ModelFactory.getSurfaceTexture('marble_floor', 2, 14), roughness: 0.52, metalness: 0.22 });
     window.GODWARS_DATA.POIS.forEach(poi => {
       if (poi.id === 'valhalla') return;
       const len = Math.hypot(poi.x, poi.z);
       const angle = Math.atan2(poi.x, poi.z);
-      const road = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.06, len), roadMat);
-      road.position.set(poi.x / 2, 0.03, poi.z / 2);
+      const road = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.14, len), roadMat);
+      road.position.set(poi.x / 2, 0.04, poi.z / 2);
       road.rotation.y = angle;
+      road.receiveShadow = true;
       this.scene.add(road);
 
       // Golden Road Edge Borders
-      const borderL = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.08, len), this.mats.gold);
-      borderL.position.set(poi.x / 2 + Math.cos(angle) * 3.8, 0.04, poi.z / 2 - Math.sin(angle) * 3.8);
+      const borderL = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.18, len), this.mats.gold);
+      borderL.position.set(poi.x / 2 + Math.cos(angle) * 3.8, 0.06, poi.z / 2 - Math.sin(angle) * 3.8);
       borderL.rotation.y = angle;
       this.scene.add(borderL);
     });
@@ -1501,156 +1534,175 @@ class AsgardWorld {
     if (this.skyUniforms && this.skyUniforms.time) {
       this.skyUniforms.time.value = time;
     }
+
+    // P0-3: Follow Player with Tight Directional Sun Shadow Camera for Crisp Shadows Everywhere!
+    if (this.sunLight && arguments[2]) {
+      const pPos = arguments[2];
+      this.sunLight.position.set(pPos.x + 55, pPos.y + 92, pPos.z + 48);
+      this.sunLight.target.position.set(pPos.x, pPos.y, pPos.z);
+      this.sunLight.target.updateMatrixWorld();
+    }
+  }
+
+  // Helper: Prevents Grass, Boulders, or Trees from EVER spawning inside Buildings, Plazas, or Roads!
+  isBlockedForNature(x, z, margin = 2.0) {
+    if (Math.hypot(x, z) < 54) return true; // Keep Valhalla Citadel marble plaza clean
+    for (const poi of window.GODWARS_DATA.POIS) {
+      if (poi.id !== 'valhalla') {
+        const len = Math.hypot(poi.x, poi.z);
+        const ux = poi.x / len, uz = poi.z / len;
+        const proj = x * ux + z * uz;
+        if (proj > 0 && proj < len) {
+          const perp = Math.abs(x * (-uz) + z * ux);
+          if (perp < 6.5 + margin) return true; // Keep paved highways clean
+        }
+      }
+    }
+    for (const s of this.walkableSurfaces) {
+      if (x >= s.minX - margin && x <= s.maxX + margin && z >= s.minZ - margin && z <= s.maxZ + margin) {
+        return true; // Never spawn inside or under building floors!
+      }
+    }
+    return false;
   }
 
   // =========================================================================
-  // EUPHORIA ADVENTURE HIGH-RESOLUTION INSTANCED NATURE KIT (ONLY 4 DRAW CALLS!)
-  // - 1,100 Lush Emerald-Gold Grass Blade Clusters
-  // - 320 Glowing Golden Asgard Sun-Flowers & Bifrost Crystal Sprouts
-  // - 135 Sculpted Mossy/Golden Cliff Boulders
-  // - 75 Multi-Crown Painted Asgard Cypress & Golden-Leaf Trees
+  // P0-2 FIXED: EUPHORIA PAINTED ALPHA-CUTOUT GRASS, LEAF CANOPIES & BOULDERS
+  // - ZERO pyramid cones! Uses crossed painted grass blade & leaf cards!
+  // - ZERO overlap with buildings, interiors, or roads!
   // =========================================================================
   buildEuphoriaInstancedNature() {
     const dummy = new THREE.Object3D();
-    const color = new THREE.Color();
     let seed = 1337;
     const rand = () => {
       seed = (seed * 1664525 + 1013904223) >>> 0;
       return seed / 4294967296;
     };
 
-    // 1. 1,100 Lush Multi-Blade Grass Tufts (1 Single InstancedMesh Draw Call!)
-    const grassCount = 1100;
-    const grassGeo = new THREE.ConeGeometry(0.42, 1.15, 4);
-    grassGeo.translate(0, 0.55, 0);
-    const grassMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-    const grassInst = new THREE.InstancedMesh(grassGeo, grassMat, grassCount);
-    const grassPalette = [0x22c55e, 0x16a34a, 0x4ade80, 0x84cc16, 0xfacc15];
+    // 1. 900 Crossed Painted Alpha-Cutout Grass Blade Tufts (2 Crossed Planes per Tuft -> 2 Draw Calls!)
+    const grassTex = window.ModelFactory.getFoliageTexture('grass_blades');
+    const grassMat = new THREE.MeshLambertMaterial({
+      map: grassTex,
+      alphaTest: 0.42,
+      side: THREE.DoubleSide
+    });
+    const grassGeoA = new THREE.PlaneGeometry(1.5, 1.05);
+    grassGeoA.translate(0, 0.5, 0);
+    const grassGeoB = grassGeoA.clone();
+    grassGeoB.rotateY(Math.PI / 2);
 
+    const grassCount = 750;
+    const grassInstA = new THREE.InstancedMesh(grassGeoA, grassMat, grassCount);
+    const grassInstB = new THREE.InstancedMesh(grassGeoB, grassMat, grassCount);
     let gIdx = 0;
-    for (let i = 0; i < grassCount * 2 && gIdx < grassCount; i++) {
+    for (let i = 0; i < grassCount * 3 && gIdx < grassCount; i++) {
       const a = rand() * Math.PI * 2;
-      const r = 24 + Math.sqrt(rand()) * (this.islandRadius - 32);
+      const r = 38 + Math.sqrt(rand()) * (this.islandRadius - 46);
       const gx = Math.cos(a) * r;
       const gz = Math.sin(a) * r;
-      // Skip directly inside paved palace center
-      if (Math.hypot(gx, gz) < 28) continue;
-      const gy = this.getGroundHeight(gx, gz, 8);
-      if (gy > 7.5) continue; // Keep off high building roofs
+      if (this.isBlockedForNature(gx, gz, 1.5)) continue;
+      // Skip volcanic lava core
+      if (Math.hypot(gx + 115, gz - 35) < 42) continue;
+      const gy = this.terrainHeightAt(gx, gz);
 
       dummy.position.set(gx, gy, gz);
-      dummy.rotation.set((rand() - 0.5) * 0.25, rand() * Math.PI * 2, (rand() - 0.5) * 0.25);
-      const s = 0.7 + rand() * 0.9;
-      dummy.scale.set(s, s * (0.8 + rand() * 0.6), s);
+      dummy.rotation.set(0, rand() * Math.PI * 2, 0);
+      const s = 0.75 + rand() * 0.7;
+      dummy.scale.set(s, s * (0.8 + rand() * 0.5), s);
       dummy.updateMatrix();
-      grassInst.setMatrixAt(gIdx, dummy.matrix);
-      color.setHex(grassPalette[gIdx % grassPalette.length]);
-      grassInst.setColorAt(gIdx, color);
+      grassInstA.setMatrixAt(gIdx, dummy.matrix);
+      grassInstB.setMatrixAt(gIdx, dummy.matrix);
       gIdx++;
     }
-    grassInst.count = gIdx;
-    grassInst.instanceMatrix.needsUpdate = true;
-    if (grassInst.instanceColor) grassInst.instanceColor.needsUpdate = true;
-    this.scene.add(grassInst);
+    grassInstA.count = gIdx;
+    grassInstB.count = gIdx;
+    grassInstA.instanceMatrix.needsUpdate = true;
+    grassInstB.instanceMatrix.needsUpdate = true;
+    this.scene.add(grassInstA, grassInstB);
 
-    // 2. 320 Glowing Golden Asgard Sun-Flowers & Bifrost Crystal Sprouts (1 Draw Call!)
-    const flowerCount = 320;
-    const flowerGeo = new THREE.OctahedronGeometry(0.28, 0);
-    flowerGeo.translate(0, 0.65, 0);
-    const flowerMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    const flowerInst = new THREE.InstancedMesh(flowerGeo, flowerMat, flowerCount);
-    const flowerCols = [0xfde047, 0x38bdf8, 0xf472b6, 0x34d399, 0xfbbf24];
-
-    for (let i = 0; i < flowerCount; i++) {
-      const a = rand() * Math.PI * 2;
-      const r = 30 + Math.sqrt(rand()) * (this.islandRadius - 38);
-      const fx = Math.cos(a) * r;
-      const fz = Math.sin(a) * r;
-      const fy = this.getGroundHeight(fx, fz, 7);
-      dummy.position.set(fx, fy > 7.5 ? 0 : fy, fz);
-      dummy.rotation.set(0, rand() * Math.PI * 2, 0);
-      const fs = 0.75 + rand() * 0.85;
-      dummy.scale.set(fs, fs, fs);
-      dummy.updateMatrix();
-      flowerInst.setMatrixAt(i, dummy.matrix);
-      color.setHex(flowerCols[i % flowerCols.length]);
-      flowerInst.setColorAt(i, color);
-    }
-    flowerInst.instanceMatrix.needsUpdate = true;
-    if (flowerInst.instanceColor) flowerInst.instanceColor.needsUpdate = true;
-    this.scene.add(flowerInst);
-
-    // 3. 135 Sculpted Geological Boulders & Rock Outcrops (1 Draw Call!)
-    const rockCount = 135;
-    const rockGeo = new THREE.DodecahedronGeometry(1.35, 1);
-    rockGeo.translate(0, 0.7, 0);
+    // 2. 110 Sculpted Geological Cliff Boulders (Never inside buildings or roads!)
+    const rockCount = 110;
+    const rockGeo = new THREE.DodecahedronGeometry(1.45, 1);
+    rockGeo.translate(0, 0.65, 0);
     const rockInst = new THREE.InstancedMesh(rockGeo, this.mats.stone, rockCount);
-    for (let i = 0; i < rockCount; i++) {
+    rockInst.castShadow = true;
+    rockInst.receiveShadow = true;
+    let rIdx = 0;
+    for (let i = 0; i < rockCount * 3 && rIdx < rockCount; i++) {
       const a = rand() * Math.PI * 2;
-      const r = 42 + Math.sqrt(rand()) * (this.islandRadius - 48);
+      const r = 46 + Math.sqrt(rand()) * (this.islandRadius - 54);
       const rx = Math.cos(a) * r;
       const rz = Math.sin(a) * r;
-      dummy.position.set(rx, 0, rz);
-      dummy.rotation.set(rand() * 0.5, rand() * Math.PI * 2, rand() * 0.5);
-      const sx = 0.8 + rand() * 1.6;
-      const sy = 0.6 + rand() * 1.3;
-      const sz = 0.8 + rand() * 1.6;
-      dummy.scale.set(sx, sy, sz);
+      if (this.isBlockedForNature(rx, rz, 3.5)) continue;
+      const ry = this.terrainHeightAt(rx, rz);
+
+      dummy.position.set(rx, ry, rz);
+      dummy.rotation.set(rand() * 0.4, rand() * Math.PI * 2, rand() * 0.4);
+      dummy.scale.set(0.8 + rand() * 1.5, 0.6 + rand() * 1.1, 0.8 + rand() * 1.5);
       dummy.updateMatrix();
-      rockInst.setMatrixAt(i, dummy.matrix);
+      rockInst.setMatrixAt(rIdx, dummy.matrix);
+      rIdx++;
     }
+    rockInst.count = rIdx;
     rockInst.instanceMatrix.needsUpdate = true;
     this.scene.add(rockInst);
 
-    // 4. 70 Multi-Crown Lush Asgardian Golden & Emerald Trees (2 Draw Calls: Trunks + Canopies!)
-    const treeCount = 70;
-    const trunkGeo = new THREE.CylinderGeometry(0.28, 0.48, 3.8, 7);
-    trunkGeo.translate(0, 1.9, 0);
-    const crownGeo = new THREE.DodecahedronGeometry(2.6, 1);
-    crownGeo.translate(0, 4.8, 0);
-    const trunkInst = new THREE.InstancedMesh(trunkGeo, this.mats.woodGold, treeCount);
-    const crownMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      map: window.ModelFactory.getSurfaceTexture('lush_grass', 3, 3),
-      roughness: 0.7
+    // 3. 65 Layered Painted-Leaf Asgard Trees (Crossed Alpha-Cutout Leaf Canopies + Textured Trunks!)
+    const leafTex = window.ModelFactory.getFoliageTexture('leaf_cluster');
+    const leafMat = new THREE.MeshLambertMaterial({
+      map: leafTex,
+      alphaTest: 0.4,
+      side: THREE.DoubleSide
     });
-    const crownInst = new THREE.InstancedMesh(crownGeo, crownMat, treeCount);
-    const treeColors = [0x22c55e, 0x16a34a, 0xeab308, 0x10b981, 0x84cc16];
+    const treeCount = 65;
+    const trunkGeo = new THREE.CylinderGeometry(0.28, 0.52, 4.4, 7);
+    trunkGeo.translate(0, 2.2, 0);
+    const leafGeoA = new THREE.PlaneGeometry(5.6, 5.2);
+    leafGeoA.translate(0, 5.2, 0);
+    const leafGeoB = leafGeoA.clone();
+    leafGeoB.rotateY(Math.PI / 2);
+
+    const trunkInst = new THREE.InstancedMesh(trunkGeo, this.mats.woodGold, treeCount);
+    const leafInstA = new THREE.InstancedMesh(leafGeoA, leafMat, treeCount);
+    const leafInstB = new THREE.InstancedMesh(leafGeoB, leafMat, treeCount);
+    trunkInst.castShadow = true;
+    leafInstA.castShadow = true;
 
     let tIdx = 0;
-    for (let i = 0; i < treeCount * 2 && tIdx < treeCount; i++) {
+    for (let i = 0; i < treeCount * 3 && tIdx < treeCount; i++) {
       const a = rand() * Math.PI * 2;
-      const r = 48 + Math.sqrt(rand()) * (this.islandRadius - 56);
+      const r = 52 + Math.sqrt(rand()) * (this.islandRadius - 60);
       const tx = Math.cos(a) * r;
       const tz = Math.sin(a) * r;
-      // Avoid blocking main POI centers
-      const nearPoi = window.GODWARS_DATA.POIS.some(p => Math.hypot(tx - p.x, tz - p.z) < 26);
+      if (this.isBlockedForNature(tx, tz, 5.0)) continue;
+      const nearPoi = window.GODWARS_DATA.POIS.some(p => Math.hypot(tx - p.x, tz - p.z) < 34);
       if (nearPoi) continue;
+      const ty = this.terrainHeightAt(tx, tz);
 
-      dummy.position.set(tx, 0, tz);
+      dummy.position.set(tx, ty, tz);
       dummy.rotation.set(0, rand() * Math.PI * 2, 0);
-      const ts = 0.85 + rand() * 0.75;
+      const ts = 0.85 + rand() * 0.7;
       dummy.scale.set(ts, ts * (0.9 + rand() * 0.35), ts);
       dummy.updateMatrix();
       trunkInst.setMatrixAt(tIdx, dummy.matrix);
-      crownInst.setMatrixAt(tIdx, dummy.matrix);
-      color.setHex(treeColors[tIdx % treeColors.length]);
-      crownInst.setColorAt(tIdx, color);
+      leafInstA.setMatrixAt(tIdx, dummy.matrix);
+      leafInstB.setMatrixAt(tIdx, dummy.matrix);
       tIdx++;
     }
     trunkInst.count = tIdx;
-    crownInst.count = tIdx;
+    leafInstA.count = tIdx;
+    leafInstB.count = tIdx;
     trunkInst.instanceMatrix.needsUpdate = true;
-    crownInst.instanceMatrix.needsUpdate = true;
-    if (crownInst.instanceColor) crownInst.instanceColor.needsUpdate = true;
-    this.scene.add(trunkInst, crownInst);
+    leafInstA.instanceMatrix.needsUpdate = true;
+    leafInstB.instanceMatrix.needsUpdate = true;
+    this.scene.add(trunkInst, leafInstA, leafInstB);
   }
 
   // =========================================================================
   // MULTI-STORY GROUND HEIGHT, RAMP INTERPOLATION & LEDGE MANTLE DETECTION
   // =========================================================================
   getGroundHeight(x, z, currentY = 0) {
-    let groundY = 0;
+    let groundY = this.terrainHeightAt ? this.terrainHeightAt(x, z) : 0;
 
     // 1. Check Sloped Ramps & Staircases first (smoothly interpolates height!)
     for (const r of this.ramps) {

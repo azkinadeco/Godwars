@@ -289,6 +289,61 @@ window.ModelFactory = {
     return tex;
   },
 
+  // P0-2: Euphoria-Style Painted Alpha-Cutout Grass Blades & Leaf Cluster Textures (NO pyramid cones!)
+  getFoliageTexture(type = 'grass_blades') {
+    const key = `foliage_${type}`;
+    if (this._texCache[key]) return this._texCache[key];
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, 256, 256);
+
+    if (type === 'grass_blades') {
+      const greens = ['#15803d', '#16a34a', '#22c55e', '#4ade80', '#84cc16'];
+      for (let i = 0; i < 24; i++) {
+        const bx = 18 + (i / 23) * 220;
+        const lean = ((i % 5) - 2) * 18;
+        const h = 140 + (i % 4) * 28;
+        ctx.fillStyle = greens[i % greens.length];
+        ctx.beginPath();
+        ctx.moveTo(bx - 7, 256);
+        ctx.quadraticCurveTo(bx + lean * 0.5, 256 - h * 0.55, bx + lean, 256 - h);
+        ctx.quadraticCurveTo(bx + lean * 0.5 + 8, 256 - h * 0.55, bx + 7, 256);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // Subtle golden flower tips on 3 blades
+      ctx.fillStyle = '#fde047';
+      [62, 134, 198].forEach((fx, idx) => {
+        ctx.beginPath();
+        ctx.arc(fx, 86 + idx * 14, 7, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    } else if (type === 'leaf_cluster') {
+      const leafCols = ['#15803d', '#16a34a', '#22c55e', '#4ade80', '#eab308'];
+      for (let i = 0; i < 42; i++) {
+        const a = (i * 2.39996);
+        const r = Math.sqrt(i / 42) * 96;
+        const lx = 128 + Math.cos(a) * r;
+        const ly = 128 + Math.sin(a) * r;
+        ctx.save();
+        ctx.translate(lx, ly);
+        ctx.rotate(a);
+        ctx.fillStyle = leafCols[i % (i % 7 === 0 ? 5 : 4)];
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 24, 11, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    this._texCache[key] = tex;
+    return tex;
+  },
+
   createHeirloomMeleeMesh(heroId = 'thor') {
     const group = new THREE.Group();
     const goldMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.92, roughness: 0.18 });
@@ -533,10 +588,12 @@ window.ModelFactory = {
     sightGroup.add(sightBase, sightFrame, reticleDot);
     group.add(sightGroup);
 
-    // Attach High-Detail Beveled Blender 3.6 GLB Mesh (assets/models/weapon_<id>.glb)
+    // P0-1 FIXED: Collect fallback gun body meshes so Blender GLB cleanly replaces them (ZERO double-mesh Z-fighting!)
+    const weaponFallbackMeshes = [...group.children];
     this.attachBlenderGLB(`weapon_${weaponId}`, group, (glbScene) => {
       glbScene.scale.set(1.02, 1.02, 1.02);
-    });
+      glbScene.traverse((c) => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+    }, weaponFallbackMeshes);
 
     // First-person God Gauntlet / Hands + 3D Shield Battery Heal Prop + Heirloom Melee Mesh
     if (isFirstPerson) {
@@ -809,8 +866,14 @@ window.ModelFactory = {
     shadowDisc.position.y = 0.03;
     root.add(shadowDisc);
 
-    // Attach High-Detail Beveled Blender 3.6 GLB Hero Armor Overlay (assets/models/hero_<id>.glb)
-    this.attachBlenderGLB(`hero_${heroId}`, root);
+    // P0-1 FIXED: Hide fallback blocky hero meshes when Blender GLB loads (ZERO double-mesh Z-fighting!) + Enable Shadows!
+    const heroFallbackMeshes = root.children.filter(ch => ch !== kdShield && ch !== shadowDisc && ch !== gun);
+    heroFallbackMeshes.forEach(m => {
+      m.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+    });
+    this.attachBlenderGLB(`hero_${heroId}`, root, (glbScene) => {
+      glbScene.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+    }, heroFallbackMeshes);
 
     return root;
   },
@@ -837,7 +900,10 @@ window.ModelFactory = {
       group.add(strip);
     }
 
-    this.attachBlenderGLB('prop_carepackage', group);
+    const podFallbacks = [...group.children];
+    this.attachBlenderGLB('prop_carepackage', group, (glb) => {
+      glb.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+    }, podFallbacks);
 
     // Sky-Piercing Beacon Beam
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 120, 12, 1, true), redGlow);
@@ -868,7 +934,8 @@ window.ModelFactory = {
     engineR.position.x = 5.2;
 
     ship.add(hull, prow, wings, engineL, engineR);
-    this.attachBlenderGLB('prop_dropship', ship);
+    const shipFallbacks = [...ship.children];
+    this.attachBlenderGLB('prop_dropship', ship, null, shipFallbacks);
     return ship;
   }
 };
