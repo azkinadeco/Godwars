@@ -11,11 +11,11 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <!-- 3D WebGL Main Battle Royale Canvas -->
+  <!-- Full-Screen 3D WebGL Main Canvas (Renders Both 3D Trio Squad Lobby Stage & 3D Asgard Battle Royale) -->
   <canvas id="game-canvas"></canvas>
 
   <!-- =====================================================================
-       PRE-MATCH LOBBY SCREEN (6 GOD HEROES, DIVINE ARMORY, ASGARD MAP, RANK)
+       FULL-SCREEN 3D APEX LEGENDS LOBBY SCREEN
        ===================================================================== -->
   <section id="lobby-screen">
     <header class="lobby-topbar">
@@ -27,47 +27,82 @@
         </div>
       </div>
 
-      <div id="career-rank-badge">⚔️ EINHERJAR SILVER (120 RP) • 🏆 0 WINS</div>
-
       <nav class="lobby-nav">
-        <button class="lobby-tab-btn active" data-target="tab-legends">HEROES (6 GODS)</button>
-        <button class="lobby-tab-btn" data-target="tab-armory">DIVINE ARMORY</button>
+        <button class="lobby-tab-btn active" data-target="tab-play">PLAY</button>
+        <button class="lobby-tab-btn" data-target="tab-legends">LEGENDS (6 GODS)</button>
+        <button class="lobby-tab-btn" data-target="tab-armory">LOADOUT / ARMORY</button>
         <button class="lobby-tab-btn" data-target="tab-map">ASGARD MAP</button>
-        <button class="lobby-tab-btn" data-target="tab-settings">MOBILE / GRAPHICS</button>
+        <button class="lobby-tab-btn" data-target="tab-settings">SETTINGS</button>
       </nav>
 
+      <div id="career-rank-badge">⚔️ EINHERJAR SILVER <b>160 RP</b> • 🏆 0 WINS</div>
       <button id="btn-fullscreen" class="btn-icon" title="Fullscreen Mode">⛶ FULLSCREEN</button>
     </header>
 
-    <!-- TAB 1: 6 HEROES / LEGENDS SELECTOR + 3D SHOWCASE -->
-    <div id="tab-legends" class="lobby-tab-panel active">
-      <div class="legends-left-col">
-        <div class="section-label">SELECT YOUR DEITY (6 LEGENDS)</div>
-        <div id="hero-roster"></div>
-
-        <div class="loadout-summary-box">
-          <div class="section-label">EQUIPPED DIVINE WEAPONS</div>
-          <div id="lobby-slot1-name" class="loadout-pill">1: VALHALLA M4A1</div>
-          <div id="lobby-slot2-name" class="loadout-pill">2: BIFROST P90</div>
-          <div style="font-size:10px;color:#94a3b8;margin-top:4px;">Customize weapons & bombs in DIVINE ARMORY tab</div>
+    <!-- TAB 1: APEX LEGENDS "PLAY" FULL-SCREEN 3D TRIO SQUAD STAGE -->
+    <div id="tab-play" class="lobby-tab-panel active">
+      <div class="stage-squad-tags">
+        <div id="stage-tag-ally1" class="stage-nameplate ally">
+          <div id="stage-ally1-name" class="stage-np-title">🎭 ALLY • LOKI</div>
+          <div class="stage-np-sub">TRIO SQUADMATE</div>
+        </div>
+        <div class="stage-nameplate">
+          <div id="stage-player-name" class="stage-np-title">⚡ YOU • THOR</div>
+          <div id="stage-player-role" class="stage-np-sub">God of Thunder (Assault)</div>
+        </div>
+        <div id="stage-tag-ally2" class="stage-nameplate ally">
+          <div id="stage-ally2-name" class="stage-np-title">🪽 ALLY • VALKYRIE</div>
+          <div class="stage-np-sub">TRIO SQUADMATE</div>
         </div>
       </div>
 
-      <div class="legends-center-col">
-        <canvas id="lobby-preview-canvas"></canvas>
-        <div class="match-launch-bar">
-          <button id="btn-start-match" class="btn-apex-play">⚡ DEPLOY DROPSHIP (16P ROYALE)</button>
-          <button id="btn-instant-drop" class="btn-apex-secondary">⚔️ INSTANT DROP</button>
-          <button id="btn-firing-range" class="btn-apex-secondary" style="border-color:#10b981;color:#10b981;">🎯 FIRING RANGE</button>
+      <div class="play-bottom-dock">
+        <!-- Bottom-Left Apex Matchmaking & Mode Selector Box -->
+        <div class="apex-ready-panel">
+          <div class="section-label">SELECT GAME MODE (16 PLAYERS)</div>
+          <div class="mode-selector-row">
+            <button class="mode-pill-btn active" data-mode="trios">🛡️ TRIOS SQUADS</button>
+            <button class="mode-pill-btn" data-mode="solos">⚔️ SOLOS (FFA)</button>
+            <button class="mode-pill-btn" data-mode="firing_range">🎯 FIRING RANGE</button>
+          </div>
+          <div style="font-size:11px;color:#94a3b8;">
+            Map: <b style="color:#fbbf24">ASGARD FLOATING ISLAND (6 POIs)</b>
+          </div>
+          <button id="btn-start-match" class="btn-apex-ready">⚡ READY / DEPLOY</button>
+          <button id="btn-instant-drop" class="btn-apex-secondary" style="width:100%;">⚔️ INSTANT GROUND DROP (SKIP DROPSHIP)</button>
         </div>
+
+        <!-- Bottom-Right Quick Hero Switcher & Loadout Summary -->
+        <div class="play-quick-hero-panel">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span class="section-label">QUICK SELECT LEGEND (6 GODS)</span>
+            <span id="lobby-slot1-name" style="font-size:10.5px;color:#fbbf24;font-weight:800;">1: VALHALLA M4A1</span>
+            <span id="lobby-slot2-name" style="font-size:10.5px;color:#38bdf8;font-weight:800;">2: BIFROST P90</span>
+          </div>
+          <div id="play-quick-heroes"></div>
+          <div class="play-ability-pills">
+            <span id="play-passive-pill">PASSIVE: Mjölnir Static Core</span>
+            <span id="play-tactical-pill">Q: Mjölnir Arc Bolt</span>
+            <span id="play-ult-pill">Z: Bifrost Sky Slam</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: LEGENDS FULL ROSTER & ABILITY DETAILS (WITH 3D HERO CENTER STAGE) -->
+    <div id="tab-legends" class="lobby-tab-panel">
+      <div class="legends-left-col">
+        <div class="section-label">SELECT YOUR DEITY (6 LEGENDS)</div>
+        <div id="hero-roster"></div>
       </div>
 
       <div class="legends-right-col">
         <span id="info-hero-pantheon" class="pantheon-badge">NORSE • ASGARD</span>
         <div>
-          <h1 id="info-hero-name">THOR</h1>
+          <h1 id="info-hero-name">⚡ THOR</h1>
           <div id="info-hero-title">God of Thunder • Assault</div>
         </div>
+        <div id="info-hero-quote"></div>
         <p id="info-hero-lore"></p>
 
         <div class="ability-card passive">
@@ -90,10 +125,10 @@
       </div>
     </div>
 
-    <!-- TAB 2: DIVINE ARMORY (P90, KRISS, M4A1, UZI, AK47, MAGNUM + 3 GOD BOMBS) -->
+    <!-- TAB 3: DIVINE ARMORY (P90, KRISS, M4A1, UZI, AK47, MAGNUM + 3 GOD BOMBS) -->
     <div id="tab-armory" class="lobby-tab-panel">
       <div>
-        <div class="section-label">DIVINE FIREARMS (CUSTOM GOD MODELS BASED ON P90, KRISS, M4A1, UZI, AK47, MAGNUM)</div>
+        <div class="section-label">DIVINE FIREARMS (4 ATTACHMENT SLOTS: BARREL, EXTENDED MAG, OPTIC, HOP-UP)</div>
         <div id="armory-weapon-grid"></div>
       </div>
       <div>
@@ -102,38 +137,38 @@
       </div>
     </div>
 
-    <!-- TAB 3: ASGARD ISLAND BATTLE ROYALE MAP POIs -->
+    <!-- TAB 4: ASGARD ISLAND BATTLE ROYALE MAP POIs -->
     <div id="tab-map" class="lobby-tab-panel">
-      <div class="section-label">ASGARD FLOATING ISLAND • 6 POIs + 6 BIFROST ZIPLINES + VALHALLA JUMP TOWER + CARE PACKAGES</div>
+      <div class="section-label">ASGARD FLOATING ISLAND • 6 MULTI-STORY ENTERABLE POIs + ZIPLINES + REPLICATORS + SURVEY BEACONS</div>
       <div class="poi-grid">
         <div class="poi-card" style="border-color:#fbbf24">
           <h3>1. VALHALLA CITADEL (CENTER)</h3>
-          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">Golden Hall of Odin with 10 towering gold columns, Giant 3D Holographic Kill Leader Banners, Central Jump Tower (Redeploy Balloon), and Mythic Supply Bins.</p>
+          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">North & South 2-Story Enterable Royal Palaces, Skybridges, Central Odin Obelisk Altar, 3D Kill Leader Banners, Replicator & Survey Beacon.</p>
         </div>
         <div class="poi-card" style="border-color:#38bdf8">
           <h3>2. BIFROST OBSERVATORY (SOUTH)</h3>
-          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">Connected by the glowing Rainbow Bridge & high-speed Bifrost Zipline. Features Heimdall’s Sword Altar and long-range sightlines.</p>
+          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">Walkable Elevated Rainbow Crystal Bridge, 2-Story Enterable Heimdall Observatory, Rooftop Survey Beacon & Spinning Bifrost Stargate.</p>
         </div>
         <div class="poi-card" style="border-color:#f97316">
           <h3>3. MJÖLNIR DWARVEN FORGE (WEST)</h3>
-          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">Molten star-metal foundry with lava pools, giant central Dwarven Anvil, Zipline access, and 6 furnace towers.</p>
+          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">Twin 2-Story Smelting Foundries connected by Overhead Skybridge above a Molten Lava Canal, Animated Forge Hammer & Replicator.</p>
         </div>
         <div class="poi-card" style="border-color:#10b981">
           <h3>4. YGGDRASIL SANCTUARY (EAST)</h3>
-          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">Giant glowing World Tree of Life surrounded by sacred runic stone arches, Bifrost Ziplines, and Launch Pads.</p>
+          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">Giant World Tree with wrap-around Treehouse Bastion Deck, 2 Ramps, Bifrost Zipline, and 2 Enterable Sanctuary Shrines.</p>
         </div>
         <div class="poi-card" style="border-color:#14b8a6">
           <h3>5. HELHEIM CRYPTS (NORTH-WEST)</h3>
-          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">Dark obsidian monoliths crowned with floating emerald soul crystals for intense close-quarters SMG duels.</p>
+          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">2-Story Obsidian Keep of Hel flanked by East & West Crypt Bunkers and 6 spinning Emerald Soul Monoliths.</p>
         </div>
         <div class="poi-card" style="border-color:#e879f9">
           <h3>6. VALKYRIE SKY DOCKS (NORTH-EAST)</h3>
-          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">Elevated aerial launch decks flanked by 4 golden watchtowers, Ziplines, and instant Jump Pad rotations.</p>
+          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">Twin Enterable Aircraft Hangars, elevated Helipad Flight Deck with docked Golden Sky-Skiff, and Replicator.</p>
         </div>
       </div>
     </div>
 
-    <!-- TAB 4: MOBILE & GRAPHICS SETTINGS -->
+    <!-- TAB 5: MOBILE & GRAPHICS SETTINGS -->
     <div id="tab-settings" class="lobby-tab-panel">
       <div class="section-label">MOBILE BROWSER & GRAPHICS CONFIGURATION</div>
       <div class="settings-box">
@@ -157,20 +192,21 @@
             <option value="ultra">Ultra Asgard High-DPI</option>
           </select>
         </div>
-        <div style="font-size:11.5px;color:#94a3b8;line-height:1.5;border-top:1px solid rgba(148,163,184,0.2);padding-top:10px;">
-          <b>APEX LEGENDS CONTROLS GUIDE:</b><br/>
-          • <b>Mobile Browser:</b> Left Virtual Joystick Move/Sprint • Right Screen Aim • Dual Fire Buttons • ADS Scope • Slide • Jump/Jetpack • Tactical (`Q`) • Ultimate (`Z`) • Bomb (`G`) • Ping (`📍`) • Heirloom Melee (`👊`) • Weapon Inspect (`✨`) • Context Action (`E` for Zipline / Finisher / Loot Bin).<br/>
-          • <b>PC / Laptop Browser:</b> <b>WASD</b> Move • <b>Shift</b> Sprint • <b>C</b> Slide • <b>Space</b> Jump / Valkyrie Jetpack / Zipline Super-Jump • <b>Left Click</b> Fire • <b>Right Click</b> ADS • <b>F / Middle Click</b> Apex Ping • <b>V</b> Heirloom Quick Melee • <b>N</b> 3D Weapon Inspect • <b>E</b> Ride Zipline / Jump Tower / Execute Mythic Finisher / Open Bin • <b>Q</b> Tactical • <b>Z</b> Ultimate • <b>G</b> Throw Bomb • <b>X</b> Cycle Bomb • <b>H</b> Use Heal • <b>4</b> Cycle Heal Item • <b>1 / 2</b> Swap Weapons • <b>M</b> Map.
+        <div style="font-size:11.5px;color:#94a3b8;line-height:1.55;border-top:1px solid rgba(148,163,184,0.2);padding-top:10px;">
+          <b>COMPLETE APEX CONTROLS GUIDE:</b><br/>
+          • <b>Movement:</b> <b>WASD</b> Move • <b>Shift</b> Sprint • <b>C</b> Slide (Downhill Boost!) • <b>Space</b> Jump / Ledge Mantle Climb / Valkyrie Jetpack / Zipline Super-Jump.<br/>
+          • <b>Combat:</b> <b>Left Click</b> Fire • <b>Right Click</b> ADS Optic / Hold Knockdown Shield • <b>B</b> Toggle Fire Mode (Auto/Burst/Single) • <b>R</b> Reload • <b>1 / 2</b> Swap Weapons • <b>V</b> Heirloom Quick Melee (Kick Doors!) • <b>N</b> 3D Weapon Inspect.<br/>
+          • <b>Abilities & Tactical:</b> <b>Q</b> Tactical Skill • <b>Z</b> Ultimate Skill • <b>G</b> Throw God Bomb • <b>X</b> Cycle Bomb • <b>H</b> Use Heal • <b>4</b> Cycle Heal Item • <b>F / Middle Click</b> Apex Ping • <b>E</b> Open Door / Loot / Ride Zipline / Revive Ally / Execute Finisher / Replicator / Survey Beacon • <b>I / Tab</b> Tactical Backpack & Attachments • <b>M</b> Full Map.
         </div>
       </div>
     </div>
   </section>
 
   <!-- =====================================================================
-       IN-GAME APEX LEGENDS BATTLE ROYALE HUD (10-BATCH ENHANCED)
+       IN-GAME APEX LEGENDS BATTLE ROYALE HUD
        ===================================================================== -->
   <section id="hud-screen" class="hidden">
-    <!-- BATCH 1: 360° Top Compass Ribbon -->
+    <!-- 360° Top Compass Ribbon -->
     <div id="compass-bar">
       <div id="compass-ribbon-track">
         <span>330°</span><span>•</span><b id="compass-heading-deg">0° N</b><span>•</span><span>30°</span>
@@ -181,7 +217,7 @@
     <div id="minimap-container" title="Tap or Press [M] for Full Asgard Map">
       <canvas id="minimap-canvas" width="160" height="160"></canvas>
     </div>
-    <div id="hud-ring-timer">RING 1 00:35</div>
+    <div id="hud-ring-timer">RING 1 00:38</div>
 
     <!-- Top-Right Match Status, Kill Leader & Kill Feed -->
     <div class="hud-top-right">
@@ -196,7 +232,9 @@
     </div>
 
     <!-- Center Crosshair, Holographic ADS Optic & Directional Hit Indicator -->
-    <div id="ads-optic-overlay"></div>
+    <div id="ads-optic-overlay">
+      <div id="ads-optic-label">1X HCOG</div>
+    </div>
     <div id="damage-direction-indicator"></div>
     <div id="crosshair-wrapper">
       <div class="ch-dot"></div>
@@ -208,10 +246,22 @@
       <div id="crosshair-ammo">32</div>
     </div>
 
-    <!-- BATCH 2: 3D-to-2D Projected Apex Ping Diamond Marker -->
+    <!-- Center Healing Cast Progress Box -->
+    <div id="hud-cast-box" class="hidden">
+      <div class="cast-top-row">
+        <span id="cast-box-title">USING SHIELD BATTERY</span>
+        <b id="cast-box-timer" style="color:#38bdf8">2.1s</b>
+      </div>
+      <div class="cast-track"><div id="cast-box-fill"></div></div>
+    </div>
+
+    <!-- 3D Projected Allied Squadmate Nameplates -->
+    <div id="ally-nameplates-layer"></div>
+
+    <!-- 3D Projected Apex Ping Diamond Marker -->
     <div id="apex-ping-marker" class="hidden"></div>
 
-    <!-- BATCH 9: 3D-to-2D Projected Enemy Overhead Evo Shield & HP Bar -->
+    <!-- 3D Projected Enemy Overhead Evo Shield & HP Bar -->
     <div id="enemy-overhead-bar" class="hidden"></div>
 
     <!-- Floating Apex Damage Numbers Layer -->
@@ -223,10 +273,11 @@
     <div id="hud-loot-prompt" class="hidden"></div>
     <button id="btn-dropship-launch" class="hidden">⚡ LAUNCH TO ASGARD [SPACE / TAP]</button>
 
-    <!-- BATCH 1: Bottom-Left Apex Legends Angled Segmented 25-HP Evo Shield & Health Card -->
+    <!-- Bottom-Left Allied Trio Squadmates Live Bars + Player Segmented 25-HP Evo Shield Card -->
+    <div id="hud-squadmates-list"></div>
     <div class="hud-bottom-left">
       <div class="player-header-row">
-        <span id="hud-hero-name">THOR</span>
+        <span id="hud-hero-name">⚡ THOR</span>
         <span id="hud-shield-tier">LV2 BLUE EVO</span>
       </div>
       <div class="bar-row">
@@ -246,7 +297,7 @@
       <div id="hud-next-evo">NEXT EVO: 280 DMG</div>
     </div>
 
-    <!-- Bottom-Center Heal (H/4), Tactical (Q), Ultimate (Z), Divine Bomb (G/X) -->
+    <!-- Bottom-Center Heal (H/4), Tactical (Q), Ultimate (Z), Divine Bomb (G/X) & Backpack (I/Tab) -->
     <div class="hud-bottom-center">
       <div id="hud-heal-box" class="hud-ability-slot" title="Tap or Press [4] to Cycle Heal Item, [H] to Use">
         <div class="slot-key">HEAL [H / 4]</div>
@@ -268,25 +319,36 @@
         <div id="hud-bomb-name" class="slot-title">SOLAR BOMB</div>
         <div id="hud-bomb-count" class="slot-status">💥 x3 [G]</div>
       </div>
+      <div id="hud-bag-box" class="hud-ability-slot" title="Open Tactical Backpack & Attachments [I / Tab]">
+        <div class="slot-key">BAG [I / TAB]</div>
+        <div class="slot-title">ATTACHMENTS</div>
+        <div class="slot-status">🎒 INSPECT</div>
+      </div>
     </div>
 
-    <!-- Bottom-Right Dual Divine Weapons Card -->
+    <!-- Bottom-Right Dual Divine Weapons Card + 4 Colored Attachment Pips -->
     <div class="hud-bottom-right">
       <div id="hud-weapon-slot-0" class="weapon-hud-card active">
         <div class="wep-card-top">
-          <span>SLOT 1 [1]</span>
-          <span id="hud-wep-base-0">M4A1</span>
+          <span>SLOT 1 [1] • [B] MODE</span>
+          <span id="hud-wep-base-0">M4A1 • [AUTO]</span>
         </div>
         <div id="hud-wep-name-0" class="wep-card-name">VALHALLA M4A1</div>
-        <div id="hud-wep-ammo-0" class="wep-card-ammo">32 / 192</div>
+        <div class="wep-bottom-row">
+          <div id="hud-wep-ammo-0" class="wep-card-ammo">37 / 192</div>
+          <div id="hud-wep-atts-0" class="wep-att-pips"></div>
+        </div>
       </div>
       <div id="hud-weapon-slot-1" class="weapon-hud-card">
         <div class="wep-card-top">
-          <span>SLOT 2 [2]</span>
-          <span id="hud-wep-base-1">P90</span>
+          <span>SLOT 2 [2] • [B] MODE</span>
+          <span id="hud-wep-base-1">P90 • [AUTO]</span>
         </div>
         <div id="hud-wep-name-1" class="wep-card-name">BIFROST P90</div>
-        <div id="hud-wep-ammo-1" class="wep-card-ammo">50 / 250</div>
+        <div class="wep-bottom-row">
+          <div id="hud-wep-ammo-1" class="wep-card-ammo">58 / 250</div>
+          <div id="hud-wep-atts-1" class="wep-att-pips"></div>
+        </div>
       </div>
     </div>
 
@@ -311,26 +373,38 @@
       <button id="btn-touch-melee" class="touch-btn">👊<br/>MELEE</button>
       <button id="btn-touch-ping" class="touch-btn">📍<br/>PING</button>
       <button id="btn-touch-inspect" class="touch-btn">✨<br/>INSP</button>
+      <button id="btn-touch-bag" class="touch-btn">🎒<br/>BAG</button>
       <button id="btn-touch-heal" class="touch-btn">🛡️<br/>HEAL</button>
       <button id="btn-touch-loot" class="touch-btn hidden">📦 OPEN / LOOT</button>
     </div>
   </section>
 
-  <!-- BATCH 6: Pre-Match Apex Legends "CHAMPION OF ASGARD" Broadcast Intro Overlay -->
+  <!-- Pre-Match Apex Legends "CHAMPION SQUAD" Broadcast Intro Overlay -->
   <div id="champion-intro-overlay" class="hidden">
     <div class="champ-banner-box">
       <div style="font-size:13px;color:#38bdf8;font-weight:900;letter-spacing:3px;">⚡ ASGARD ROYALE BROADCAST ⚡</div>
       <h1 style="font-size:38px;color:#fbbf24;font-weight:900;letter-spacing:3px;margin:10px 0;">CHAMPION SQUAD</h1>
-      <div id="intro-champ-name" style="font-size:22px;color:#fff;font-weight:900;">ODIN_Allfather • THOR</div>
-      <div id="intro-champ-sub" style="font-size:12px;color:#94a3b8;margin-top:6px;">REIGNING ASGARD CHAMPION • 11 ELIMINATIONS</div>
+      <div id="intro-champ-name" style="font-size:22px;color:#fff;font-weight:900;">⚡ YOU (THOR) & SQUAD</div>
+      <div id="intro-champ-sub" style="font-size:12px;color:#94a3b8;margin-top:6px;">MODE: TRIOS ROYALE • 16 CONTENDERS</div>
     </div>
   </div>
 
-  <!-- BATCH 10: Live Post-Elimination Spectator Camera Control Bar -->
+  <!-- Live Post-Elimination Spectator Camera Control Bar -->
   <div id="spectate-bar" class="hidden">
     <span id="spectate-target-name" style="font-size:13px;font-weight:900;color:#fbbf24;">SPECTATING CONTENDER</span>
     <button id="btn-spectate-next" class="btn-apex-secondary" style="padding:6px 12px;">👁️ NEXT CONTENDER</button>
     <button id="btn-spectate-exit" class="btn-apex-play" style="padding:6px 14px;font-size:12px;">🏛️ RETURN TO LOBBY</button>
+  </div>
+
+  <!-- Tactical Backpack & Weapon Attachments Modal [I / Tab] -->
+  <div id="inventory-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h2 style="color:#fbbf24;letter-spacing:1.5px;font-size:18px;">🎒 TACTICAL BACKPACK & WEAPON ATTACHMENTS</h2>
+        <button class="btn-apex-secondary" onclick="window.GAME && window.GAME.toggleInventoryModal()">CLOSE [I / TAB]</button>
+      </div>
+      <div id="inventory-content"></div>
+    </div>
   </div>
 
   <!-- Full Asgard Tactical Map Modal [M] -->
@@ -338,7 +412,7 @@
     <div class="modal-box" style="max-width:460px;">
       <h2 style="color:#fbbf24;letter-spacing:1.5px;">ASGARD TACTICAL MAP</h2>
       <canvas id="fullmap-canvas" width="360" height="360" style="width:100%;max-width:340px;margin:0 auto;border-radius:50%;border:2px solid #fbbf24;"></canvas>
-      <p style="font-size:11px;color:#94a3b8;">Red Circle: Ragnarok Safe Ring • Gold Lines: Bifrost Ziplines • Pink Dots: Odin Care Packages • Cyan Arrow: You</p>
+      <p style="font-size:11px;color:#94a3b8;">Red Circle: Ragnarok Safe Ring • Green Dots: Allied Squadmates • Gold Lines: Bifrost Ziplines • Cyan Squares: Replicators</p>
       <button class="btn-apex-secondary" style="align-self:center;">CLOSE MAP [M]</button>
     </div>
   </div>
@@ -347,12 +421,12 @@
   <div id="match-end-modal" class="modal-overlay hidden">
     <div class="modal-box">
       <div id="match-end-title">CHAMPION OF ASGARD</div>
-      <div id="match-end-subtitle">YOU CONQUERED THE GOD WARS BATTLE ROYALE</div>
+      <div id="match-end-subtitle">YOUR SQUAD CONQUERED THE GOD WARS BATTLE ROYALE</div>
       <div id="match-end-stats"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:8px;">
         <button id="btn-play-again" class="btn-apex-play">⚡ PLAY AGAIN</button>
         <button id="btn-spectate-match" class="btn-apex-secondary">👁️ SPECTATE MATCH</button>
-        <button id="btn-back-lobby" class="btn-apex-secondary">🏛️ CHANGE HERO / ARMORY</button>
+        <button id="btn-back-lobby" class="btn-apex-secondary">🏛️ RETURN TO LOBBY</button>
       </div>
     </div>
   </div>

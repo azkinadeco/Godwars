@@ -1,11 +1,11 @@
 /**
- * GOD WARS: ASGARD ROYALE (APEX LEGENDS EDITION - 10-BATCH FULL UPGRADE)
- * Complete Data Configuration:
- * - 6 Mythological Heroes (Loki, Thor, Hades, Zeus, Hela, Valkyrie) + Unique Melee Weapons & Finishers
- * - 6 Divine Custom Firearms (P90, Kriss Vector, M4A1, Uzi, AK-47, Magnum) + Rarity Tiers (Common -> Mythic Gold)
+ * GOD WARS: ASGARD ROYALE — COMPLETE APEX LEGENDS SYSTEM DATA
+ * - 6 Playable Mythological Gods (Loki, Thor, Hades, Zeus, Hela, Valkyrie)
+ * - 6 Divine Custom Firearms (P90, Kriss Vector, M4A1, Uzi, AK-47, Magnum) with Fire Modes & 4 Attachment Slots
+ * - 4 Weapon Attachment Categories (Barrel Stabilizer, Extended Rune Mag, Holographic Optic, Divine Hop-Up)
  * - 3 Divine Bombs (Ragnarok Solar Bomb, Apollo Flashbang, Yggdrasil Arc Star)
  * - 4 Apex Healing Items (Shield Cell, Shield Battery, Ambrosia Medkit, Phoenix Nectar)
- * - 6 Asgard POIs + 6 Bifrost Ziplines + Care Package Drops + Rank Progression
+ * - Game Modes: Trios Squad Royale (with 2 Allied AI God Squadmates!), Solos Free-For-All (16P), Firing Range
  */
 
 window.GODWARS_DATA = {
@@ -14,12 +14,12 @@ window.GODWARS_DATA = {
     islandRadius: 240,
     dropshipHeight: 118,
     dropshipSpeed: 34,
-    carePackageInterval: 38, // Spawn Odin Care Package every 38s
+    carePackageInterval: 38,
     ringPhases: [
-      { round: 1, waitTime: 35, shrinkTime: 30, targetRadius: 175, damagePerSec: 4 },
-      { round: 2, waitTime: 28, shrinkTime: 25, targetRadius: 110, damagePerSec: 8 },
-      { round: 3, waitTime: 22, shrinkTime: 22, targetRadius: 55,  damagePerSec: 15 },
-      { round: 4, waitTime: 18, shrinkTime: 20, targetRadius: 12,  damagePerSec: 25 }
+      { round: 1, waitTime: 38, shrinkTime: 30, targetRadius: 175, damagePerSec: 3 },
+      { round: 2, waitTime: 30, shrinkTime: 25, targetRadius: 110, damagePerSec: 7 },
+      { round: 3, waitTime: 24, shrinkTime: 22, targetRadius: 55,  damagePerSec: 14 },
+      { round: 4, waitTime: 18, shrinkTime: 20, targetRadius: 12,  damagePerSec: 22 }
     ]
   },
 
@@ -29,6 +29,49 @@ window.GODWARS_DATA = {
     3: { level: 3, name: 'LV3 PURPLE EVO', maxShield: 100, cells: 4, color: '#a855f7', hex: 0xa855f7, nextThreshold: 500 },
     4: { level: 4, name: 'LV4 GOLD EVO',   maxShield: 100, cells: 4, color: '#fbbf24', hex: 0xfbbf24, nextThreshold: 750, selfRevive: true },
     5: { level: 5, name: 'LV5 MYTHIC RED', maxShield: 125, cells: 5, color: '#f43f5e', hex: 0xf43f5e, nextThreshold: null, selfRevive: true }
+  },
+
+  ATTACHMENTS: {
+    barrel: {
+      name: 'Barrel Stabilizer',
+      tiers: {
+        0: { level: 0, name: 'No Barrel', color: '#475569', recoilMult: 1.0, spreadMult: 1.0 },
+        1: { level: 1, name: 'Lv1 Bronze Stabilizer', color: '#e2e8f0', recoilMult: 0.85, spreadMult: 0.9 },
+        2: { level: 2, name: 'Lv2 Bifrost Stabilizer', color: '#38bdf8', recoilMult: 0.72, spreadMult: 0.8 },
+        3: { level: 3, name: 'Lv3 Valkyrie Stabilizer', color: '#a855f7', recoilMult: 0.58, spreadMult: 0.7 },
+        4: { level: 4, name: 'Lv4 Gold Flash Suppressor', color: '#fbbf24', recoilMult: 0.42, spreadMult: 0.55 }
+      }
+    },
+    mag: {
+      name: 'Extended Rune Mag',
+      tiers: {
+        0: { level: 0, name: 'Standard Mag', color: '#475569', capMult: 1.0, reloadMult: 1.0 },
+        1: { level: 1, name: 'Lv1 Extended Mag', color: '#e2e8f0', capMult: 1.15, reloadMult: 0.94 },
+        2: { level: 2, name: 'Lv2 Blue Rune Mag', color: '#38bdf8', capMult: 1.25, reloadMult: 0.88 },
+        3: { level: 3, name: 'Lv3 Purple Rune Mag', color: '#a855f7', capMult: 1.38, reloadMult: 0.80 },
+        4: { level: 4, name: 'Lv4 Gold Auto-Loader Mag', color: '#fbbf24', capMult: 1.5, reloadMult: 0.72, autoReloadHolstered: true }
+      }
+    },
+    optic: {
+      name: 'Rune Optic Sight',
+      tiers: {
+        0: { level: 0, name: '1x Iron Rune Sight', color: '#475569', zoomMult: 1.0, label: '1X RUNE' },
+        1: { level: 1, name: '1x HCOG Heimdall Classic', color: '#e2e8f0', zoomMult: 0.92, label: '1X HCOG' },
+        2: { level: 2, name: '2x Bruiser Odin Sight', color: '#38bdf8', zoomMult: 0.78, label: '2X BRUISER' },
+        3: { level: 3, name: '3x HCOG Valkyrie Ranger', color: '#a855f7', zoomMult: 0.68, label: '3X RANGER' },
+        4: { level: 4, name: '1x-2x Gold Digital Threat', color: '#fbbf24', zoomMult: 0.74, label: '1-2X THREAT', threatHighlight: true }
+      }
+    },
+    hopup: {
+      name: 'Divine Hop-Up',
+      tiers: {
+        0: { level: 0, name: 'No Hop-Up', color: '#475569', dmgMult: 1.0, rpmMult: 1.0 },
+        1: { level: 1, name: 'Lv1 Quickdraw Stock', color: '#e2e8f0', dmgMult: 1.04, rpmMult: 1.03 },
+        2: { level: 2, name: 'Lv2 Disruptor Runes', color: '#38bdf8', dmgMult: 1.10, rpmMult: 1.05 },
+        3: { level: 3, name: 'Lv3 Hammerpoint Forged', color: '#a855f7', dmgMult: 1.16, rpmMult: 1.08 },
+        4: { level: 4, name: 'Lv4 Mythic Turbocharger', color: '#fbbf24', dmgMult: 1.24, rpmMult: 1.14 }
+      }
+    }
   },
 
   HEAL_ITEMS: {
@@ -80,6 +123,7 @@ window.GODWARS_DATA = {
       name: 'LOKI',
       title: 'God of Mischief & Illusions',
       role: 'Skirmisher / Recon',
+      classIcon: '🎭',
       pantheon: 'Norse • Asgard',
       color: '#10b981',
       accentColor: '#fbbf24',
@@ -87,6 +131,7 @@ window.GODWARS_DATA = {
       hexAccent: 0xfbbf24,
       speedMult: 1.08,
       maxHp: 100,
+      quote: '"Trust your eyes? In Asgard, that is your first mistake."',
       meleeName: 'Jötunheim Frost Daggers',
       finisherName: 'Illusion Backstab Execution',
       passiveName: 'Shadow Trickster',
@@ -105,6 +150,7 @@ window.GODWARS_DATA = {
       name: 'THOR',
       title: 'God of Thunder',
       role: 'Assault / Vanguard',
+      classIcon: '⚡',
       pantheon: 'Norse • Asgard',
       color: '#38bdf8',
       accentColor: '#f59e0b',
@@ -112,6 +158,7 @@ window.GODWARS_DATA = {
       hexAccent: 0xf59e0b,
       speedMult: 1.0,
       maxHp: 110,
+      quote: '"Bring me the storm! Mjölnir hungers for battle."',
       meleeName: 'Mjölnir Thunder Crusher',
       finisherName: 'Mjölnir Sky Verdict',
       passiveName: 'Mjölnir Static Core',
@@ -130,6 +177,7 @@ window.GODWARS_DATA = {
       name: 'HADES',
       title: 'Lord of the Underworld',
       role: 'Support / Controller',
+      classIcon: '💀',
       pantheon: 'Greek • Guest of Asgard',
       color: '#a855f7',
       accentColor: '#ef4444',
@@ -137,6 +185,7 @@ window.GODWARS_DATA = {
       hexAccent: 0xef4444,
       speedMult: 1.0,
       maxHp: 105,
+      quote: '"Valhalla or Tartarus—all souls eventually bow to me."',
       meleeName: 'Bident of Tartarus',
       finisherName: 'Soul Harvest Reaping',
       passiveName: 'Soul Siphon',
@@ -155,6 +204,7 @@ window.GODWARS_DATA = {
       name: 'ZEUS',
       title: 'King of Olympus',
       role: 'Assault / Artillery',
+      classIcon: '👑',
       pantheon: 'Greek • Guest of Asgard',
       color: '#facc15',
       accentColor: '#fef08a',
@@ -162,6 +212,7 @@ window.GODWARS_DATA = {
       hexAccent: 0x38bdf8,
       speedMult: 1.02,
       maxHp: 105,
+      quote: '"The skies of Asgard now answer to the King of Olympus."',
       meleeName: 'Olympian Thunderbolt Fist',
       finisherName: 'Judgment of Olympus',
       passiveName: 'Olympian Overcharge',
@@ -180,6 +231,7 @@ window.GODWARS_DATA = {
       name: 'HELA',
       title: 'Goddess of Death',
       role: 'Assault / Executioner',
+      classIcon: '🗡️',
       pantheon: 'Norse • Helheim',
       color: '#14b8a6',
       accentColor: '#0f172a',
@@ -187,6 +239,7 @@ window.GODWARS_DATA = {
       hexAccent: 0x22c55e,
       speedMult: 1.06,
       maxHp: 100,
+      quote: '"Kneel before the rightful Queen of Asgard."',
       meleeName: 'Obsidian Necroblade',
       finisherName: 'Helheim Skewering',
       passiveName: 'Death Seeker Vision',
@@ -205,6 +258,7 @@ window.GODWARS_DATA = {
       name: 'VALKYRIE',
       title: 'Winged Chooser of the Slain',
       role: 'Skirmisher / Aerial',
+      classIcon: '🪽',
       pantheon: 'Norse • Valhalla',
       color: '#f97316',
       accentColor: '#fde047',
@@ -212,6 +266,7 @@ window.GODWARS_DATA = {
       hexAccent: 0xfde047,
       speedMult: 1.05,
       maxHp: 100,
+      quote: '"The skies belong to the Valkyries. Nowhere to run, nowhere to hide."',
       meleeName: 'Dragonfang Spear Thrust',
       finisherName: 'Wings of Valhalla Strike',
       passiveName: 'VTOL Einherjar Wings',
@@ -232,7 +287,7 @@ window.GODWARS_DATA = {
       id: 'p90',
       baseName: 'P90',
       divineName: 'BIFROST P90 • HEIMDALL PDW',
-      ammoType: 'LIGHT RUNE ROUNDS',
+      ammoType: 'LIGHT RUNE',
       category: 'Divine Submachine Gun',
       desc: 'Bullpup P90 infused with a glowing rainbow-cyan Bifrost crystal top magazine. Massive 50-round capacity with laser hipfire.',
       damage: 14,
@@ -242,21 +297,22 @@ window.GODWARS_DATA = {
       reserveAmmo: 250,
       reloadTime: 2.1,
       range: 130,
-      spread: 0.018,
-      adsSpread: 0.005,
+      spread: 0.017,
+      adsSpread: 0.0045,
       adsFov: 58,
-      recoilPitch: 0.008,
-      recoilYaw: 0.006,
+      recoilPitch: 0.0075,
+      recoilYaw: 0.0055,
       color: '#38bdf8',
       hexColor: 0x38bdf8,
       hexSecondary: 0xfbbf24,
-      auto: true
+      auto: true,
+      modes: ['AUTO', 'BURST']
     },
     kriss: {
       id: 'kriss',
       baseName: 'KRISS VECTOR',
       divineName: 'FENRIR KRISS • FANG VECTOR',
-      ammoType: 'LIGHT RUNE ROUNDS',
+      ammoType: 'LIGHT RUNE',
       category: 'Mythic Hyper-SMG',
       desc: 'Kriss Vector engineered with Fenrir’s Super-V recoil mitigation and crimson rune fangs. Blistering 1050 RPM close-range shredder.',
       damage: 13,
@@ -266,21 +322,22 @@ window.GODWARS_DATA = {
       reserveAmmo: 224,
       reloadTime: 1.75,
       range: 105,
-      spread: 0.02,
-      adsSpread: 0.006,
+      spread: 0.019,
+      adsSpread: 0.0055,
       adsFov: 60,
       recoilPitch: 0.006,
-      recoilYaw: 0.005,
+      recoilYaw: 0.0045,
       color: '#f43f5e',
       hexColor: 0xf43f5e,
       hexSecondary: 0x1e293b,
-      auto: true
+      auto: true,
+      modes: ['AUTO', 'SINGLE']
     },
     m4a1: {
       id: 'm4a1',
       baseName: 'M4A1',
       divineName: 'VALHALLA M4A1 • ODIN CARBINE',
-      ammoType: 'ENERGY RUNE ROUNDS',
+      ammoType: 'ENERGY RUNE',
       category: 'Divine Assault Rifle',
       desc: 'Tactical M4A1 forged in gold-titanium with Valkyrie wing guards and an Asgardian rune holographic sight. Pinpoint mid-to-long range precision.',
       damage: 19,
@@ -290,21 +347,22 @@ window.GODWARS_DATA = {
       reserveAmmo: 192,
       reloadTime: 2.0,
       range: 200,
-      spread: 0.015,
-      adsSpread: 0.0025,
+      spread: 0.014,
+      adsSpread: 0.0022,
       adsFov: 50,
-      recoilPitch: 0.011,
-      recoilYaw: 0.004,
+      recoilPitch: 0.010,
+      recoilYaw: 0.0038,
       color: '#fbbf24',
       hexColor: 0xfbbf24,
       hexSecondary: 0xf8fafc,
-      auto: true
+      auto: true,
+      modes: ['AUTO', 'SINGLE']
     },
     uzi: {
       id: 'uzi',
       baseName: 'UZI',
       divineName: 'HERMES UZI • ZEPHYR MICRO',
-      ammoType: 'LIGHT RUNE ROUNDS',
+      ammoType: 'LIGHT RUNE',
       category: 'Speedster Micro-SMG',
       desc: 'Ultra-compact Micro-Uzi adorned with winged golden Hermes stabilizers. Instant draw speed and lethal accuracy while sliding or flying.',
       damage: 13,
@@ -314,21 +372,22 @@ window.GODWARS_DATA = {
       reserveAmmo: 216,
       reloadTime: 1.45,
       range: 95,
-      spread: 0.016,
-      adsSpread: 0.007,
+      spread: 0.015,
+      adsSpread: 0.006,
       adsFov: 62,
-      recoilPitch: 0.007,
-      recoilYaw: 0.007,
+      recoilPitch: 0.0068,
+      recoilYaw: 0.0065,
       color: '#2dd4bf',
       hexColor: 0x2dd4bf,
       hexSecondary: 0xfacc15,
-      auto: true
+      auto: true,
+      modes: ['AUTO']
     },
     ak47: {
       id: 'ak47',
       baseName: 'AK-47',
       divineName: 'SURTR AK-47 • MUSPELHEIM WRATH',
-      ammoType: 'HEAVY MAGMA ROUNDS',
+      ammoType: 'HEAVY MAGMA',
       category: 'Volcanic Heavy Rifle',
       desc: 'Heavy AK-47 infused with the eternal magma of Surtr. Fires incendiary rune rounds that hit like a truck and sear through Evo Shields.',
       damage: 25,
@@ -338,39 +397,41 @@ window.GODWARS_DATA = {
       reserveAmmo: 180,
       reloadTime: 2.25,
       range: 210,
-      spread: 0.02,
-      adsSpread: 0.004,
+      spread: 0.019,
+      adsSpread: 0.0035,
       adsFov: 52,
-      recoilPitch: 0.016,
-      recoilYaw: 0.007,
+      recoilPitch: 0.015,
+      recoilYaw: 0.006,
       color: '#f97316',
       hexColor: 0xf97316,
       hexSecondary: 0x7c2d12,
-      auto: true
+      auto: true,
+      modes: ['AUTO', 'SINGLE']
     },
     magnum: {
       id: 'magnum',
       baseName: 'MAGNUM .50',
       divineName: 'GUNGNIR MAGNUM • ALLFATHER CANNON',
-      ammoType: 'MYTHIC CALIBER .50',
+      ammoType: 'SNIPER .50',
       category: 'Mythic Handcannon (Wingman Class)',
       desc: 'Revolving heavy Magnum sculpted from Odin’s spear Gungnir. High-skill handcannon with devastating 46 body / 96 headshot damage.',
       damage: 46,
       headshotMult: 2.1,
-      rpm: 165,
+      rpm: 175,
       magSize: 8,
       reserveAmmo: 72,
       reloadTime: 1.8,
       range: 220,
-      spread: 0.01,
-      adsSpread: 0.001,
-      adsFov: 52,
-      recoilPitch: 0.042,
-      recoilYaw: 0.005,
+      spread: 0.008,
+      adsSpread: 0.0008,
+      adsFov: 50,
+      recoilPitch: 0.038,
+      recoilYaw: 0.004,
       color: '#e879f9',
       hexColor: 0xe879f9,
       hexSecondary: 0xfacc15,
-      auto: false
+      auto: false,
+      modes: ['SINGLE']
     }
   },
 
@@ -425,7 +486,7 @@ window.GODWARS_DATA = {
       radius: 45,
       tier: 'MYTHIC LOOT',
       color: '#fbbf24',
-      desc: 'The Golden Hall of Odin at the center of Asgard. High ground, golden pillars, Champion Banners, and top-tier Supply Bins.'
+      desc: 'The Golden Hall of Odin at the center of Asgard. Two-story Royal Palaces, Skybridges, Champion Banners & Replicator.'
     },
     {
       id: 'bifrost',
@@ -435,7 +496,7 @@ window.GODWARS_DATA = {
       radius: 38,
       tier: 'HIGH LOOT',
       color: '#38bdf8',
-      desc: 'Rainbow crystalline bridge and Heimdall’s gate dome overlooking the cosmic edge.'
+      desc: 'Elevated Rainbow Bridge, 2-story Heimdall Observatory, Rooftop Survey Beacon & Spinning Bifrost Stargate.'
     },
     {
       id: 'forge',
@@ -445,7 +506,7 @@ window.GODWARS_DATA = {
       radius: 38,
       tier: 'HIGH LOOT',
       color: '#f97316',
-      desc: 'Molten star-metal foundry with anvil towers, lava trenches, and heavy weaponry.'
+      desc: 'Twin 2-story Smelting Foundries connected by Skybridge over a Molten Lava Canal, Forge Hammer & Replicator.'
     },
     {
       id: 'yggdrasil',
@@ -455,7 +516,7 @@ window.GODWARS_DATA = {
       radius: 40,
       tier: 'HIGH LOOT',
       color: '#10b981',
-      desc: 'Sacred courtyard beneath the glowing golden branches of the World Tree.'
+      desc: 'Colossal World Tree with wrap-around Treehouse Bastion Deck, Ramps, and 2 Sanctuary Shrines.'
     },
     {
       id: 'helheim',
@@ -465,7 +526,7 @@ window.GODWARS_DATA = {
       radius: 36,
       tier: 'MID-HIGH LOOT',
       color: '#14b8a6',
-      desc: 'Obsidian monoliths and emerald soul crystals offering tight CQC angles.'
+      desc: '2-Story Obsidian Keep of Hel flanked by East & West Crypt Bunkers and glowing Soul Monoliths.'
     },
     {
       id: 'skydocks',
@@ -475,17 +536,17 @@ window.GODWARS_DATA = {
       radius: 38,
       tier: 'HIGH LOOT',
       color: '#e879f9',
-      desc: 'Elevated aerial launch rings connected by Bifrost Jump Pads & Ziplines.'
+      desc: 'Twin Aircraft Hangars, elevated Helipad Flight Deck with docked Golden Sky-Skiff, and Replicator.'
     }
   ],
 
   ZIPLINES: [
-    { id: 'zip_bifrost',  name: 'Valhalla ⇄ Bifrost Bridge',   start: [0, 6.5, 22],    end: [0, 5.5, 118] },
-    { id: 'zip_forge',    name: 'Valhalla ⇄ Mjölnir Forge',    start: [-22, 6.5, 8],   end: [-95, 6.0, 32] },
-    { id: 'zip_ygg',      name: 'Valhalla ⇄ Yggdrasil Tree',   start: [22, 6.5, 8],    end: [95, 6.0, 28] },
-    { id: 'zip_helheim',  name: 'Valhalla ⇄ Helheim Crypts',   start: [-18, 6.5, -18], end: [-72, 6.0, -88] },
-    { id: 'zip_skydocks', name: 'Valhalla ⇄ Valkyrie Docks',   start: [18, 6.5, -18],  end: [76, 6.5, -86] },
-    { id: 'zip_north',    name: 'Helheim ⇄ Valkyrie Docks',    start: [-65, 5.5, -102], end: [68, 6.0, -98] }
+    { id: 'zip_bifrost',  name: 'Valhalla ⇄ Bifrost Bridge',   start: [0, 6.5, 34],    end: [0, 6.5, 118] },
+    { id: 'zip_forge',    name: 'Valhalla ⇄ Mjölnir Forge',    start: [-24, 6.5, 8],   end: [-92, 6.5, 32] },
+    { id: 'zip_ygg',      name: 'Valhalla ⇄ Yggdrasil Tree',   start: [24, 6.5, 8],    end: [94, 6.5, 28] },
+    { id: 'zip_helheim',  name: 'Valhalla ⇄ Helheim Crypts',   start: [-20, 6.5, -28], end: [-68, 6.5, -88] },
+    { id: 'zip_skydocks', name: 'Valhalla ⇄ Valkyrie Docks',   start: [20, 6.5, -28],  end: [72, 6.5, -86] },
+    { id: 'zip_north',    name: 'Helheim ⇄ Valkyrie Docks',    start: [-62, 6.0, -102], end: [66, 6.5, -98] }
   ],
 
   BOT_NAMES: [

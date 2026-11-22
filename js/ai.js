@@ -1,14 +1,13 @@
 /**
- * GOD WARS: ASGARD ROYALE (APEX LEGENDS EDITION - 10-BATCH FULL UPGRADE)
- * 15 Smart AI Battle Royale Contenders + Firing Range Combat Dummies:
- * - Jump from Bifrost Dropship across Asgard's 6 POIs
- * - Equip Divine Weapons (P90, Kriss, M4A1, Uzi, AK47, Magnum) & Evo Shields
- * - Support Knocked Down (DBNO) state with 3D directional Knockdown Shield & crawling
- * - Fight other AI contenders and the player using firearms + Hero Tactical/Ultimate skills
+ * GOD WARS: ASGARD ROYALE — SMART SQUAD & CONTENDER AI ENGINE
+ * - Supports Trios Squad Royale (2 Allied AI God Squadmates on Player's Team 0 + Rival 3-God Squads!)
+ * - Supports Solos Free-For-All (16 Independent Contenders) & Firing Range Combat Dummies
+ * - Allied Squadmates follow Player & Player Pings [F], focus-fire hostiles, and REVIVE Knocked Player/Teammates!
+ * - 3D Glowing Bifrost Skydive Trails during aerial drop
  */
 
 class AIContender {
-  constructor(id, name, heroId, weaponId, game, isDummy = false) {
+  constructor(id, name, heroId, weaponId, game, isDummy = false, teamId = null, isAlly = false) {
     this.id = id;
     this.name = name;
     this.heroId = heroId;
@@ -16,20 +15,23 @@ class AIContender {
     this.game = game;
     this.isPlayer = false;
     this.isDummy = isDummy;
+    this.teamId = teamId !== null ? teamId : (id + 1);
+    this.isAlly = isAlly;
 
     const hData = window.GODWARS_DATA.HEROES[heroId] || window.GODWARS_DATA.HEROES.thor;
     this.maxHp = hData.maxHp || 100;
     this.hp = this.maxHp;
-    this.shieldTier = isDummy ? ((id % 4) + 2) : ((id % 3) + 1);
+    this.shieldTier = isDummy ? ((id % 4) + 2) : isAlly ? 2 : ((id % 3) + 1);
     const tierInfo = window.GODWARS_DATA.EVO_TIERS[this.shieldTier] || window.GODWARS_DATA.EVO_TIERS[2];
     this.maxShield = tierInfo.maxShield;
     this.shield = this.maxShield;
 
     this.alive = true;
     this.knocked = false;
-    this.knockedHp = 70;
-    this.knockdownShieldHp = 90;
-    this.bleedoutTimer = 18.0;
+    this.knockedHp = 80;
+    this.knockdownShieldHp = 100;
+    this.bleedoutTimer = 24.0;
+    this.reviveProgress = 0;
     this.inDropship = !isDummy;
     this.skydiving = false;
     this.kills = 0;
@@ -37,22 +39,24 @@ class AIContender {
     this.ultCharge = 35;
 
     const pois = window.GODWARS_DATA.POIS;
-    const poi = pois[id % pois.length];
-    const angle = Math.random() * Math.PI * 2;
-    const dist = 8 + Math.random() * (poi.radius * 0.75);
+    // Squads drop together at the same POI!
+    const poiIndex = isAlly ? 0 : (this.teamId % pois.length);
+    const poi = pois[poiIndex];
+    const angle = (id * 2.1) % (Math.PI * 2);
+    const dist = 6 + (id % 3) * 7;
     this.dropTarget = new THREE.Vector3(
       poi.x + Math.cos(angle) * dist,
       0,
       poi.z + Math.sin(angle) * dist
     );
-    this.dropDelay = 1.2 + (id / 15) * 9.5;
+    this.dropDelay = isAlly ? 1.5 : (1.0 + (this.teamId / 6) * 8.5);
 
-    this.position = new THREE.Vector3(this.dropTarget.x, isDummy ? 0 : 110, this.dropTarget.z);
+    this.position = new THREE.Vector3(this.dropTarget.x, isDummy ? 0 : 115, this.dropTarget.z);
     this.velocity = new THREE.Vector3();
     this.moveTarget = this.dropTarget.clone();
 
     this.fireTimer = 0;
-    this.tacticalTimer = 6 + Math.random() * 8;
+    this.tacticalTimer = 6 + Math.random() * 7;
     this.retargetTimer = 0;
     this.strafeDir = Math.random() < 0.5 ? 1 : -1;
     this.flashBlindTimer = 0;
@@ -63,13 +67,25 @@ class AIContender {
     this.mesh = window.ModelFactory.createHeroModel(heroId);
     this.mesh.position.copy(this.position);
     this.mesh.visible = isDummy;
+
+    // 3D Skydive Trail Ribbon attached to Hero
+    const trailGeo = new THREE.CylinderGeometry(0.08, 0.45, 7.5, 8);
+    const trailMat = new THREE.MeshBasicMaterial({
+      color: isAlly ? 0x38bdf8 : hData.hexColor,
+      transparent: true,
+      opacity: 0.65
+    });
+    this.diveTrail = new THREE.Mesh(trailGeo, trailMat);
+    this.diveTrail.position.set(0, 4.2, 0);
+    this.diveTrail.visible = false;
+    this.mesh.add(this.diveTrail);
+
     this.game.scene.add(this.mesh);
   }
 
   update(dt, elapsedMatchTime) {
     if (!this.alive) return;
 
-    // Firing Range Combat Dummy Behavior (Strafes side-to-side for target practice)
     if (this.isDummy) {
       if (this.id % 2 === 1) {
         this.position.x = this.dropTarget.x + Math.sin(elapsedMatchTime * 1.8 + this.id) * 6.5;
@@ -86,6 +102,19 @@ class AIContender {
     // Handle Knocked Down (DBNO) Crawling & Bleedout
     if (this.knocked) {
       this.bleedoutTimer -= dt;
+      // Crawl slowly toward nearest living teammate
+      const ally = this.findNearestLivingTeammate();
+      if (ally) {
+        const toAlly = ally.position.clone().sub(this.position);
+        toAlly.y = 0;
+        if (toAlly.length() > 2.2) {
+          toAlly.normalize();
+          this.position.x += toAlly.x * 1.6 * dt;
+          this.position.z += toAlly.z * 1.6 * dt;
+          this.position.y = this.game.world.getGroundHeight(this.position.x, this.position.z, this.position.y);
+          this.mesh.position.copy(this.position);
+        }
+      }
       if (this.game.player) {
         const toP = this.game.player.position.clone().sub(this.position);
         this.mesh.rotation.y = Math.atan2(toP.x, toP.z);
@@ -104,25 +133,40 @@ class AIContender {
 
     // 1. Dropship & Skydive Phase
     if (this.inDropship) {
-      if (elapsedMatchTime >= this.dropDelay && this.game.dropship) {
+      // Allied Squadmates wait for Player to jump (or jump with Player!)
+      const playerJumped = this.game.player && !this.game.player.inDropship;
+      const shouldJump = this.isAlly ? playerJumped : (elapsedMatchTime >= this.dropDelay);
+
+      if (shouldJump && this.game.dropship) {
         this.inDropship = false;
         this.skydiving = true;
         this.position.copy(this.game.dropship.position);
-        this.position.x += (Math.random() - 0.5) * 6;
-        this.position.z += (Math.random() - 0.5) * 6;
+        this.position.x += (Math.random() - 0.5) * 7;
+        this.position.z += (Math.random() - 0.5) * 7;
         this.mesh.visible = true;
+        if (this.diveTrail) this.diveTrail.visible = true;
       } else {
         return;
       }
     }
 
     if (this.skydiving) {
+      // Allied Squadmates follow the Player's landing spot during skydive!
+      if (this.isAlly && this.game.player) {
+        const offsetAngle = this.id * 2.4;
+        this.dropTarget.set(
+          this.game.player.position.x + Math.cos(offsetAngle) * 7,
+          0,
+          this.game.player.position.z + Math.sin(offsetAngle) * 7
+        );
+      }
+
       const toDrop = this.dropTarget.clone().sub(this.position);
       toDrop.y = 0;
       if (toDrop.length() > 2) {
         toDrop.normalize();
-        this.position.x += toDrop.x * 26 * dt;
-        this.position.z += toDrop.z * 26 * dt;
+        this.position.x += toDrop.x * 28 * dt;
+        this.position.z += toDrop.z * 28 * dt;
         this.mesh.rotation.y = Math.atan2(toDrop.x, toDrop.z);
       }
       this.position.y -= 24 * dt;
@@ -130,10 +174,13 @@ class AIContender {
       if (this.position.y <= groundY) {
         this.position.y = groundY;
         this.skydiving = false;
+        if (this.diveTrail) this.diveTrail.visible = false;
       }
       this.mesh.position.copy(this.position);
       return;
     }
+
+    if (this.diveTrail && this.diveTrail.visible) this.diveTrail.visible = false;
 
     // 2. Check Ragnarok Storm Ring Damage
     const distToRingCenter = Math.hypot(
@@ -150,23 +197,59 @@ class AIContender {
       }
     }
 
-    // 3. Target Acquisition
+    // 3. Squad Revive Behaviour: Check if a Teammate (or Player!) is Knocked Down nearby!
+    const knockedTeammate = this.findKnockedTeammate();
+    if (knockedTeammate && (!this.currentEnemy || this.position.distanceTo(knockedTeammate.position) < 22)) {
+      const distToKnocked = this.position.distanceTo(knockedTeammate.position);
+      if (distToKnocked > 2.2) {
+        const dir = knockedTeammate.position.clone().sub(this.position).normalize();
+        this.position.x += dir.x * 7.4 * dt;
+        this.position.z += dir.z * 7.4 * dt;
+        this.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+      } else {
+        // Perform Revive!
+        knockedTeammate.reviveProgress = (knockedTeammate.reviveProgress || 0) + dt;
+        if (knockedTeammate.isPlayer) {
+          this.game.showBanner(`SQUADMATE ${this.name} REVIVING YOU (${Math.min(100, Math.round((knockedTeammate.reviveProgress / 3.0) * 100))}%)...`, '#10b981');
+        }
+        if (knockedTeammate.reviveProgress >= 3.0) {
+          knockedTeammate.reviveProgress = 0;
+          this.game.combat.completeRevive(this, knockedTeammate);
+        }
+      }
+      this.updatePhysicsAndGround(dt);
+      return;
+    }
+
+    // 4. Target Acquisition & Squad Following
     this.retargetTimer -= dt;
     if (this.retargetTimer <= 0) {
-      this.retargetTimer = 0.6 + Math.random() * 0.4;
+      this.retargetTimer = 0.55 + Math.random() * 0.35;
       this.currentEnemy = this.findBestTarget();
 
-      if (distToRingCenter > this.game.ringRadius * 0.82) {
+      if (distToRingCenter > this.game.ringRadius * 0.85) {
         const angle = Math.atan2(
           this.game.ringCenter.z - this.position.z,
           this.game.ringCenter.x - this.position.x
-        ) + (Math.random() - 0.5) * 0.5;
+        ) + (Math.random() - 0.5) * 0.4;
         const step = Math.min(35, distToRingCenter * 0.5);
         this.moveTarget.set(
           this.position.x + Math.cos(angle) * step,
           0,
           this.position.z + Math.sin(angle) * step
         );
+      } else if (this.isAlly && this.game.player && this.game.player.alive) {
+        // Allied Squadmates follow Player's Active Ping or stay in squad formation around Player!
+        if (this.game.activePing && this.game.activePing.ttl > 0) {
+          this.moveTarget.copy(this.game.activePing.position);
+        } else {
+          const formAngle = this.id * 2.2 + this.game.player.yaw;
+          this.moveTarget.set(
+            this.game.player.position.x + Math.sin(formAngle) * 8.5,
+            this.game.player.position.y,
+            this.game.player.position.z + Math.cos(formAngle) * 8.5
+          );
+        }
       } else if (!this.currentEnemy && this.position.distanceTo(this.moveTarget) < 5) {
         const r = Math.random() * (this.game.ringRadius * 0.72);
         const a = Math.random() * Math.PI * 2;
@@ -180,8 +263,8 @@ class AIContender {
       if (Math.random() < 0.35) this.strafeDir *= -1;
     }
 
-    // 4. Movement & Strafe Physics
-    let speed = 6.4;
+    // 5. Movement & Strafe Physics
+    let speed = this.isAlly ? 7.2 : 6.5;
     if (this.slowTimer > 0) speed *= 0.55;
     if (this.cloakTimer > 0) speed *= 1.25;
 
@@ -201,7 +284,7 @@ class AIContender {
     } else {
       const toWay = this.moveTarget.clone().sub(this.position);
       toWay.y = 0;
-      if (toWay.length() > 1.5) {
+      if (toWay.length() > 2.2) {
         toWay.normalize();
         moveVec.copy(toWay);
         this.mesh.rotation.y = Math.atan2(toWay.x, toWay.z);
@@ -220,6 +303,52 @@ class AIContender {
       }
     }
 
+    this.updatePhysicsAndGround(dt);
+
+    // 6. Combat Firing & Hero Abilities
+    if (this.currentEnemy && this.flashBlindTimer <= 0) {
+      const eyeOrigin = this.position.clone().add(new THREE.Vector3(0, 1.55, 0));
+      const targetCenter = this.currentEnemy.position.clone().add(new THREE.Vector3(0, 1.25, 0));
+      const dist = eyeOrigin.distanceTo(targetCenter);
+
+      if (dist <= 70) {
+        this.fireTimer -= dt;
+        const wData = window.GODWARS_DATA.WEAPONS[this.weaponId] || window.GODWARS_DATA.WEAPONS.m4a1;
+        const fireInterval = Math.max(0.14, (60 / wData.rpm) * 1.8);
+
+        if (this.fireTimer <= 0) {
+          this.fireTimer = fireInterval + Math.random() * 0.11;
+          const aimDir = targetCenter.clone().sub(eyeOrigin).normalize();
+          const spreadAmt = this.isAlly ? 0.048 : 0.068;
+          aimDir.x += (Math.random() - 0.5) * spreadAmt;
+          aimDir.y += (Math.random() - 0.5) * spreadAmt;
+          aimDir.z += (Math.random() - 0.5) * spreadAmt;
+          aimDir.normalize();
+
+          const distToPlayer = this.game.player ? this.position.distanceTo(this.game.player.position) : 50;
+          window.SFX.playGunshot(this.weaponId, distToPlayer);
+          this.game.combat.fireWeapon(this, eyeOrigin, aimDir, wData);
+        }
+
+        this.tacticalTimer -= dt;
+        if (this.tacticalTimer <= 0 && dist < 36) {
+          this.tacticalTimer = 14 + Math.random() * 6;
+          const aimDir = targetCenter.clone().sub(eyeOrigin).normalize();
+          if (this.ultCharge >= 100 && Math.random() < 0.45) {
+            this.ultCharge = 0;
+            this.game.combat.triggerHeroUltimate(this, eyeOrigin, aimDir);
+          } else {
+            this.game.combat.triggerHeroTactical(this, eyeOrigin, aimDir);
+          }
+        }
+      }
+    } else if (this.hp < this.maxHp * 0.7 || this.shield < this.maxShield * 0.6) {
+      this.shield = Math.min(this.maxShield, this.shield + 5 * dt);
+      this.hp = Math.min(this.maxHp, this.hp + 3 * dt);
+    }
+  }
+
+  updatePhysicsAndGround(dt) {
     this.velocity.y -= 24 * dt;
     this.position.y += this.velocity.y * dt;
 
@@ -240,58 +369,45 @@ class AIContender {
     }
 
     this.mesh.position.copy(this.position);
+  }
 
-    // 5. Combat Firing & Hero Abilities
-    if (this.currentEnemy && this.flashBlindTimer <= 0) {
-      const eyeOrigin = this.position.clone().add(new THREE.Vector3(0, 1.55, 0));
-      const targetCenter = this.currentEnemy.position.clone().add(new THREE.Vector3(0, 1.25, 0));
-      const dist = eyeOrigin.distanceTo(targetCenter);
+  findKnockedTeammate() {
+    const all = [...this.game.bots];
+    if (this.game.player) all.push(this.game.player);
+    for (const t of all) {
+      if (t !== this && t.alive && t.knocked && t.teamId === this.teamId && !t.inDropship) {
+        if (this.position.distanceTo(t.position) < 42) return t;
+      }
+    }
+    return null;
+  }
 
-      if (dist <= 68) {
-        this.fireTimer -= dt;
-        const wData = window.GODWARS_DATA.WEAPONS[this.weaponId] || window.GODWARS_DATA.WEAPONS.m4a1;
-        const fireInterval = Math.max(0.14, (60 / wData.rpm) * 1.85);
-
-        if (this.fireTimer <= 0) {
-          this.fireTimer = fireInterval + Math.random() * 0.12;
-          const aimDir = targetCenter.clone().sub(eyeOrigin).normalize();
-          const spreadAmt = 0.068;
-          aimDir.x += (Math.random() - 0.5) * spreadAmt;
-          aimDir.y += (Math.random() - 0.5) * spreadAmt;
-          aimDir.z += (Math.random() - 0.5) * spreadAmt;
-          aimDir.normalize();
-
-          window.SFX.playGunshot(this.weaponId, this.position.distanceTo(this.game.player.position));
-          this.game.combat.fireWeapon(this, eyeOrigin, aimDir, wData);
-        }
-
-        this.tacticalTimer -= dt;
-        if (this.tacticalTimer <= 0 && dist < 35) {
-          this.tacticalTimer = 14 + Math.random() * 6;
-          const aimDir = targetCenter.clone().sub(eyeOrigin).normalize();
-          if (this.ultCharge >= 100 && Math.random() < 0.45) {
-            this.ultCharge = 0;
-            this.game.combat.triggerHeroUltimate(this, eyeOrigin, aimDir);
-          } else {
-            this.game.combat.triggerHeroTactical(this, eyeOrigin, aimDir);
-          }
+  findNearestLivingTeammate() {
+    const all = [...this.game.bots];
+    if (this.game.player) all.push(this.game.player);
+    let best = null;
+    let bestD = 999;
+    for (const t of all) {
+      if (t !== this && t.alive && !t.knocked && t.teamId === this.teamId) {
+        const d = this.position.distanceTo(t.position);
+        if (d < bestD) {
+          bestD = d;
+          best = t;
         }
       }
-    } else if (this.hp < this.maxHp * 0.65 || this.shield < this.maxShield * 0.5) {
-      this.shield = Math.min(this.maxShield, this.shield + 4 * dt);
-      this.hp = Math.min(this.maxHp, this.hp + 2.5 * dt);
     }
+    return best;
   }
 
   findBestTarget() {
     for (const decoy of this.game.combat.decoys) {
-      if (decoy.owner !== this && decoy.position.distanceTo(this.position) < 38) {
+      if (decoy.owner && decoy.owner.teamId !== this.teamId && decoy.position.distanceTo(this.position) < 38) {
         return { position: decoy.position, alive: true, isDecoy: true };
       }
     }
 
     let best = null;
-    let bestScore = 72;
+    let bestScore = 75;
 
     const allTargets = [...this.game.bots];
     if (this.game.player && this.game.player.alive && !this.game.player.knocked) {
@@ -300,6 +416,8 @@ class AIContender {
 
     for (const t of allTargets) {
       if (!t.alive || t.knocked || t === this || t.inDropship) continue;
+      // Never target teammates on the same squad!
+      if (t.teamId === this.teamId) continue;
       if (t.cloakTimer && t.cloakTimer > 0 && t.position.distanceTo(this.position) > 7) continue;
 
       const d = this.position.distanceTo(t.position);

@@ -1,12 +1,9 @@
 /**
- * GOD WARS: ASGARD ROYALE (APEX LEGENDS EDITION - 10-BATCH FULL UPGRADE)
- * Combat System:
- * - Hitscan & Ballistic Divine Weapon Firing + 3D Glowing Tracers + 3D Ejected Brass/Rune Shell Casings
- * - 3 Divine Bombs (Ragnarok Solar Bomb, Apollo Flashbang, Yggdrasil Arc Star)
- * - 6 Hero Tactical (Q) & Ultimate (Z) 3D Abilities & VFX
- * - Heirloom Quick Melee (V) + Apex Knockdown Shield (DBNO) + Mythic Finisher Execution (Refills 100% Shield!)
- * - 5-Tier Evo Shield Progression (White Lv1 -> Blue Lv2 -> Purple Lv3 -> Gold Lv4 -> Red Mythic Lv5)
- * - Kill Leader Live Announcer & 3D Arena Banner Updater
+ * GOD WARS: ASGARD ROYALE — COMPLETE APEX COMBAT, SQUAD REVIVE & ATTACHMENT ENGINE
+ * - Squad Friendly-Fire Protection (Allies on same teamId never damage each other)
+ * - Weapon Attachment Stat Modifiers (Barrel, Mag, Optic, Hop-Up)
+ * - Knocked Down (DBNO) Directional Knockdown Shield, Squad Revives & Squad Wipe logic
+ * - Mythic God Finishers (100% Evo Shield Refill) & 6 Hero Tactical/Ultimate Skills
  */
 
 class CombatManager {
@@ -19,6 +16,15 @@ class CombatManager {
     this.vfxList = [];
     this.decoys = [];
     this.activeZones = [];
+  }
+
+  isEnemy(actorA, actorB) {
+    if (!actorA || !actorB) return true;
+    if (actorA === actorB) return false;
+    if (actorA.teamId !== undefined && actorB.teamId !== undefined) {
+      return actorA.teamId !== actorB.teamId;
+    }
+    return true;
   }
 
   spawnShellCasing(origin, rightDir) {
@@ -131,7 +137,7 @@ class CombatManager {
     if (this.game.player && this.game.player.alive) candidates.push(this.game.player);
 
     for (const target of candidates) {
-      if (!target.alive || target === actor) continue;
+      if (!target.alive || !this.isEnemy(actor, target)) continue;
       const tCenter = target.position.clone().add(new THREE.Vector3(0, 1.0, 0));
       const dist = origin.distanceTo(tCenter);
       if (dist <= 3.85) {
@@ -143,7 +149,6 @@ class CombatManager {
             actor.thunderCharge = 0;
             this.spawnLightningBolt(origin, tCenter, 0x38bdf8, 0.4);
           }
-          // Knockback
           if (target.velocity) {
             target.velocity.x += lookDir.x * 11;
             target.velocity.y += 5.5;
@@ -156,7 +161,7 @@ class CombatManager {
     }
   }
 
-  fireWeapon(shooter, origin, dir, weaponData, isMythicGold = false) {
+  fireWeapon(shooter, origin, dir, weaponData, isMythicGold = false, hopupMult = 1.0) {
     const range = weaponData.range || 160;
     let bestDist = range;
     let hitTarget = null;
@@ -192,7 +197,7 @@ class CombatManager {
     }
 
     for (const target of candidates) {
-      if (!target.alive || target === shooter) continue;
+      if (!target.alive || !this.isEnemy(shooter, target)) continue;
       const tPos = target.position;
       const height = target.knocked ? 1.15 : 2.15;
       const boxMin = new THREE.Vector3(tPos.x - 0.55, tPos.y, tPos.z - 0.55);
@@ -216,7 +221,7 @@ class CombatManager {
     this.spawnTracer(startTracer, hitPoint, isMythicGold ? 0xfde047 : weaponData.hexColor);
 
     if (hitTarget) {
-      let dmg = weaponData.damage * (isMythicGold ? 1.2 : 1.0);
+      let dmg = weaponData.damage * (isMythicGold ? 1.2 : 1.0) * hopupMult;
       if (isHeadshot) dmg = Math.round(dmg * weaponData.headshotMult);
 
       if (shooter.heroId === 'zeus' && hitTarget.shield > 0) {
@@ -248,16 +253,45 @@ class CombatManager {
     }
   }
 
+  hasLivingSquadmate(victim) {
+    const all = [...this.game.bots];
+    if (this.game.player) all.push(this.game.player);
+    for (const t of all) {
+      if (t !== victim && t.alive && !t.knocked && t.teamId === victim.teamId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  completeRevive(reviver, target) {
+    if (!target || !target.alive || !target.knocked) return;
+    target.knocked = false;
+    target.reviveProgress = 0;
+    target.hp = Math.max(45, Math.round(target.maxHp * 0.45));
+    if (target.mesh) {
+      target.mesh.scale.y = 1.0;
+      if (target.mesh.userData.kdShield) {
+        target.mesh.userData.kdShield.visible = false;
+      }
+    }
+    window.SFX.playEvoUpgrade();
+    if (target.isPlayer || (reviver && reviver.isPlayer)) {
+      this.game.showBanner(`REVIVE COMPLETE: ${target.name} BACK IN THE FIGHT!`, '#10b981');
+    }
+  }
+
   applyDamage(attacker, victim, amount, sourceName, isHeadshot = false, hitWorldPos = null, bypassKnockShield = false) {
     if (!victim || !victim.alive) return;
+    if (attacker && !this.isEnemy(attacker, victim)) return;
 
     let remaining = Math.round(amount);
     let hitShield = false;
     let shieldBroken = false;
 
-    // BATCH 7: If victim is Knocked Down (DBNO) and has an active Knockdown Shield
     if (victim.knocked) {
-      if (!bypassKnockShield && victim.knockdownShieldHp > 0) {
+      const shieldActive = victim.isPlayer ? victim.isADS : (victim.knockdownShieldHp > 0);
+      if (!bypassKnockShield && shieldActive && victim.knockdownShieldHp > 0) {
         hitShield = true;
         if (victim.knockdownShieldHp >= remaining) {
           victim.knockdownShieldHp -= remaining;
@@ -272,7 +306,7 @@ class CombatManager {
         }
       }
       if (remaining > 0) {
-        victim.knockedHp = Math.max(0, (victim.knockedHp || 65) - remaining);
+        victim.knockedHp = Math.max(0, (victim.knockedHp || 75) - remaining);
       }
       if (attacker && attacker.isPlayer) {
         window.SFX.playHitmarker(false, hitShield, shieldBroken);
@@ -302,7 +336,6 @@ class CombatManager {
       victim.hp = Math.max(0, victim.hp - remaining);
     }
 
-    // Track 5-Tier Evo Shield Damage Progression for Attacker
     if (attacker && attacker !== victim) {
       attacker.damageDealt = (attacker.damageDealt || 0) + amount;
       attacker.ultCharge = Math.min(100, (attacker.ultCharge || 0) + amount * 0.25);
@@ -333,17 +366,18 @@ class CombatManager {
       this.game.triggerDamageIndicator(attacker.position);
     }
 
-    // Check Knockdown (DBNO) vs Elimination
     if (victim.hp <= 0 && victim.alive) {
-      const aliveBots = this.game.bots.filter(b => b.alive && !b.knocked).length;
-      const canEnterKnockdown = !victim.isDummy && sourceName !== 'Ragnarok Storm Ring' && aliveBots > 1;
+      const hasTeammate = this.hasLivingSquadmate(victim);
+      const hasSelfRevive = victim.shieldTier >= 4 && !victim.usedSelfRevive;
+      const canEnterKnockdown = !victim.isDummy && sourceName !== 'Ragnarok Storm Ring' && (hasTeammate || hasSelfRevive || !victim.isPlayer);
 
-      if (!victim.isPlayer && canEnterKnockdown && !victim.knocked) {
-        // Enter Apex Knocked Down (DBNO) State with 3D Knockdown Shield!
+      if (canEnterKnockdown && !victim.knocked) {
         victim.knocked = true;
-        victim.knockedHp = 70;
-        victim.knockdownShieldHp = victim.shieldTier >= 3 ? 120 : 75;
-        victim.bleedoutTimer = 18.0;
+        victim.knockedHp = 80;
+        victim.knockdownShieldHp = victim.shieldTier >= 3 ? 140 : 90;
+        victim.bleedoutTimer = 24.0;
+        victim.hp = 1;
+
         if (victim.mesh) {
           victim.mesh.scale.y = 0.58;
           if (victim.mesh.userData.kdShield) {
@@ -352,17 +386,18 @@ class CombatManager {
             victim.mesh.userData.kdShield.visible = true;
           }
         }
-        if (attacker && attacker.isPlayer) {
+
+        if (victim.isPlayer) {
+          this.game.showBanner(
+            hasSelfRevive
+              ? 'KNOCKED DOWN! HOLD [ADS] FOR KNOCKDOWN SHIELD • PRESS [E] TO SELF-REVIVE!'
+              : 'KNOCKED DOWN! HOLD [ADS] FOR KNOCKDOWN SHIELD WHILE SQUADMATE REVIVES YOU!',
+            '#fbbf24'
+          );
+        } else if (attacker && attacker.isPlayer) {
           window.SFX.playKillSound();
-          this.game.showBanner(`KNOCKED DOWN ${victim.name} • APPROACH & PRESS [E] FOR FINISHER!`, '#fbbf24');
+          this.game.showBanner(`KNOCKED DOWN ${victim.name} • PRESS [E] NEARBY FOR FINISHER!`, '#fbbf24');
         }
-      } else if (victim.isPlayer && victim.shieldTier >= 4 && !victim.usedSelfRevive && sourceName !== 'Ragnarok Storm Ring') {
-        // Player Gold/Red Evo Shield Self-Revive (Guardian Angel)!
-        victim.knocked = true;
-        victim.usedSelfRevive = true;
-        victim.knockedHp = 85;
-        victim.hp = 1;
-        this.game.showBanner('KNOCKED DOWN! GOLD EVO GUARDIAN ANGEL: PRESS [E / TAP] TO SELF-REVIVE!', '#fbbf24');
       } else {
         this.handleElimination(attacker, victim, sourceName);
       }
@@ -370,7 +405,6 @@ class CombatManager {
   }
 
   handleElimination(killer, victim, weaponName) {
-    // Firing Range Dummy Respawn
     if (victim.isDummy) {
       if (killer && killer.isPlayer) {
         window.SFX.playKillSound();
@@ -388,6 +422,20 @@ class CombatManager {
     if (victim.mesh) victim.mesh.visible = false;
 
     this.spawnDeathBox(victim);
+
+    // Squad Wipe check: if all living members of victim's team are only knocked down, eliminate them too!
+    const all = [...this.game.bots];
+    if (this.game.player) all.push(this.game.player);
+    const remainingStandingOnTeam = all.filter(t => t.alive && !t.knocked && t.teamId === victim.teamId);
+    if (remainingStandingOnTeam.length === 0) {
+      const knockedOnTeam = all.filter(t => t.alive && t.knocked && t.teamId === victim.teamId && !(t.shieldTier >= 4 && !t.usedSelfRevive));
+      knockedOnTeam.forEach(kt => {
+        kt.alive = false;
+        kt.knocked = false;
+        if (kt.mesh) kt.mesh.visible = false;
+        this.spawnDeathBox(kt);
+      });
+    }
 
     if (killer && killer !== victim) {
       killer.kills = (killer.kills || 0) + 1;
@@ -422,7 +470,7 @@ class CombatManager {
       roughness: 0.2
     });
     const mesh = new THREE.Mesh(boxGeo, boxMat);
-    mesh.position.set(victim.position.x, 0.45, victim.position.z);
+    mesh.position.set(victim.position.x, victim.position.y + 0.45, victim.position.z);
     this.scene.add(mesh);
 
     this.game.world.supplyBins.push({
@@ -439,6 +487,7 @@ class CombatManager {
         weaponId: victim.weaponId || 'm4a1',
         grenadeId: 'solar_bomb',
         shieldTier: Math.max(2, victim.shieldTier || 2),
+        attachmentTier: Math.min(4, Math.max(2, victim.shieldTier || 2)),
         shieldBattery: 2,
         medkit: 1
       }
@@ -479,19 +528,21 @@ class CombatManager {
     if (this.game.player && this.game.player.alive) targets.push(this.game.player);
 
     for (const t of targets) {
-      if (!t.alive) continue;
+      if (!t.alive || (g.thrower && !this.isEnemy(g.thrower, t) && t !== g.thrower)) continue;
       const dist = t.position.distanceTo(pos);
       if (dist <= g.data.radius) {
         const falloff = 1 - (dist / g.data.radius) * 0.65;
         const dmg = Math.round(g.data.damage * falloff);
-        this.applyDamage(g.thrower, t, dmg, g.data.name, false, t.position, true);
+        if (this.isEnemy(g.thrower, t)) {
+          this.applyDamage(g.thrower, t, dmg, g.data.name, false, t.position, true);
+        }
 
-        if (isFlash) {
+        if (isFlash && this.isEnemy(g.thrower, t)) {
           t.flashBlindTimer = 4.2 * falloff;
           if (t.isPlayer) {
             this.game.triggerFlashbangOverlay(falloff);
           }
-        } else {
+        } else if (this.isEnemy(g.thrower, t)) {
           const push = t.position.clone().sub(pos).normalize();
           if (t.velocity) {
             t.velocity.x += push.x * 11 * falloff;
@@ -536,7 +587,7 @@ class CombatManager {
       this.spawnLightningBolt(origin.clone().addScaledVector(lookDir, 1), targetPt, 0x38bdf8, 0.45);
       this.spawnExplosionVFX(targetPt, 8.5, 0x38bdf8, 0.45);
 
-      const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && t !== actor);
+      const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && this.isEnemy(actor, t));
       targets.forEach(t => {
         if (t.position.distanceTo(targetPt) <= 11 || t.position.distanceTo(actor.position) <= 12) {
           this.spawnLightningBolt(targetPt, t.position.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xfbbf24, 0.45);
@@ -552,7 +603,7 @@ class CombatManager {
       this.spawnExplosionVFX(waveCenter, 10, 0xa855f7, 0.5);
 
       let totalDrain = 0;
-      const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && t !== actor);
+      const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && this.isEnemy(actor, t));
       targets.forEach(t => {
         if (t.position.distanceTo(waveCenter) <= 11.5) {
           this.applyDamage(actor, t, 35, 'Stygian Soul Wave', false, t.position);
@@ -585,7 +636,7 @@ class CombatManager {
         const endPt = origin.clone().addScaledVector(dir, 36);
         this.spawnTracer(origin, endPt, 0x14b8a6, 3);
 
-        const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && t !== actor);
+        const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && this.isEnemy(actor, t));
         targets.forEach(t => {
           const toTarget = t.position.clone().add(new THREE.Vector3(0, 1, 0)).sub(origin);
           const proj = toTarget.dot(dir);
@@ -616,7 +667,7 @@ class CombatManager {
           this.spawnExplosionVFX(impact, 5.5, 0xf97316, 0.4);
           window.SFX.playExplosion(false);
 
-          const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && t !== actor);
+          const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && this.isEnemy(actor, t));
           targets.forEach(t => {
             if (t.position.distanceTo(impact) <= 6.5) {
               this.applyDamage(actor, t, 22, 'Celestial Spear Swarm', false, t.position);
@@ -668,7 +719,7 @@ class CombatManager {
         this.spawnExplosionVFX(slamPos, 16, 0x38bdf8, 0.75);
         window.SFX.playExplosion(false);
 
-        const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && t !== actor);
+        const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && this.isEnemy(actor, t));
         targets.forEach(t => {
           const d = t.position.distanceTo(slamPos);
           if (d <= 16) {
@@ -720,7 +771,7 @@ class CombatManager {
           this.spawnExplosionVFX(strikePos, 9, 0xfacc15, 0.55);
           window.SFX.playExplosion(false);
 
-          const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && t !== actor);
+          const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && this.isEnemy(actor, t));
           targets.forEach(t => {
             if (t.position.distanceTo(strikePos) <= 9.5) {
               this.applyDamage(actor, t, 45, 'Wrath of Olympus', false, t.position);
@@ -750,7 +801,6 @@ class CombatManager {
   }
 
   update(dt) {
-    // 1. Update bullet tracers
     for (let i = this.tracers.length - 1; i >= 0; i--) {
       const tr = this.tracers[i];
       tr.age += dt;
@@ -765,7 +815,6 @@ class CombatManager {
       }
     }
 
-    // 2. Update ejected brass/rune shell casings
     for (let i = this.shells.length - 1; i >= 0; i--) {
       const s = this.shells[i];
       s.age += dt;
@@ -779,7 +828,6 @@ class CombatManager {
       }
     }
 
-    // 3. Update thrown Divine Bombs / Flashbangs
     for (let i = this.grenades.length - 1; i >= 0; i--) {
       const g = this.grenades[i];
       g.fuse -= dt;
@@ -809,7 +857,6 @@ class CombatManager {
       }
     }
 
-    // 4. Update explosion & lightning VFX
     for (let i = this.vfxList.length - 1; i >= 0; i--) {
       const v = this.vfxList[i];
       v.age += dt;
@@ -834,7 +881,6 @@ class CombatManager {
       }
     }
 
-    // 5. Update Loki holographic decoys
     for (let i = this.decoys.length - 1; i >= 0; i--) {
       const d = this.decoys[i];
       d.ttl -= dt;
@@ -857,7 +903,6 @@ class CombatManager {
       }
     }
 
-    // 6. Update Active Ability Zones
     for (let i = this.activeZones.length - 1; i >= 0; i--) {
       const z = this.activeZones[i];
       z.ttl -= dt;
@@ -868,7 +913,7 @@ class CombatManager {
           if (z.owner && z.owner.alive && z.owner.position.distanceTo(z.position) <= z.radius) {
             z.owner.shield = Math.min(z.owner.maxShield, z.owner.shield + 8);
           }
-          const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && t !== z.owner);
+          const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && this.isEnemy(z.owner, t));
           targets.forEach(t => {
             if (t.position.distanceTo(z.position) <= z.radius) {
               this.applyDamage(z.owner, t, 7, 'Domain of Tartarus', false, t.position);

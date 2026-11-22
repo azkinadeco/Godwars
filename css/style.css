@@ -1,12 +1,13 @@
 /* ==========================================================================
-   GOD WARS: ASGARD ROYALE — Apex Legends Mythological Battle Royale UI/HUD
-   10-Batch Full Upgrade: Segmented Evo Shield Cells, 360° Compass, Ping System,
-   Champion Broadcast Intro, Overhead Enemy Bars, Speed Lines & Spectator Mode
+   GOD WARS: ASGARD ROYALE — COMPLETE AAA APEX LEGENDS LOBBY & HUD UI
+   - Transparent Full-Screen 3D Trio Squad Lobby Stage (See 3D Heroes behind UI!)
+   - Clean Angled Apex Polygons, Squadmate Status Bars, 4-Attachment Weapon Pips,
+     Center Healing Cast Progress Bar, & Tactical Inventory Modal
    ========================================================================== */
 
 :root {
   --bg-dark: #070b19;
-  --panel-bg: rgba(15, 23, 42, 0.88);
+  --panel-bg: rgba(11, 17, 34, 0.86);
   --gold: #fbbf24;
   --gold-bright: #fde047;
   --cyan: #38bdf8;
@@ -49,7 +50,7 @@ html, body {
 }
 
 /* ==========================================================================
-   LOBBY SCREEN (APEX LEGENDS MYTHIC MENU)
+   FULL-SCREEN 3D APEX LEGENDS LOBBY SCREEN
    ========================================================================== */
 #lobby-screen {
   position: fixed;
@@ -57,17 +58,19 @@ html, body {
   z-index: 20;
   display: flex;
   flex-direction: column;
-  background: radial-gradient(circle at 50% 35%, rgba(30, 58, 138, 0.45), rgba(7, 11, 25, 0.96) 75%);
-  backdrop-filter: blur(6px);
+  /* Transparent center so the live 3D Trio Squad Valhalla Stage shines through! */
+  background: radial-gradient(circle at 50% 48%, transparent 38%, rgba(5, 9, 22, 0.82) 92%);
+  pointer-events: none;
 }
 
 .lobby-topbar {
+  pointer-events: auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 20px;
-  background: rgba(9, 13, 28, 0.94);
-  border-bottom: 2px solid rgba(251, 191, 36, 0.38);
+  padding: 10px 22px;
+  background: linear-gradient(180deg, rgba(7, 11, 25, 0.96), rgba(11, 17, 34, 0.82));
+  border-bottom: 2px solid rgba(251, 191, 36, 0.45);
   flex-wrap: wrap;
   gap: 8px;
 }
@@ -79,15 +82,15 @@ html, body {
 }
 
 .brand-crest {
-  font-size: 22px;
+  font-size: 24px;
   color: var(--gold);
-  text-shadow: 0 0 12px rgba(251, 191, 36, 0.8);
+  text-shadow: 0 0 14px rgba(251, 191, 36, 0.9);
 }
 
 .brand-title {
-  font-size: 20px;
+  font-size: 21px;
   font-weight: 900;
-  letter-spacing: 2px;
+  letter-spacing: 2.5px;
   background: linear-gradient(90deg, #fff, #fbbf24, #38bdf8);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -103,9 +106,9 @@ html, body {
 #career-rank-badge {
   font-size: 11px;
   font-weight: 800;
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(251, 191, 36, 0.4);
-  padding: 5px 12px;
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  padding: 6px 14px;
   border-radius: 20px;
   letter-spacing: 0.6px;
 }
@@ -116,57 +119,219 @@ html, body {
 }
 
 .lobby-tab-btn {
-  background: rgba(30, 41, 59, 0.7);
+  background: rgba(30, 41, 59, 0.72);
   color: var(--text-muted);
   border: 1px solid rgba(148, 163, 184, 0.25);
-  padding: 8px 16px;
+  padding: 8px 18px;
   font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 1.2px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
   cursor: pointer;
   clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
-  transition: all 0.18s ease;
+  transition: all 0.16s ease;
 }
 
 .lobby-tab-btn.active, .lobby-tab-btn:hover {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.28), rgba(56, 189, 248, 0.25));
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.38), rgba(56, 189, 248, 0.28));
   color: #fff;
   border-color: var(--gold);
+  box-shadow: 0 0 14px rgba(251, 191, 36, 0.28);
 }
 
 .btn-icon {
-  background: rgba(30, 41, 59, 0.8);
+  background: rgba(30, 41, 59, 0.85);
   color: var(--gold);
-  border: 1px solid rgba(251, 191, 36, 0.4);
+  border: 1px solid rgba(251, 191, 36, 0.45);
   padding: 7px 12px;
   border-radius: 6px;
-  font-weight: 700;
-  font-size: 12px;
+  font-weight: 800;
+  font-size: 11.5px;
   cursor: pointer;
 }
 
 .lobby-tab-panel {
   display: none;
   flex: 1;
+  position: relative;
   overflow-y: auto;
-  padding: 14px 20px;
+  padding: 16px 24px;
 }
 
 .lobby-tab-panel.active {
   display: flex;
 }
 
-#tab-legends {
-  gap: 18px;
-  align-items: stretch;
+/* TAB 1: APEX LEGENDS "PLAY" FULL-SCREEN 3D STAGE LAYOUT */
+#tab-play {
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
 }
 
-.legends-left-col {
-  width: 280px;
+.stage-squad-tags {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 110px;
+  margin-top: 12px;
+}
+
+.stage-nameplate {
+  background: rgba(7, 11, 25, 0.82);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  border-bottom: 3px solid var(--gold);
+  padding: 6px 16px;
+  text-align: center;
+  clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 100%, 0 100%);
+}
+
+.stage-nameplate.ally {
+  border-bottom-color: var(--cyan);
+  margin-top: 28px;
+  opacity: 0.9;
+}
+
+.stage-np-title {
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #fff;
+}
+
+.stage-np-sub {
+  font-size: 10px;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.play-bottom-dock {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+/* Bottom-Left Apex Matchmaking & Mode Box */
+.apex-ready-panel {
+  pointer-events: auto;
+  width: 350px;
+  background: rgba(7, 11, 25, 0.92);
+  border: 1.5px solid rgba(251, 191, 36, 0.5);
+  border-left: 5px solid var(--gold);
+  padding: 14px 16px;
+  clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75);
+}
+
+.mode-selector-row {
+  display: flex;
+  gap: 6px;
+}
+
+.mode-pill-btn {
+  flex: 1;
+  background: rgba(30, 41, 59, 0.85);
+  color: var(--text-muted);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  padding: 7px 6px;
+  font-size: 10.5px;
+  font-weight: 900;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.mode-pill-btn.active {
+  background: rgba(245, 158, 11, 0.25);
+  color: var(--gold-bright);
+  border-color: var(--gold);
+}
+
+.btn-apex-ready {
+  width: 100%;
+  background: linear-gradient(135deg, #ea580c, #dc2626);
+  color: #fff;
+  border: 2px solid #fde047;
+  padding: 14px 20px;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 2.5px;
+  cursor: pointer;
+  clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+  box-shadow: 0 0 28px rgba(234, 88, 12, 0.65);
+  transition: transform 0.14s ease;
+}
+
+.btn-apex-ready:hover {
+  transform: scale(1.02);
+}
+
+/* Bottom-Right Quick Hero Switcher & Loadout Strip on PLAY tab */
+.play-quick-hero-panel {
+  pointer-events: auto;
+  background: rgba(7, 11, 25, 0.9);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  padding: 12px 16px;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  overflow-y: auto;
+  max-width: 540px;
+}
+
+#play-quick-heroes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hero-card.compact {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 6px;
+}
+
+.hc-icon { font-size: 15px; }
+.hc-name { font-size: 12px; font-weight: 900; letter-spacing: 0.8px; }
+
+.play-ability-pills {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--cyan);
+}
+
+.play-ability-pills span {
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 4px 9px;
+  border-radius: 4px;
+}
+
+/* TAB 2: LEGENDS FULL ROSTER & LORE */
+#tab-legends {
+  pointer-events: auto;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.legends-left-col {
+  width: 290px;
+  background: var(--panel-bg);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  padding: 14px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .section-label {
@@ -175,7 +340,6 @@ html, body {
   letter-spacing: 1.5px;
   color: var(--gold);
   text-transform: uppercase;
-  margin-bottom: 2px;
 }
 
 #hero-roster {
@@ -185,8 +349,8 @@ html, body {
 }
 
 .hero-card {
-  background: rgba(15, 23, 42, 0.85);
-  border: 1.5px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.88);
+  border: 1.5px solid rgba(148, 163, 184, 0.24);
   border-left: 4px solid var(--hero-color, #fbbf24);
   padding: 10px;
   text-align: left;
@@ -197,110 +361,24 @@ html, body {
 }
 
 .hero-card.active, .hero-card:hover {
-  background: rgba(30, 41, 59, 0.95);
+  background: rgba(30, 41, 59, 0.98);
   border-color: var(--hero-color, #fbbf24);
-  box-shadow: 0 0 15px rgba(251, 191, 36, 0.25);
-  transform: translateY(-1px);
+  box-shadow: 0 0 15px rgba(251, 191, 36, 0.3);
 }
 
-.hero-card-role {
-  font-size: 9px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-}
-
-.hero-card-name {
-  font-size: 15px;
-  font-weight: 900;
-  letter-spacing: 1px;
-  margin: 2px 0;
-}
-
-.hero-card-title {
-  font-size: 10px;
-  color: var(--gold);
-}
-
-.loadout-summary-box {
-  margin-top: auto;
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  padding: 10px;
-  border-radius: 6px;
-}
-
-.loadout-pill {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--cyan);
-  padding: 4px 0;
-}
-
-.legends-center-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  position: relative;
-  min-width: 240px;
-}
-
-#lobby-preview-canvas {
-  width: 100%;
-  flex: 1;
-  min-height: 210px;
-}
-
-.match-launch-bar {
-  width: 100%;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
-  padding-top: 8px;
-}
-
-.btn-apex-play {
-  background: linear-gradient(135deg, #f59e0b, #ea580c);
-  color: #fff;
-  border: 2px solid #fde047;
-  padding: 12px 22px;
-  font-size: 14px;
-  font-weight: 900;
-  letter-spacing: 1.4px;
-  cursor: pointer;
-  clip-path: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
-  box-shadow: 0 0 24px rgba(245, 158, 11, 0.5);
-  transition: transform 0.15s ease;
-}
-
-.btn-apex-play:hover {
-  transform: scale(1.03);
-}
-
-.btn-apex-secondary {
-  background: rgba(30, 41, 59, 0.9);
-  color: var(--cyan);
-  border: 1.5px solid var(--cyan);
-  padding: 11px 16px;
-  font-size: 11.5px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  cursor: pointer;
-  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
-}
+.hero-card-role { font-size: 9px; color: var(--text-muted); text-transform: uppercase; }
+.hero-card-name { font-size: 15px; font-weight: 900; margin: 2px 0; }
+.hero-card-title { font-size: 10px; color: var(--gold); }
 
 .legends-right-col {
-  width: 330px;
+  width: 350px;
   background: var(--panel-bg);
-  border: 1px solid rgba(251, 191, 36, 0.28);
+  border: 1px solid rgba(251, 191, 36, 0.32);
   border-radius: 8px;
   padding: 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
   overflow-y: auto;
 }
 
@@ -312,60 +390,31 @@ html, body {
   padding: 3px 8px;
   border: 1px solid var(--gold);
   border-radius: 4px;
-  letter-spacing: 1px;
 }
 
-#info-hero-name {
-  font-size: 26px;
-  font-weight: 900;
-  letter-spacing: 1.5px;
-}
-
-#info-hero-title {
-  font-size: 12px;
-  color: var(--gold);
-  font-weight: 700;
-}
-
-#info-hero-lore {
-  font-size: 11.5px;
-  color: var(--text-muted);
-  line-height: 1.4;
-}
+#info-hero-name { font-size: 25px; font-weight: 900; letter-spacing: 1.5px; }
+#info-hero-title { font-size: 12px; color: var(--gold); font-weight: 700; }
+#info-hero-quote { font-size: 11.5px; color: var(--cyan); font-style: italic; }
+#info-hero-lore { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
 
 .ability-card {
-  background: rgba(9, 14, 28, 0.8);
+  background: rgba(9, 14, 28, 0.85);
   border-left: 3px solid var(--gold);
   padding: 8px 10px;
   border-radius: 4px;
 }
-
 .ability-card.tactical { border-left-color: var(--cyan); }
 .ability-card.ultimate { border-left-color: var(--crimson); }
+.ability-tag { font-size: 9px; font-weight: 800; color: var(--text-muted); }
+.ability-title { font-size: 12.5px; font-weight: 800; color: #fff; margin: 2px 0; }
+.ability-desc { font-size: 11px; color: #cbd5e1; line-height: 1.35; }
 
-.ability-tag {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  color: var(--text-muted);
-}
-
-.ability-title {
-  font-size: 13px;
-  font-weight: 800;
-  color: #fff;
-  margin: 2px 0;
-}
-
-.ability-desc {
-  font-size: 11px;
-  color: #cbd5e1;
-  line-height: 1.35;
-}
-
-#tab-armory {
+/* TAB 3: DIVINE ARMORY */
+#tab-armory, #tab-map, #tab-settings {
+  pointer-events: auto;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
+  background: rgba(7, 11, 25, 0.78);
 }
 
 #armory-weapon-grid {
@@ -375,7 +424,7 @@ html, body {
 }
 
 .armory-card {
-  background: rgba(15, 23, 42, 0.9);
+  background: rgba(15, 23, 42, 0.92);
   border: 1.5px solid rgba(148, 163, 184, 0.25);
   border-top: 3px solid var(--wep-color, #fbbf24);
   border-radius: 8px;
@@ -384,45 +433,15 @@ html, body {
   flex-direction: column;
   gap: 6px;
 }
-
 .armory-card.equipped {
   border-color: var(--wep-color, #fbbf24);
-  box-shadow: 0 0 16px rgba(56, 189, 248, 0.2);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
 }
-
-.armory-base-tag {
-  font-size: 10px;
-  font-weight: 800;
-  color: var(--gold);
-  letter-spacing: 1px;
-}
-
-.armory-divine-name {
-  font-size: 14px;
-  font-weight: 900;
-  color: #fff;
-}
-
-.armory-stats {
-  display: flex;
-  gap: 12px;
-  font-size: 11px;
-  color: var(--cyan);
-}
-
-.armory-desc {
-  font-size: 11px;
-  color: var(--text-muted);
-  line-height: 1.35;
-  flex: 1;
-}
-
-.armory-actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 4px;
-}
-
+.armory-base-tag { font-size: 10px; font-weight: 800; color: var(--gold); }
+.armory-divine-name { font-size: 14px; font-weight: 900; color: #fff; }
+.armory-stats { display: flex; gap: 12px; font-size: 11px; color: var(--cyan); }
+.armory-desc { font-size: 11px; color: var(--text-muted); line-height: 1.35; flex: 1; }
+.armory-actions { display: flex; gap: 6px; margin-top: 4px; }
 .armory-actions button {
   flex: 1;
   background: rgba(30, 41, 59, 0.95);
@@ -434,46 +453,34 @@ html, body {
   border-radius: 4px;
   cursor: pointer;
 }
-
-.armory-actions button:hover {
-  background: var(--gold);
-  color: #000;
-}
+.armory-actions button:hover { background: var(--gold); color: #000; }
 
 #armory-bomb-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 12px;
 }
-
 .bomb-card {
   display: flex;
   gap: 12px;
   align-items: center;
-  background: rgba(15, 23, 42, 0.88);
+  background: rgba(15, 23, 42, 0.9);
   border: 1px solid var(--bomb-color, #f97316);
   padding: 10px 14px;
   border-radius: 8px;
 }
-
 .bomb-icon { font-size: 26px; }
 .bomb-type { font-size: 10px; font-weight: 800; color: var(--gold); }
 .bomb-name { font-size: 14px; font-weight: 900; }
 .bomb-desc { font-size: 11px; color: var(--text-muted); }
-
-#tab-map, #tab-settings {
-  flex-direction: column;
-  gap: 14px;
-}
 
 .poi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 12px;
 }
-
 .poi-card {
-  background: rgba(15, 23, 42, 0.9);
+  background: rgba(15, 23, 42, 0.92);
   border-left: 4px solid var(--gold);
   padding: 12px;
   border-radius: 6px;
@@ -481,15 +488,14 @@ html, body {
 
 .settings-box {
   max-width: 560px;
-  background: rgba(15, 23, 42, 0.9);
-  border: 1px solid rgba(251, 191, 36, 0.3);
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(251, 191, 36, 0.35);
   border-radius: 8px;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
-
 .setting-row {
   display: flex;
   justify-content: space-between;
@@ -498,8 +504,32 @@ html, body {
   font-weight: 700;
 }
 
+.btn-apex-play {
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  color: #fff;
+  border: 2px solid #fde047;
+  padding: 11px 20px;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+}
+
+.btn-apex-secondary {
+  background: rgba(30, 41, 59, 0.9);
+  color: var(--cyan);
+  border: 1.5px solid var(--cyan);
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  cursor: pointer;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+}
+
 /* ==========================================================================
-   IN-GAME APEX LEGENDS BATTLE ROYALE HUD (10-BATCH ENHANCED)
+   IN-GAME APEX LEGENDS BATTLE ROYALE HUD
    ========================================================================== */
 #hud-screen {
   position: fixed;
@@ -508,7 +538,6 @@ html, body {
   pointer-events: none;
 }
 
-/* BATCH 1: 360° Top Compass Ribbon */
 #compass-bar {
   position: absolute;
   top: 10px;
@@ -536,7 +565,6 @@ html, body {
   font-size: 13px;
 }
 
-/* Top-Left Minimap */
 #minimap-container {
   position: absolute;
   top: 12px;
@@ -552,10 +580,7 @@ html, body {
   box-shadow: 0 0 18px rgba(0, 0, 0, 0.7);
 }
 
-#minimap-canvas {
-  width: 100%;
-  height: 100%;
-}
+#minimap-canvas { width: 100%; height: 100%; }
 
 #hud-ring-timer {
   position: absolute;
@@ -566,10 +591,8 @@ html, body {
   padding: 4px 10px;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.8px;
 }
 
-/* Top-Right Match Status & Kill Feed */
 .hud-top-right {
   position: absolute;
   top: 12px;
@@ -586,21 +609,13 @@ html, body {
   background: rgba(7, 11, 25, 0.86);
   border: 1px solid rgba(251, 191, 36, 0.45);
   padding: 6px 14px;
-  border-radius: 6px;
   font-size: 12px;
   font-weight: 800;
   clip-path: polygon(8px 0, 100% 0, 100% 100%, 0 100%);
 }
 
-.counter-item span {
-  color: var(--text-muted);
-  margin-right: 4px;
-  font-size: 10px;
-}
-
-.counter-item b {
-  color: var(--gold);
-}
+.counter-item span { color: var(--text-muted); margin-right: 4px; font-size: 10px; }
+.counter-item b { color: var(--gold); }
 
 #kill-feed {
   display: flex;
@@ -617,12 +632,11 @@ html, body {
   font-weight: 700;
   border-radius: 4px;
 }
-
 .kf-killer { color: var(--cyan); }
 .kf-weapon { color: var(--gold); margin: 0 4px; }
 .kf-victim { color: var(--crimson); }
 
-/* Center Screen Crosshair & Optics */
+/* Center Crosshair, Optics & Cast Progress Box */
 #crosshair-wrapper {
   position: absolute;
   top: 50%;
@@ -634,20 +648,8 @@ html, body {
   align-items: center;
   justify-content: center;
 }
-
-.ch-dot {
-  width: 4px;
-  height: 4px;
-  background: #fff;
-  border-radius: 50%;
-  box-shadow: 0 0 6px #38bdf8;
-}
-
-.ch-line {
-  position: absolute;
-  background: rgba(255, 255, 255, 0.85);
-}
-
+.ch-dot { width: 4px; height: 4px; background: #fff; border-radius: 50%; box-shadow: 0 0 6px #38bdf8; }
+.ch-line { position: absolute; background: rgba(255, 255, 255, 0.85); }
 .ch-top { width: 2px; height: 8px; top: 0; }
 .ch-bottom { width: 2px; height: 8px; bottom: 0; }
 .ch-left { width: 8px; height: 2px; left: 0; }
@@ -662,11 +664,7 @@ html, body {
   opacity: 0;
   transition: all 0.08s ease;
 }
-
-#crosshair-hitmarker.active {
-  opacity: 1;
-  transform: rotate(45deg) scale(1.1);
-}
+#crosshair-hitmarker.active { opacity: 1; transform: rotate(45deg) scale(1.1); }
 
 #crosshair-ammo {
   position: absolute;
@@ -683,21 +681,87 @@ html, body {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) scale(0.9);
-  width: 250px;
-  height: 250px;
+  width: 260px;
+  height: 260px;
   border: 2px solid var(--optic-color, #38bdf8);
   border-radius: 50%;
   box-shadow: 0 0 40px rgba(56, 189, 248, 0.25), inset 0 0 25px rgba(56, 189, 248, 0.2);
   opacity: 0;
   transition: all 0.14s ease;
 }
+#ads-optic-overlay.active { opacity: 0.9; transform: translate(-50%, -50%) scale(1); }
 
-#ads-optic-overlay.active {
-  opacity: 0.88;
-  transform: translate(-50%, -50%) scale(1);
+#ads-optic-label {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--optic-color, #38bdf8);
+  letter-spacing: 1.5px;
 }
 
-/* BATCH 2: 3D-to-2D Projected Apex Ping Diamond Marker */
+/* Center Healing Cast Progress Bar */
+#hud-cast-box {
+  position: absolute;
+  top: 63%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 230px;
+  background: rgba(7, 11, 25, 0.92);
+  border: 1.5px solid var(--cyan);
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+
+.cast-top-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 900;
+  margin-bottom: 5px;
+}
+
+.cast-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(30, 41, 59, 0.95);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+#cast-box-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--cyan);
+}
+
+/* 3D Projected Allied Squadmate Nameplates */
+#ally-nameplates-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ally-3d-tag {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: rgba(7, 11, 25, 0.82);
+  border: 1px solid #10b981;
+  color: #34d399;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.ally-3d-tag.knocked {
+  border-color: #f59e0b;
+  color: #fde047;
+  animation: pulseBtn 0.6s infinite alternate;
+}
+
 #apex-ping-marker {
   position: absolute;
   transform: translate(-50%, -100%);
@@ -707,7 +771,6 @@ html, body {
   pointer-events: none;
   z-index: 11;
 }
-
 .ping-diamond {
   width: 16px;
   height: 16px;
@@ -717,7 +780,6 @@ html, body {
   box-shadow: 0 0 12px currentColor;
   animation: pingPulse 0.7s infinite alternate;
 }
-
 .ping-label {
   margin-top: 6px;
   background: rgba(7, 11, 25, 0.9);
@@ -728,13 +790,11 @@ html, body {
   font-weight: 900;
   white-space: nowrap;
 }
-
 @keyframes pingPulse {
   from { transform: rotate(45deg) scale(0.9); }
   to { transform: rotate(45deg) scale(1.22); }
 }
 
-/* BATCH 9: Projected Enemy Overhead Evo Shield & HP Bar */
 #enemy-overhead-bar {
   position: absolute;
   transform: translate(-50%, -100%);
@@ -745,31 +805,9 @@ html, body {
   border-radius: 4px;
   pointer-events: none;
 }
-
-.eo-name {
-  font-size: 9px;
-  font-weight: 900;
-  color: #fff;
-  text-align: center;
-  margin-bottom: 2px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.eo-track {
-  width: 100%;
-  height: 5px;
-  background: rgba(30, 41, 59, 0.95);
-  margin-bottom: 2px;
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.eo-fill {
-  height: 100%;
-  transition: width 0.1s ease;
-}
+.eo-name { font-size: 9px; font-weight: 900; color: #fff; text-align: center; margin-bottom: 2px; }
+.eo-track { width: 100%; height: 5px; background: rgba(30, 41, 59, 0.95); margin-bottom: 2px; border-radius: 2px; overflow: hidden; }
+.eo-fill { height: 100%; transition: width 0.1s ease; }
 
 #damage-direction-indicator {
   position: absolute;
@@ -783,10 +821,7 @@ html, body {
   transform: translate(-50%, -50%);
   transition: opacity 0.15s ease;
 }
-
-#damage-direction-indicator.active {
-  opacity: 0.9;
-}
+#damage-direction-indicator.active { opacity: 0.9; }
 
 #damage-numbers-layer {
   position: fixed;
@@ -794,7 +829,6 @@ html, body {
   pointer-events: none;
   overflow: hidden;
 }
-
 .dmg-float {
   position: absolute;
   font-size: 19px;
@@ -802,11 +836,7 @@ html, body {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.95);
   animation: floatUp 0.75s ease-out forwards;
 }
-
-.dmg-float.headshot {
-  font-size: 25px;
-}
-
+.dmg-float.headshot { font-size: 25px; }
 @keyframes floatUp {
   0% { opacity: 1; transform: translateY(0) scale(1.15); }
   100% { opacity: 0; transform: translateY(-44px) scale(0.9); }
@@ -827,11 +857,7 @@ html, body {
   opacity: 0;
   transition: all 0.22s ease;
 }
-
-#hud-event-banner.visible {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
+#hud-event-banner.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 #hud-elimination-popup {
   position: absolute;
@@ -847,23 +873,12 @@ html, body {
   opacity: 0;
   transition: opacity 0.2s ease;
 }
-
-#hud-elimination-popup.visible {
-  opacity: 1;
-}
-
-.kill-badge {
-  background: var(--crimson);
-  color: #fff;
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-size: 11px;
-  margin-left: 6px;
-}
+#hud-elimination-popup.visible { opacity: 1; }
+.kill-badge { background: var(--crimson); color: #fff; padding: 2px 7px; border-radius: 4px; font-size: 11px; margin-left: 6px; }
 
 #hud-loot-prompt {
   position: absolute;
-  top: 58%;
+  top: 56%;
   left: 50%;
   transform: translateX(-50%);
   background: rgba(7, 11, 25, 0.94);
@@ -891,19 +906,39 @@ html, body {
   box-shadow: 0 0 28px rgba(245, 158, 11, 0.8);
   animation: pulseBtn 1.1s infinite alternate;
 }
-
 @keyframes pulseBtn {
   from { transform: translateX(-50%) scale(1); }
   to { transform: translateX(-50%) scale(1.06); }
 }
 
-/* BATCH 1: Bottom-Left Apex Legends Angled Segmented Evo Shield & Health Card */
+/* Bottom-Left Squadmates & Player Segmented Evo Shield Card */
+#hud-squadmates-list {
+  position: absolute;
+  bottom: 138px;
+  left: 16px;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ally-hud-row {
+  background: rgba(7, 11, 25, 0.84);
+  border-left: 3px solid #10b981;
+  padding: 5px 9px;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 100%, 0 100%);
+}
+.ally-hud-row.knocked { border-left-color: #f59e0b; }
+.ally-row-top { display: flex; justify-content: space-between; font-size: 9.5px; font-weight: 900; margin-bottom: 3px; }
+.ally-row-top b { color: #34d399; }
+.ally-mini-track { width: 100%; height: 4px; background: rgba(30, 41, 59, 0.95); margin-bottom: 2px; }
+
 .hud-bottom-left {
   position: absolute;
   bottom: 14px;
   left: 16px;
-  width: 265px;
-  background: rgba(7, 11, 25, 0.9);
+  width: 268px;
+  background: rgba(7, 11, 25, 0.92);
   border: 1px solid rgba(251, 191, 36, 0.45);
   border-left: 5px solid var(--gold);
   padding: 10px 14px;
@@ -916,31 +951,10 @@ html, body {
   align-items: center;
   margin-bottom: 6px;
 }
-
-#hud-hero-name {
-  font-size: 16px;
-  font-weight: 900;
-  letter-spacing: 1.2px;
-  color: var(--gold);
-}
-
-#hud-shield-tier {
-  font-size: 10px;
-  font-weight: 900;
-  color: var(--cyan);
-}
-
-.bar-row {
-  margin-bottom: 6px;
-}
-
-.bar-label {
-  display: flex;
-  justify-content: space-between;
-  font-size: 10px;
-  font-weight: 800;
-  margin-bottom: 3px;
-}
+#hud-hero-name { font-size: 16px; font-weight: 900; letter-spacing: 1.2px; color: var(--gold); }
+#hud-shield-tier { font-size: 10px; font-weight: 900; color: var(--cyan); }
+.bar-row { margin-bottom: 6px; }
+.bar-label { display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; margin-bottom: 3px; }
 
 #hud-shield-cells {
   display: flex;
@@ -948,7 +962,6 @@ html, body {
   width: 100%;
   height: 11px;
 }
-
 .shield-cell-segment {
   flex: 1;
   background: rgba(30, 41, 59, 0.95);
@@ -956,13 +969,7 @@ html, body {
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.15);
 }
-
-.shield-cell-fill {
-  height: 100%;
-  width: 100%;
-  background: var(--cyan);
-  transition: width 0.12s ease;
-}
+.shield-cell-fill { height: 100%; width: 100%; background: var(--cyan); transition: width 0.12s ease; }
 
 .bar-track {
   width: 100%;
@@ -971,71 +978,35 @@ html, body {
   transform: skewX(-18deg);
   overflow: hidden;
 }
+#hud-hp-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #10b981, #34d399); transition: width 0.12s ease; }
+#hud-next-evo { font-size: 9.5px; font-weight: 900; color: var(--gold-bright); letter-spacing: 0.8px; text-align: right; margin-top: 2px; }
 
-#hud-hp-fill {
-  height: 100%;
-  width: 100%;
-  background: linear-gradient(90deg, #10b981, #34d399);
-  transition: width 0.12s ease;
-}
-
-#hud-next-evo {
-  font-size: 9.5px;
-  font-weight: 900;
-  color: var(--gold-bright);
-  letter-spacing: 0.8px;
-  text-align: right;
-  margin-top: 2px;
-}
-
-/* Bottom-Center Abilities, Heal & Divine Bomb Bar */
+/* Bottom-Center Abilities, Heal, Divine Bomb & Backpack Bar */
 .hud-bottom-center {
   position: absolute;
   bottom: 14px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 8px;
+  gap: 7px;
   pointer-events: auto;
 }
 
 .hud-ability-slot {
   background: rgba(7, 11, 25, 0.9);
   border: 1.5px solid rgba(148, 163, 184, 0.35);
-  padding: 7px 11px;
+  padding: 7px 10px;
   clip-path: polygon(6px 0, 100% 0, calc(100% - 6px) 100%, 0 100%);
-  min-width: 98px;
+  min-width: 90px;
   text-align: center;
   cursor: pointer;
 }
+.hud-ability-slot.ready { border-color: var(--gold); box-shadow: 0 0 12px rgba(251, 191, 36, 0.35); }
+.slot-key { font-size: 9px; font-weight: 800; color: var(--gold); }
+.slot-title { font-size: 10.5px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 105px; }
+.slot-status { font-size: 11px; font-weight: 900; color: var(--cyan); }
 
-.hud-ability-slot.ready {
-  border-color: var(--gold);
-  box-shadow: 0 0 12px rgba(251, 191, 36, 0.35);
-}
-
-.slot-key {
-  font-size: 9px;
-  font-weight: 800;
-  color: var(--gold);
-}
-
-.slot-title {
-  font-size: 11px;
-  font-weight: 800;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 110px;
-}
-
-.slot-status {
-  font-size: 11px;
-  font-weight: 900;
-  color: var(--cyan);
-}
-
-/* Bottom-Right Dual Divine Weapons Card */
+/* Bottom-Right Dual Divine Weapons Card + 4 Attachment Pips */
 .hud-bottom-right {
   position: absolute;
   bottom: 14px;
@@ -1043,12 +1014,12 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  width: 240px;
+  width: 248px;
   pointer-events: auto;
 }
 
 .weapon-hud-card {
-  background: rgba(7, 11, 25, 0.88);
+  background: rgba(7, 11, 25, 0.9);
   border: 1.5px solid rgba(148, 163, 184, 0.28);
   border-right: 5px solid var(--slot-color, #fbbf24);
   padding: 7px 12px;
@@ -1057,33 +1028,62 @@ html, body {
   opacity: 0.65;
   transition: all 0.15s ease;
 }
-
 .weapon-hud-card.active {
   opacity: 1;
   border-color: var(--slot-color, #fbbf24);
   box-shadow: 0 0 14px rgba(251, 191, 36, 0.28);
   transform: translateX(-5px);
 }
+.wep-card-top { display: flex; justify-content: space-between; font-size: 9px; font-weight: 800; color: var(--gold); }
+.wep-card-name { font-size: 12px; font-weight: 900; color: #fff; margin: 2px 0; }
+.wep-bottom-row { display: flex; justify-content: space-between; align-items: center; }
+.wep-card-ammo { font-size: 14px; font-weight: 900; color: var(--cyan); }
+.wep-att-pips { display: flex; gap: 4px; }
+.att-pip { width: 9px; height: 9px; display: inline-block; transform: skewX(-14deg); border: 1px solid rgba(0,0,0,0.6); }
 
-.wep-card-top {
+/* Inventory & Attachment Inspector Modal [I / Tab] */
+.inv-weapons-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  text-align: left;
+}
+.inv-wep-box {
+  background: rgba(7, 11, 25, 0.9);
+  border: 1.5px solid var(--gold);
+  padding: 10px;
+  border-radius: 6px;
+}
+.inv-wep-header { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); }
+.inv-wep-title { font-size: 13px; font-weight: 900; color: #fff; margin: 4px 0 8px; }
+.inv-att-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.inv-att-chip {
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid #475569;
+  padding: 5px 7px;
+  border-radius: 4px;
   display: flex;
-  justify-content: space-between;
-  font-size: 9px;
-  font-weight: 800;
-  color: var(--gold);
+  flex-direction: column;
+  font-size: 9.5px;
 }
-
-.wep-card-name {
-  font-size: 12px;
-  font-weight: 900;
+.inv-items-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.inv-item-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(7, 11, 25, 0.9);
+  border: 1px solid var(--cyan);
   color: #fff;
-  margin: 2px 0;
-}
-
-.wep-card-ammo {
-  font-size: 14px;
-  font-weight: 900;
-  color: var(--cyan);
+  padding: 8px 10px;
+  border-radius: 6px;
+  text-align: left;
+  font-size: 11px;
+  cursor: pointer;
 }
 
 /* ==========================================================================
@@ -1104,7 +1104,6 @@ html, body {
   height: 170px;
   pointer-events: auto;
 }
-
 #joystick-base {
   position: absolute;
   top: 50%;
@@ -1116,7 +1115,6 @@ html, body {
   background: rgba(15, 23, 42, 0.45);
   border: 2px solid rgba(251, 191, 36, 0.5);
 }
-
 #joystick-knob {
   position: absolute;
   top: 50%;
@@ -1153,133 +1151,24 @@ html, body {
   text-align: center;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
+.touch-btn:active { background: rgba(251, 191, 36, 0.45); transform: scale(0.92); }
 
-.touch-btn:active {
-  background: rgba(251, 191, 36, 0.45);
-  transform: scale(0.92);
-}
+#btn-touch-fire { bottom: 120px; right: 34px; width: 78px; height: 78px; background: radial-gradient(circle, rgba(244, 63, 94, 0.82), rgba(159, 18, 57, 0.88)); border-color: #fde047; font-size: 13px; }
+#btn-touch-fire-left { top: 175px; left: 24px; width: 58px; height: 58px; background: rgba(244, 63, 94, 0.68); border-color: #fde047; }
+#btn-touch-ads { bottom: 210px; right: 32px; width: 54px; height: 54px; border-color: var(--cyan); }
+#btn-touch-jump { bottom: 185px; right: 116px; width: 54px; height: 54px; }
+#btn-touch-slide { bottom: 118px; right: 124px; width: 52px; height: 52px; }
+#btn-touch-reload { bottom: 112px; right: 186px; width: 48px; height: 48px; }
+#btn-touch-tactical { bottom: 248px; right: 102px; width: 52px; height: 52px; border-color: var(--cyan); background: rgba(2, 132, 199, 0.55); }
+#btn-touch-ult { bottom: 256px; right: 168px; width: 56px; height: 56px; border-color: var(--gold-bright); background: rgba(217, 119, 6, 0.65); }
+#btn-touch-grenade { bottom: 180px; right: 182px; width: 48px; height: 48px; border-color: #f97316; }
+#btn-touch-melee { bottom: 180px; right: 238px; width: 46px; height: 46px; border-color: #a855f7; }
+#btn-touch-ping { top: 175px; left: 92px; width: 46px; height: 46px; border-color: #f97316; }
+#btn-touch-inspect { top: 230px; left: 92px; width: 44px; height: 44px; border-color: #fde047; }
+#btn-touch-bag { top: 230px; left: 32px; width: 44px; height: 44px; border-color: #38bdf8; }
+#btn-touch-heal { bottom: 258px; left: 195px; width: 48px; height: 48px; border-color: var(--emerald); }
+#btn-touch-loot { top: 64%; left: 50%; transform: translateX(-50%); width: 175px; height: 44px; border-radius: 22px; background: linear-gradient(135deg, #f59e0b, #d97706); border-color: #fff; font-size: 12px; }
 
-#btn-touch-fire {
-  bottom: 120px;
-  right: 34px;
-  width: 78px;
-  height: 78px;
-  background: radial-gradient(circle, rgba(244, 63, 94, 0.82), rgba(159, 18, 57, 0.88));
-  border-color: #fde047;
-  font-size: 13px;
-}
-
-#btn-touch-fire-left {
-  top: 175px;
-  left: 24px;
-  width: 58px;
-  height: 58px;
-  background: rgba(244, 63, 94, 0.68);
-  border-color: #fde047;
-}
-
-#btn-touch-ads {
-  bottom: 210px;
-  right: 32px;
-  width: 54px;
-  height: 54px;
-  border-color: var(--cyan);
-}
-
-#btn-touch-jump {
-  bottom: 185px;
-  right: 116px;
-  width: 54px;
-  height: 54px;
-}
-
-#btn-touch-slide {
-  bottom: 118px;
-  right: 124px;
-  width: 52px;
-  height: 52px;
-}
-
-#btn-touch-reload {
-  bottom: 112px;
-  right: 186px;
-  width: 48px;
-  height: 48px;
-}
-
-#btn-touch-tactical {
-  bottom: 248px;
-  right: 102px;
-  width: 52px;
-  height: 52px;
-  border-color: var(--cyan);
-  background: rgba(2, 132, 199, 0.55);
-}
-
-#btn-touch-ult {
-  bottom: 256px;
-  right: 168px;
-  width: 56px;
-  height: 56px;
-  border-color: var(--gold-bright);
-  background: rgba(217, 119, 6, 0.65);
-}
-
-#btn-touch-grenade {
-  bottom: 180px;
-  right: 182px;
-  width: 48px;
-  height: 48px;
-  border-color: #f97316;
-}
-
-#btn-touch-melee {
-  bottom: 180px;
-  right: 238px;
-  width: 46px;
-  height: 46px;
-  border-color: #a855f7;
-}
-
-#btn-touch-ping {
-  top: 175px;
-  left: 92px;
-  width: 46px;
-  height: 46px;
-  border-color: #f97316;
-}
-
-#btn-touch-inspect {
-  top: 230px;
-  left: 92px;
-  width: 44px;
-  height: 44px;
-  border-color: #fde047;
-}
-
-#btn-touch-heal {
-  bottom: 258px;
-  left: 195px;
-  width: 48px;
-  height: 48px;
-  border-color: var(--emerald);
-}
-
-#btn-touch-loot {
-  top: 64%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 175px;
-  height: 44px;
-  border-radius: 22px;
-  background: linear-gradient(135deg, #f59e0b, #d97706);
-  border-color: #fff;
-  font-size: 12px;
-}
-
-/* ==========================================================================
-   BATCH 6 & 10: CHAMPION INTRO BROADCAST, SPEED LINES & SPECTATOR OVERLAY
-   ========================================================================== */
 #champion-intro-overlay {
   position: fixed;
   inset: 0;
@@ -1292,7 +1181,6 @@ html, body {
   text-align: center;
   pointer-events: none;
 }
-
 .champ-banner-box {
   border: 2px solid var(--gold);
   background: rgba(15, 23, 42, 0.92);
@@ -1310,10 +1198,7 @@ html, body {
   opacity: 0;
   transition: opacity 0.18s ease;
 }
-
-#speed-lines-overlay.active {
-  opacity: 1;
-}
+#speed-lines-overlay.active { opacity: 1; }
 
 #spectate-bar {
   position: fixed;
@@ -1331,122 +1216,44 @@ html, body {
   pointer-events: auto;
 }
 
-#flashbang-overlay {
-  position: fixed;
-  inset: 0;
-  background: #fef9c3;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.35s ease;
-  z-index: 15;
-}
-
-#storm-vignette {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  box-shadow: inset 0 0 90px rgba(244, 63, 94, 0.75);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: 9;
-}
-
-#storm-vignette.active {
-  opacity: 1;
-}
+#flashbang-overlay { position: fixed; inset: 0; background: #fef9c3; opacity: 0; pointer-events: none; transition: opacity 0.35s ease; z-index: 15; }
+#storm-vignette { position: fixed; inset: 0; pointer-events: none; box-shadow: inset 0 0 90px rgba(244, 63, 94, 0.75); opacity: 0; transition: opacity 0.3s ease; z-index: 9; }
+#storm-vignette.active { opacity: 1; }
 
 .modal-overlay {
   position: fixed;
   inset: 0;
   z-index: 30;
-  background: rgba(7, 11, 25, 0.88);
+  background: rgba(7, 11, 25, 0.86);
   backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: auto;
 }
-
 .modal-box {
   background: rgba(15, 23, 42, 0.96);
   border: 2px solid var(--gold);
   border-radius: 10px;
-  padding: 24px 32px;
-  max-width: 540px;
-  width: 92%;
+  padding: 22px 28px;
+  max-width: 620px;
+  width: 94%;
   text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
   box-shadow: 0 0 40px rgba(251, 191, 36, 0.3);
 }
-
-#match-end-title {
-  font-size: 30px;
-  font-weight: 900;
-  letter-spacing: 2px;
-}
-
-#match-end-subtitle {
-  font-size: 13px;
-  color: var(--text-muted);
-  font-weight: 700;
-}
-
-#match-end-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin: 8px 0;
-}
-
-.end-stat-box {
-  background: rgba(7, 11, 25, 0.85);
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  padding: 10px;
-  border-radius: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.end-stat-box span {
-  font-size: 10px;
-  color: var(--text-muted);
-}
-
-.end-stat-box b {
-  font-size: 16px;
-  color: var(--gold);
-}
+#match-end-title { font-size: 30px; font-weight: 900; letter-spacing: 2px; }
+#match-end-subtitle { font-size: 13px; color: var(--text-muted); font-weight: 700; }
+#match-end-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 8px 0; }
+.end-stat-box { background: rgba(7, 11, 25, 0.85); border: 1px solid rgba(148, 163, 184, 0.25); padding: 10px; border-radius: 6px; display: flex; flex-direction: column; gap: 4px; }
+.end-stat-box span { font-size: 10px; color: var(--text-muted); }
+.end-stat-box b { font-size: 16px; color: var(--gold); }
 
 @media (max-width: 920px) {
-  #tab-legends {
-    flex-direction: column;
-  }
-  .legends-left-col, .legends-right-col {
-    width: 100%;
-  }
-  #hero-roster {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .hud-bottom-left {
-    width: 205px;
-    padding: 6px 8px;
-    bottom: 8px;
-    left: 10px;
-  }
-  .hud-bottom-right {
-    width: 185px;
-    bottom: 8px;
-    right: 10px;
-  }
-  .hud-bottom-center {
-    bottom: 8px;
-    gap: 5px;
-  }
-  .hud-ability-slot {
-    min-width: 74px;
-    padding: 4px 6px;
-  }
+  .stage-squad-tags { gap: 16px; }
+  #tab-legends { flex-direction: column; }
+  .legends-left-col, .legends-right-col { width: 100%; }
+  .inv-weapons-row { grid-template-columns: 1fr; }
 }
