@@ -196,6 +196,14 @@
           <input type="checkbox" id="toggle-aim-assist" checked />
         </div>
         <div class="setting-row">
+          <span>Apex Mobile Smart Auto-Loot & Auto-Open Doors</span>
+          <input type="checkbox" id="toggle-auto-loot" checked />
+        </div>
+        <div class="setting-row">
+          <span>Visual Sound Radar (Footsteps & Gunfire Arcs)</span>
+          <input type="checkbox" id="toggle-sound-radar" checked />
+        </div>
+        <div class="setting-row">
           <span>Mobile Gyroscope Aim (Miringkan HP untuk Aim)</span>
           <input type="checkbox" id="toggle-gyro-aim" />
         </div>
@@ -259,9 +267,13 @@
         <div class="counter-item"><span>DMG</span><b id="hud-damage-count">0</b></div>
         <div class="counter-item"><span>LEADER</span><b id="hud-kill-leader">👑 NONE</b></div>
         <div class="counter-item"><b id="hud-fps" style="color:#10b981">60 FPS</b></div>
+        <button id="btn-hud-quick-settings" class="hud-gear-btn" title="In-Match Settings">⚙️</button>
       </div>
       <div id="kill-feed"></div>
     </div>
+
+    <!-- BATCH 3: Apex Mobile 360° Visual Sound Radar Ring (Footsteps / Gunfire / Grenades) -->
+    <div id="visual-sound-radar"></div>
 
     <!-- Center Crosshair, Holographic ADS Optic & Directional Hit Indicator -->
     <div id="ads-optic-overlay">
@@ -572,6 +584,29 @@
     </div>
   </div>
 
+  <!-- BATCH 1: In-Match Quick Settings Drawer (No need to quit match on HP!) -->
+  <div id="quick-settings-modal" class="modal-overlay hidden" onclick="window.GAME && window.GAME.toggleQuickSettings()">
+    <div class="modal-box" style="max-width:420px;" onclick="event.stopPropagation()">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <h2 style="color:#fbbf24;font-size:16px;letter-spacing:1.2px;">⚙️ QUICK MATCH SETTINGS</h2>
+        <button id="btn-qs-close" class="btn-apex-secondary" style="padding:5px 10px;">✕ RESUME</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;text-align:left;font-size:12px;">
+        <label class="setting-row"><span>Sensitivity</span><input type="range" id="qs-sensitivity" min="0.4" max="2.5" step="0.1" value="1.0" /></label>
+        <label class="setting-row"><span>Touch Button Size</span><input type="range" id="qs-touch-scale" min="0.75" max="1.25" step="0.05" value="1.0" /></label>
+        <label class="setting-row"><span>Mobile Aim Assist</span><input type="checkbox" id="qs-aim-assist" checked /></label>
+        <label class="setting-row"><span>Mobile Auto-Fire</span><input type="checkbox" id="qs-auto-fire" /></label>
+        <label class="setting-row"><span>Auto-Loot & Auto-Doors</span><input type="checkbox" id="qs-auto-loot" checked /></label>
+        <label class="setting-row"><span>Visual Sound Radar</span><input type="checkbox" id="qs-sound-radar" checked /></label>
+        <label class="setting-row"><span>Gyroscope Aim</span><input type="checkbox" id="qs-gyro" /></label>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:12px;justify-content:center;">
+        <button id="btn-qs-fullscreen" class="btn-apex-secondary" style="flex:1;">⛶ FULLSCREEN</button>
+        <button id="btn-qs-lobby" class="btn-apex-play" style="flex:1;background:linear-gradient(135deg,#e11d48,#9f1239);">🏛️ LEAVE MATCH</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Screen Effects -->
   <div id="speed-lines-overlay"></div>
   <div id="flashbang-overlay"></div>
@@ -587,5 +622,12 @@
   <script src="js/combat.js"></script>
   <script src="js/ai.js"></script>
   <script src="js/main.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>

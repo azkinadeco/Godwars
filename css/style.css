@@ -1974,3 +1974,67 @@ body.mobile-mode #hud-range-controls {
   width: 165px;
   padding: 5px 7px;
 }
+
+
+/* =========================================================================
+   NEXT-GEN 10-BATCH MOBILE UX STYLES (GEAR, SOUND RADAR, LOW AMMO, RIPPLE)
+   ========================================================================= */
+.hud-gear-btn {
+  pointer-events: auto;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1.5px solid rgba(251, 191, 36, 0.65);
+  color: #fbbf24;
+  border-radius: 5px;
+  padding: 3px 7px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.hud-gear-btn:active { transform: scale(0.92); }
+
+/* Batch 3: 360° Visual Sound Radar Ring around Crosshair */
+#visual-sound-radar {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 170px;
+  height: 170px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10;
+}
+.radar-arc {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 4px solid transparent;
+  border-top-color: var(--arc-color, #f97316);
+  opacity: 0.85;
+  filter: drop-shadow(0 0 6px var(--arc-color, #f97316));
+}
+.radar-arc-icon {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+}
+
+/* Batch 6 & 7: Smart Heal Pulse & Low-Ammo Warning */
+#crosshair-ammo.low-ammo-pulse {
+  color: #f43f5e !important;
+  animation: lowAmmoPulse 0.55s ease-in-out infinite alternate;
+}
+@keyframes lowAmmoPulse {
+  from { opacity: 0.55; transform: translateX(-50%) scale(0.96); }
+  to   { opacity: 1;    transform: translateX(-50%) scale(1.12); }
+}
+
+#btn-touch-heal.smart-glow {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.85);
+}
+
+/* Batch 9: Golden Touch Ripple on Tap */
+.touch-btn.ripple-active {
+  box-shadow: 0 0 0 6px rgba(251, 191, 36, 0.45), 0 0 18px rgba(251, 191, 36, 0.75) !important;
+}

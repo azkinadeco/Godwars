@@ -25,10 +25,15 @@ class GodWarsGame {
     this.lookSensitivity = 1.0;
     this.mobileAutoFire = false;
     this.mobileAimAssist = true;
+    this.mobileAutoLoot = true;
+    this.visualSoundRadar = true;
     this.mobileGyroEnabled = false;
     this.mobileHaptics = true;
     this.autoSprintLocked = false;
     this.portraitDismissed = false;
+    this.lobbyOrbitYaw = 0;
+    this.lobbyDragActive = false;
+    this.lobbyDragLastX = 0;
     this.gyroLastBeta = null;
     this.gyroLastGamma = null;
     this.touchScale = parseFloat(localStorage.getItem('godwars_touch_scale') || '1.0');
@@ -506,6 +511,73 @@ class GodWarsGame {
       });
     }
 
+    const autoLootToggle = document.getElementById('toggle-auto-loot');
+    if (autoLootToggle) {
+      autoLootToggle.checked = this.mobileAutoLoot;
+      autoLootToggle.addEventListener('change', (e) => {
+        this.mobileAutoLoot = e.target.checked;
+      });
+    }
+
+    const soundRadarToggle = document.getElementById('toggle-sound-radar');
+    if (soundRadarToggle) {
+      soundRadarToggle.checked = this.visualSoundRadar;
+      soundRadarToggle.addEventListener('change', (e) => {
+        this.visualSoundRadar = e.target.checked;
+        const r = document.getElementById('visual-sound-radar');
+        if (r && !this.visualSoundRadar) r.innerHTML = '';
+      });
+    }
+
+    // BATCH 1: In-Match Quick Settings Gear Drawer
+    const qsGearBtn = document.getElementById('btn-hud-quick-settings');
+    if (qsGearBtn) qsGearBtn.addEventListener('click', () => this.toggleQuickSettings());
+    const qsCloseBtn = document.getElementById('btn-qs-close');
+    if (qsCloseBtn) qsCloseBtn.addEventListener('click', () => this.toggleQuickSettings());
+    const qsFsBtn = document.getElementById('btn-qs-fullscreen');
+    if (qsFsBtn) qsFsBtn.addEventListener('click', () => this.requestMobileFullscreenLandscape());
+    const qsLobbyBtn = document.getElementById('btn-qs-lobby');
+    if (qsLobbyBtn) qsLobbyBtn.addEventListener('click', () => {
+      document.getElementById('quick-settings-modal').classList.add('hidden');
+      this.returnToLobby();
+    });
+
+    const bindQs = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+    bindQs('qs-sensitivity', 'input', (e) => { this.lookSensitivity = parseFloat(e.target.value); });
+    bindQs('qs-touch-scale', 'input', (e) => {
+      this.touchScale = parseFloat(e.target.value);
+      document.documentElement.style.setProperty('--touch-scale', String(this.touchScale));
+      try { localStorage.setItem('godwars_touch_scale', String(this.touchScale)); } catch (err) {}
+    });
+    bindQs('qs-aim-assist', 'change', (e) => { this.mobileAimAssist = e.target.checked; });
+    bindQs('qs-auto-fire', 'change', (e) => { this.mobileAutoFire = e.target.checked; });
+    bindQs('qs-auto-loot', 'change', (e) => { this.mobileAutoLoot = e.target.checked; });
+    bindQs('qs-sound-radar', 'change', (e) => {
+      this.visualSoundRadar = e.target.checked;
+      const r = document.getElementById('visual-sound-radar');
+      if (r && !this.visualSoundRadar) r.innerHTML = '';
+    });
+    bindQs('qs-gyro', 'change', (e) => { this.mobileGyroEnabled = e.target.checked; });
+
+    // BATCH 8: Interactive 3D Lobby Hero Touch/Mouse Drag-to-Rotate 360°
+    const lobbyCanvas = document.getElementById('game-canvas');
+    if (lobbyCanvas) {
+      const startOrbit = (x) => { if (!this.matchActive) { this.lobbyDragActive = true; this.lobbyDragLastX = x; } };
+      const moveOrbit = (x) => {
+        if (!this.matchActive && this.lobbyDragActive) {
+          this.lobbyOrbitYaw += (x - this.lobbyDragLastX) * 0.012;
+          this.lobbyDragLastX = x;
+        }
+      };
+      const endOrbit = () => { this.lobbyDragActive = false; };
+      window.addEventListener('mousedown', (e) => startOrbit(e.clientX));
+      window.addEventListener('mousemove', (e) => moveOrbit(e.clientX));
+      window.addEventListener('mouseup', endOrbit);
+      window.addEventListener('touchstart', (e) => { if (!this.matchActive && e.touches.length === 1) startOrbit(e.touches[0].clientX); }, { passive: true });
+      window.addEventListener('touchmove', (e) => { if (!this.matchActive && e.touches.length === 1) moveOrbit(e.touches[0].clientX); }, { passive: true });
+      window.addEventListener('touchend', endOrbit);
+    }
+
     const gyroToggle = document.getElementById('toggle-gyro-aim');
     if (gyroToggle) {
       gyroToggle.checked = this.mobileGyroEnabled;
@@ -859,6 +931,147 @@ class GodWarsGame {
     if (!this.mobileHaptics || !this.forceMobileUI) return;
     if (navigator && typeof navigator.vibrate === 'function') {
       try { navigator.vibrate(ms); } catch (e) {}
+    }
+  }
+
+  toggleQuickSettings() {
+    const modal = document.getElementById('quick-settings-modal');
+    if (!modal) return;
+    const opening = modal.classList.contains('hidden');
+    if (opening) {
+      if (document.exitPointerLock) document.exitPointerLock();
+      const setVal = (id, v, isCheck = false) => { const el = document.getElementById(id); if (el) { if (isCheck) el.checked = v; else el.value = v; } };
+      setVal('qs-sensitivity', this.lookSensitivity);
+      setVal('qs-touch-scale', this.touchScale);
+      setVal('qs-aim-assist', this.mobileAimAssist, true);
+      setVal('qs-auto-fire', this.mobileAutoFire, true);
+      setVal('qs-auto-loot', this.mobileAutoLoot, true);
+      setVal('qs-sound-radar', this.visualSoundRadar, true);
+      setVal('qs-gyro', this.mobileGyroEnabled, true);
+      modal.classList.remove('hidden');
+    } else {
+      modal.classList.add('hidden');
+      if (!this.forceMobileUI) {
+        const canvas = document.getElementById('game-canvas');
+        if (canvas.requestPointerLock) canvas.requestPointerLock();
+      }
+    }
+  }
+
+  // BATCH 2 & 5: Apex Mobile Smart Auto-Loot Pickup & Auto-Open Doors on Approach
+  updateMobileAutoLootAndDoors() {
+    if (!this.mobileAutoLoot || !this.player || !this.player.alive || this.player.knocked || this.player.skydiving) return;
+    const p = this.player;
+
+    // Auto-open nearby closed doors on approach
+    if (this.world && this.world.doors) {
+      for (const door of this.world.doors) {
+        if (!door.open && !door.destroyed) {
+          const dist = Math.hypot(p.position.x - door.x, p.position.z - door.z);
+          if (dist < 2.35 && Math.abs(p.position.y - door.y) < 2.2) {
+            this.toggleDoor(door);
+          }
+        }
+      }
+    }
+
+    // Auto-pickup nearby ground loot (Ammo, Heals, Better Evo Shield, Attachments)
+    if (this.world && this.world.groundLoot) {
+      for (const gl of this.world.groundLoot) {
+        if (gl.picked) continue;
+        const dist = Math.hypot(p.position.x - gl.x, p.position.z - gl.z);
+        if (dist < 2.3 && Math.abs(p.position.y - gl.y) < 1.8) {
+          gl.picked = true;
+          if (gl.mesh) gl.mesh.visible = false;
+          const loot = gl.loot;
+          if (loot.shieldTier > p.shieldTier) {
+            p.shieldTier = loot.shieldTier;
+            p.maxShield = window.GODWARS_DATA.EVO_TIERS[loot.shieldTier].maxShield;
+            p.shield = p.maxShield;
+            window.SFX.playArmorSwap();
+            this.showBanner(`⚡ AUTO-EQUIPPED LV${loot.shieldTier} EVO SHIELD!`, window.GODWARS_DATA.EVO_TIERS[loot.shieldTier].color);
+          } else {
+            p.heals.shield_cell += 2;
+            p.heals.shield_battery += 1;
+            const activeWep = p.weapons[p.activeSlot];
+            if (activeWep) activeWep.reserve += activeWep.maxMag;
+            window.SFX.playReload();
+            this.showBanner('📦 AUTO-LOOT: AMMO & SHIELD CELLS PICKED UP', '#38bdf8');
+          }
+          this.vibrate(14);
+          break;
+        }
+      }
+    }
+  }
+
+  // BATCH 3: Apex Mobile 360° Visual Sound Radar (Footsteps, Gunfire & Grenades)
+  updateVisualSoundRadar() {
+    const radar = document.getElementById('visual-sound-radar');
+    if (!radar || !this.player || !this.player.alive) return;
+    if (!this.visualSoundRadar) {
+      if (radar.innerHTML !== '') radar.innerHTML = '';
+      return;
+    }
+
+    const p = this.player;
+    const arcs = [];
+
+    for (const bot of this.bots) {
+      if (!bot.alive || bot.inDropship || bot.isAlly) continue;
+      const dx = bot.position.x - p.position.x;
+      const dz = bot.position.z - p.position.z;
+      const dist = Math.hypot(dx, dz);
+      const isShooting = bot.fireTimer > 0 && bot.fireTimer < 0.25;
+      if (dist < 26 || (isShooting && dist < 68)) {
+        const angleToBot = Math.atan2(dx, -dz);
+        const relAngle = angleToBot + p.yaw;
+        arcs.push({
+          angle: relAngle,
+          color: isShooting ? '#f43f5e' : '#f97316',
+          icon: isShooting ? '🔫' : '👣'
+        });
+      }
+    }
+
+    if (this.combat && this.combat.grenades) {
+      for (const g of this.combat.grenades) {
+        const dx = g.mesh.position.x - p.position.x;
+        const dz = g.mesh.position.z - p.position.z;
+        if (Math.hypot(dx, dz) < 16) {
+          const relAngle = Math.atan2(dx, -dz) + p.yaw;
+          arcs.push({ angle: relAngle, color: '#fde047', icon: '💥' });
+        }
+      }
+    }
+
+    radar.innerHTML = arcs.slice(0, 5).map(a => `
+      <div class="radar-arc" style="--arc-color:${a.color};transform:rotate(${a.angle}rad)">
+        <span class="radar-arc-icon">${a.icon}</span>
+      </div>
+    `).join('');
+  }
+
+  // BATCH 6: Smart Context Heal Suggestion for Mobile
+  updateSmartHealSuggestion() {
+    const p = this.player;
+    if (!p || !p.alive || p.healingTimer > 0) return;
+    const shieldMissing = p.maxShield - p.shield;
+    const hpMissing = p.maxHp - p.hp;
+    let bestHeal = this.selectedHealId;
+
+    if (shieldMissing >= 50 && hpMissing >= 40 && p.heals.phoenix_kit > 0) bestHeal = 'phoenix_kit';
+    else if (shieldMissing >= 45 && p.heals.shield_battery > 0) bestHeal = 'shield_battery';
+    else if (shieldMissing > 0 && p.heals.shield_cell > 0) bestHeal = 'shield_cell';
+    else if (hpMissing >= 25 && p.heals.medkit > 0) bestHeal = 'medkit';
+
+    if (bestHeal && (p.heals[bestHeal] || 0) > 0) {
+      this.selectedHealId = bestHeal;
+    }
+    const healBtn = document.getElementById('btn-touch-heal');
+    if (healBtn) {
+      const needsHeal = (shieldMissing >= 25 || hpMissing >= 30) && (p.heals[this.selectedHealId] || 0) > 0;
+      healBtn.classList.toggle('smart-glow', needsHeal);
     }
   }
 
@@ -1522,12 +1735,37 @@ class GodWarsGame {
       lookZone.addEventListener('touchcancel', endLook);
     }
 
-    const bindHoldBtn = (id, onDown, onUp) => {
+    const bindHoldBtn = (id, onDown, onUp, onLongPress = null) => {
       const el = document.getElementById(id);
       if (!el) return;
-      el.addEventListener('touchstart', (e) => { e.preventDefault(); window.SFX.init(); onDown(); }, { passive: false });
-      el.addEventListener('touchend', (e) => { e.preventDefault(); if (onUp) onUp(); }, { passive: false });
-      el.addEventListener('mousedown', (e) => { e.preventDefault(); onDown(); });
+      let lpTimer = null;
+      let lpFired = false;
+      const triggerRipple = () => {
+        el.classList.add('ripple-active');
+        setTimeout(() => el.classList.remove('ripple-active'), 180);
+      };
+      el.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        window.SFX.init();
+        triggerRipple();
+        lpFired = false;
+        if (onLongPress) {
+          lpTimer = setTimeout(() => {
+            lpFired = true;
+            this.vibrate(22);
+            onLongPress();
+          }, 360);
+        } else {
+          onDown();
+        }
+      }, { passive: false });
+      el.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        if (lpTimer) { clearTimeout(lpTimer); lpTimer = null; }
+        if (onLongPress && !lpFired) onDown();
+        if (onUp) onUp();
+      }, { passive: false });
+      el.addEventListener('mousedown', (e) => { e.preventDefault(); triggerRipple(); onDown(); });
       el.addEventListener('mouseup', (e) => { e.preventDefault(); if (onUp) onUp(); });
     };
 
@@ -1591,9 +1829,9 @@ class GodWarsGame {
     bindHoldBtn('btn-touch-reload', () => this.startReload());
     bindHoldBtn('btn-touch-tactical', () => this.useTacticalAbility());
     bindHoldBtn('btn-touch-ult', () => this.useUltimateAbility());
-    bindHoldBtn('btn-touch-grenade', () => this.throwEquippedGrenade());
-    bindHoldBtn('btn-touch-heal', () => this.startHealing());
-    bindHoldBtn('btn-touch-ping', () => this.triggerApexPing());
+    bindHoldBtn('btn-touch-grenade', () => this.throwEquippedGrenade(), null, () => this.toggleOrdnanceWheel());
+    bindHoldBtn('btn-touch-heal', () => this.startHealing(), null, () => this.toggleHealWheel());
+    bindHoldBtn('btn-touch-ping', () => this.triggerApexPing(), null, () => this.togglePingWheel());
     bindHoldBtn('btn-touch-melee', () => this.triggerQuickMelee());
     bindHoldBtn('btn-touch-inspect', () => this.triggerWeaponInspect());
     bindHoldBtn('btn-touch-holster', () => this.toggleHolsterWeapon());
@@ -2273,7 +2511,12 @@ class GodWarsGame {
   }
 
   selectWeaponSlot(slotIdx) {
-    if (!this.player || this.player.activeSlot === slotIdx) return;
+    if (!this.player) return;
+    // BATCH 7: Tapping already-active weapon card on HP toggles Fire Mode (AUTO / BURST / SINGLE)!
+    if (this.player.activeSlot === slotIdx) {
+      this.toggleFireMode();
+      return;
+    }
     this.player.activeSlot = slotIdx;
     this.player.isADS = false;
     this.player.inspectTimer = 0;
@@ -2519,6 +2762,10 @@ class GodWarsGame {
       const fps = Math.round(this.fpsFrames / this.fpsTimer);
       const fpsEl = document.getElementById('hud-fps');
       if (fpsEl) fpsEl.textContent = `${fps} FPS`;
+      // BATCH 9: Dynamic Mobile Resolution Guard for consistent 60 FPS in heavy firefights
+      if (this.forceMobileUI && this.matchActive && fps < 32 && this.renderer && this.renderer.getPixelRatio() > 0.85) {
+        this.renderer.setPixelRatio(0.85);
+      }
       this.fpsFrames = 0;
       this.fpsTimer = 0;
     }
@@ -2536,7 +2783,7 @@ class GodWarsGame {
       if (this.lobbyScene && this.lobbyCamera) {
         if (this.lobbyStargate) this.lobbyStargate.rotation.z += dt * 0.45;
         if (this.lobbyPedestals && this.lobbyPedestals[0]) {
-          this.lobbyPedestals[0].charMount.rotation.y = Math.sin(now * 0.0008) * 0.35;
+          this.lobbyPedestals[0].charMount.rotation.y = this.lobbyOrbitYaw + Math.sin(now * 0.0008) * 0.25;
         }
         this.renderer.render(this.lobbyScene, this.lobbyCamera);
       }
@@ -3408,6 +3655,16 @@ class GodWarsGame {
 
     const activeWep = p.weapons[p.activeSlot];
     setTxt('crosshair-ammo', activeWep.reloading ? 'RLD' : `${activeWep.mag}`);
+    const chAmmoEl = document.getElementById('crosshair-ammo');
+    if (chAmmoEl) {
+      const lowAmmo = !activeWep.reloading && activeWep.mag <= Math.ceil((activeWep.maxMag || 30) * 0.25);
+      chAmmoEl.classList.toggle('low-ammo-pulse', lowAmmo);
+    }
+
+    // BATCH 2, 3, 5, 6: Mobile Auto-Loot, Auto-Doors, Visual Sound Radar & Smart Heal
+    this.updateMobileAutoLootAndDoors();
+    this.updateVisualSoundRadar();
+    this.updateSmartHealSuggestion();
 
     // BATCH 7: Live Firing Range Accuracy & Headshot Stat Update
     if (this.isFiringRange) {
