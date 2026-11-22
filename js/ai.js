@@ -87,14 +87,29 @@ class AIContender {
     if (!this.alive) return;
 
     if (this.isDummy) {
-      if (this.id % 2 === 1) {
-        this.position.x = this.dropTarget.x + Math.sin(elapsedMatchTime * 1.8 + this.id) * 6.5;
+      const rs = this.game.rangeSettings || { movingDummies: true, combatDummies: false };
+      if (rs.movingDummies) {
+        const amp = this.id % 2 === 1 ? 7.5 : 4.5;
+        const spd = this.id % 2 === 1 ? 2.1 : 1.4;
+        this.position.x = this.dropTarget.x + Math.sin(elapsedMatchTime * spd + this.id) * amp;
       }
       this.position.y = this.game.world.getGroundHeight(this.position.x, this.position.z, this.position.y);
       this.mesh.position.copy(this.position);
-      if (this.game.player) {
+      if (this.game.player && this.game.player.alive) {
         const toP = this.game.player.position.clone().sub(this.position);
         this.mesh.rotation.y = Math.atan2(toP.x, toP.z);
+        if (rs.combatDummies && toP.length() < 42) {
+          this.fireTimer -= dt;
+          if (this.fireTimer <= 0) {
+            this.fireTimer = 0.85 + Math.random() * 0.45;
+            const origin = this.position.clone().add(new THREE.Vector3(0, 1.5, 0));
+            const dir = this.game.player.position.clone().add(new THREE.Vector3(0, 1.2, 0)).sub(origin).normalize();
+            dir.x += (Math.random() - 0.5) * 0.14;
+            dir.y += (Math.random() - 0.5) * 0.12;
+            dir.z += (Math.random() - 0.5) * 0.14;
+            this.game.combat.fireWeapon(this, origin, dir.normalize(), this.weaponId, false);
+          }
+        }
       }
       return;
     }

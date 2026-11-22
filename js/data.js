@@ -554,5 +554,95 @@ window.GODWARS_DATA = {
     'ARES_WarGod', 'ATHENA_Aegis', 'APOLLO_Sun', 'ARTEMIS_Hunt',
     'FENRIR_Alpha', 'TYR_Justice', 'HERMES_Swift', 'NEMESIS_Veng',
     'ANUBIS_Soul', 'SURTR_Flame', 'SKADI_Frost'
-  ]
+  ],
+
+  // BATCH 1: Apex 4-Way Tactical Ping Types & Squadmate Replies
+  PING_TYPES: {
+    enemy:  { id: 'enemy',  label: 'ENEMY SPOTTED',  icon: '⚠️', color: '#f43f5e', allyReply: 'Copy that! Engaging hostile!' },
+    go:     { id: 'go',     label: 'MOVING HERE',    icon: '📍', color: '#38bdf8', allyReply: 'Roger, rotating to your ping!' },
+    defend: { id: 'defend', label: 'DEFENDING AREA', icon: '🛡️', color: '#10b981', allyReply: 'Holding this perimeter with you!' },
+    loot:   { id: 'loot',   label: 'LOOT OVER HERE', icon: '📦', color: '#fbbf24', allyReply: 'Dibs! On my way for that gear!' }
+  },
+
+  // BATCH 2: Apex Legend Upgrade Perks (Evo Lv2 Blue & Lv3 Purple)
+  LEGEND_PERKS: {
+    loki: {
+      2: [
+        { id: 'loki_cloak', name: 'SHADOW STEP', desc: '+2.5s Phase Cloak duration on Tactical', effect: { cloakBonus: 2.5 } },
+        { id: 'loki_cd',    name: 'TRICKSTER COOLDOWN', desc: '-25% Tactical Cooldown', effect: { tacCdMult: 0.75 } }
+      ],
+      3: [
+        { id: 'loki_speed', name: 'PHANTOM SPRINT', desc: '+12% Base Movement Speed', effect: { speedBonus: 0.12 } },
+        { id: 'loki_ult',   name: 'ILLUSION MASTER', desc: '+35% Faster Ultimate Charge', effect: { ultChargeBonus: 0.35 } }
+      ]
+    },
+    thor: {
+      2: [
+        { id: 'thor_cd',    name: 'STORMCALLER', desc: '-25% Mjölnir Arc Bolt Cooldown', effect: { tacCdMult: 0.75 } },
+        { id: 'thor_slide', name: 'THUNDER SLIDE', desc: '+22% Slide Boost Velocity', effect: { slideBoostBonus: 0.22 } }
+      ],
+      3: [
+        { id: 'thor_siphon', name: 'ALLFATHER AEGIS', desc: 'Restore +30 Evo Shield on Knock/Kill', effect: { shieldOnKill: 30 } },
+        { id: 'thor_dmg',    name: 'OVERCHARGED RUNES', desc: '+10% Weapon Damage vs Shields', effect: { dmgMult: 1.10 } }
+      ]
+    },
+    hades: {
+      2: [
+        { id: 'hades_cd',   name: 'SOUL HARVEST', desc: '-25% Stygian Wave Cooldown', effect: { tacCdMult: 0.75 } },
+        { id: 'hades_siph', name: 'UNDERWORLD LEECH', desc: 'Restore +35 Shield on Kill', effect: { shieldOnKill: 35 } }
+      ],
+      3: [
+        { id: 'hades_ult',  name: 'ABYSSAL SURGE', desc: '+35% Faster Ultimate Charge', effect: { ultChargeBonus: 0.35 } },
+        { id: 'hades_spd',  name: 'WRAITH STRIDE', desc: '+12% Movement Speed', effect: { speedBonus: 0.12 } }
+      ]
+    },
+    zeus: {
+      2: [
+        { id: 'zeus_cd',    name: 'AEGIS FORTIFY', desc: '-25% Thunder Wall Cooldown', effect: { tacCdMult: 0.75 } },
+        { id: 'zeus_dmg',   name: 'OLYMPUS BOLT', desc: '+10% Weapon Damage', effect: { dmgMult: 1.10 } }
+      ],
+      3: [
+        { id: 'zeus_ult',   name: 'SKY KING WRATH', desc: '+35% Faster Orbital Storm Charge', effect: { ultChargeBonus: 0.35 } },
+        { id: 'zeus_siph',  name: 'DIVINE RECHARGE', desc: 'Restore +30 Shield on Kill', effect: { shieldOnKill: 30 } }
+      ]
+    },
+    hela: {
+      2: [
+        { id: 'hela_cd',    name: 'BLADE STORM', desc: '-25% Necrosword Volley Cooldown', effect: { tacCdMult: 0.75 } },
+        { id: 'hela_dmg',   name: 'EXECUTIONER', desc: '+10% Weapon Damage', effect: { dmgMult: 1.10 } }
+      ],
+      3: [
+        { id: 'hela_siph',  name: 'HELHEIM FEAST', desc: 'Restore +40 Shield on Kill', effect: { shieldOnKill: 40 } },
+        { id: 'hela_spd',   name: 'DEATH WALK', desc: '+12% Movement Speed', effect: { speedBonus: 0.12 } }
+      ]
+    },
+    valkyrie: {
+      2: [
+        { id: 'valk_fuel',  name: 'AFTERBURNER', desc: '+45% Faster Jetpack Fuel Regen', effect: { jetpackFuelBonus: 0.45 } },
+        { id: 'valk_cd',    name: 'SPEAR SALVO', desc: '-25% Celestial Swarm Cooldown', effect: { tacCdMult: 0.75 } }
+      ],
+      3: [
+        { id: 'valk_slide', name: 'AERODYNAMIC GLIDE', desc: '+22% Slide Boost Velocity', effect: { slideBoostBonus: 0.22 } },
+        { id: 'valk_ult',   name: 'SKYWARD READY', desc: '+35% Faster Ultimate Charge', effect: { ultChargeBonus: 0.35 } }
+      ]
+    }
+  },
+
+  // BATCH 8: God Holo-Sprays & Quips
+  HOLO_SPRAYS: {
+    loki:     { icon: '🐍', text: 'BOW TO THE GOD OF MISCHIEF', color: '#10b981', quip: '"You were shooting my decoy the whole time!"' },
+    thor:     { icon: '⚡', text: 'WORTHY OF MJÖLNIR',          color: '#38bdf8', quip: '"Bring me another challenger!"' },
+    hades:    { icon: '💀', text: 'YOUR SOUL IS MINE',          color: '#a855f7', quip: '"The Underworld claims all champions."' },
+    zeus:     { icon: '🌩️', text: 'KNEEL BEFORE OLYMPUS',       color: '#facc15', quip: '"Witness the true thunder of the skies!"' },
+    hela:     { icon: '⚔️', text: 'KNEEL TO THE QUEEN OF HEL',  color: '#14b8a6', quip: '"Asgard falls before my blades."' },
+    valkyrie: { icon: '🪽', text: 'THE SKIES BELONG TO ME',     color: '#f97316', quip: '"Fox-3 away. Clear skies ahead!"' }
+  },
+
+  // BATCH 10: Lobby Armory Weapon Skins (applied to 3D viewmodel & lobby!)
+  WEAPON_SKINS: {
+    divine_default: { id: 'divine_default', name: 'ASGARD DEFAULT',   color: '#fbbf24', hex: null,     emissive: null },
+    molten_ragnarok:{ id: 'molten_ragnarok',name: 'MOLTEN RAGNAROK',  color: '#f97316', hex: 0x7c2d12, emissive: 0xf97316 },
+    frost_jotunheim:{ id: 'frost_jotunheim',name: 'FROST JOTUNHEIM',  color: '#38bdf8', hex: 0x0c4a6e, emissive: 0x38bdf8 },
+    royal_gold:     { id: 'royal_gold',     name: 'ALLFATHER GOLD',   color: '#fde047', hex: 0xd97706, emissive: 0xfde047 }
+  }
 };

@@ -275,9 +275,17 @@ class CombatManager {
     const startTracer = origin.clone().addScaledVector(dir, 0.7);
     startTracer.y -= 0.08;
     this.spawnTracer(startTracer, hitPoint, isMythicGold ? 0xfde047 : weaponData.hexColor);
+    if (shooter && shooter.isPlayer) {
+      shooter.shotsFired = (shooter.shotsFired || 0) + 1;
+    }
 
     if (hitTarget) {
+      if (shooter && shooter.isPlayer) {
+        shooter.shotsHit = (shooter.shotsHit || 0) + 1;
+        if (isHeadshot) shooter.headshotsLanded = (shooter.headshotsLanded || 0) + 1;
+      }
       let dmg = weaponData.damage * (isMythicGold ? 1.2 : 1.0) * hopupMult;
+      if (shooter.perks && shooter.perks.dmgMult) dmg *= shooter.perks.dmgMult;
       if (isHeadshot) dmg = Math.round(dmg * weaponData.headshotMult);
 
       if (shooter.heroId === 'zeus' && hitTarget.shield > 0) {
@@ -306,6 +314,26 @@ class CombatManager {
         isHeadshot,
         hitPoint
       );
+    } else if (bestDist < weaponData.range - 1) {
+      // BATCH 4: Metallic 3D Impact Sparks on Asgard stone/metal surfaces
+      this.spawnImpactSparks(hitPoint, isMythicGold ? 0xfde047 : 0xfbbf24, 5);
+    }
+  }
+
+  spawnImpactSparks(pos, colorHex = 0xfbbf24, count = 6) {
+    for (let i = 0; i < count; i++) {
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(0.08, 0.08, 0.22),
+        new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.95 })
+      );
+      m.position.copy(pos);
+      const vel = new THREE.Vector3(
+        (Math.random() - 0.5) * 9,
+        2 + Math.random() * 6,
+        (Math.random() - 0.5) * 9
+      );
+      this.scene.add(m);
+      this.vfxList.push({ type: 'spark', mesh: m, vel, age: 0, maxAge: 0.32 });
     }
   }
 
@@ -394,7 +422,13 @@ class CombatManager {
 
     if (attacker && attacker !== victim) {
       attacker.damageDealt = (attacker.damageDealt || 0) + amount;
-      attacker.ultCharge = Math.min(100, (attacker.ultCharge || 0) + amount * 0.25);
+      const ultBonus = 1 + ((attacker.perks && attacker.perks.ultChargeBonus) || 0);
+      attacker.ultCharge = Math.min(100, (attacker.ultCharge || 0) + amount * 0.25 * ultBonus);
+      victim.lastDamageSource = {
+        attackerName: attacker.name || 'ASGARD CONTENDER',
+        weaponName: sourceName || 'DIVINE WEAPON',
+        amount
+      };
 
       const tiers = window.GODWARS_DATA.EVO_TIERS;
       for (let tLvl = 5; tLvl >= 2; tLvl--) {
@@ -406,10 +440,18 @@ class CombatManager {
           if (attacker.isPlayer) {
             window.SFX.playEvoUpgrade();
             this.game.showBanner(`EVO SHIELD UPGRADED: ${tiers[tLvl].name} (${attacker.maxShield})`, tiers[tLvl].color);
+            if (tLvl === 2 || tLvl === 3) {
+              this.game.offerLegendPerkUpgrade(tLvl);
+            }
           }
           break;
         }
       }
+    }
+
+    if (shieldBroken) {
+      const tierHex = (window.GODWARS_DATA.EVO_TIERS[victim.shieldTier] || { hex: 0x38bdf8 }).hex;
+      this.spawnImpactSparks(hitWorldPos || victim.position.clone().add(new THREE.Vector3(0, 1.3, 0)), tierHex, 10);
     }
 
     if (attacker && attacker.isPlayer) {
@@ -506,6 +548,10 @@ class CombatManager {
         killer.shield = Math.min(killer.maxShield, killer.shield + 45);
         killer.hp = Math.min(killer.maxHp, killer.hp + 30);
         if (killer.isPlayer) this.game.showBanner('SOUL SIPHON: +45 SHIELD / +30 HP', '#a855f7');
+      }
+      if (killer.perks && killer.perks.shieldOnKill) {
+        killer.shield = Math.min(killer.maxShield, killer.shield + killer.perks.shieldOnKill);
+        if (killer.isPlayer) this.game.showBanner(`PERK SIPHON: +${killer.perks.shieldOnKill} EVO SHIELD!`, '#38bdf8');
       }
 
       if (killer.isPlayer) {
@@ -900,14 +946,37 @@ class CombatManager {
       const g = this.grenades[i];
       g.fuse -= dt;
 
-      if (!g.stuck) {
+      if (g.stuck && g.stuckTarget && g.stuckTarget.alive) {
+        g.mesh.position.set(g.stuckTarget.position.x, g.stuckTarget.position.y + 1.25, g.stuckTarget.position.z);
+        g.mesh.rotation.y += 14 * dt;
+      } else if (!g.stuck) {
         g.velocity.y -= 22 * dt;
         g.mesh.position.addScaledVector(g.velocity, dt);
         g.mesh.rotation.x += 8 * dt;
         g.mesh.rotation.y += 6 * dt;
 
+        // BATCH 5: Authentic Apex Arc Star Stick Mechanic!
+        if (g.data.id === 'yggdrasil_arc') {
+          const targets = [...this.game.bots];
+          if (this.game.player && this.game.player.alive) targets.push(this.game.player);
+          for (const t of targets) {
+            if (!t.alive || !this.isEnemy(g.thrower, t)) continue;
+            const tCenter = new THREE.Vector3(t.position.x, t.position.y + 1.2, t.position.z);
+            if (g.mesh.position.distanceTo(tCenter) <= 1.45) {
+              g.stuck = true;
+              g.stuckTarget = t;
+              window.SFX.playArcStarStick();
+              this.applyDamage(g.thrower, t, 30, 'Yggdrasil Arc Star (STUCK)', false, tCenter);
+              if (g.thrower && g.thrower.isPlayer) {
+                this.game.showBanner(`⚡ ARC STAR STUCK ON ${t.name}! (+30)`, '#38bdf8');
+              }
+              break;
+            }
+          }
+        }
+
         const groundY = this.game.world.getGroundHeight(g.mesh.position.x, g.mesh.position.z, g.mesh.position.y);
-        if (g.mesh.position.y <= groundY + 0.22) {
+        if (!g.stuck && g.mesh.position.y <= groundY + 0.22) {
           g.mesh.position.y = groundY + 0.22;
           if (g.data.id === 'yggdrasil_arc') {
             g.stuck = true;
@@ -942,6 +1011,21 @@ class CombatManager {
         }
       } else if (v.type === 'bolt') {
         v.mesh.material.opacity = Math.max(0, 1 - t);
+        if (v.age >= v.maxAge) {
+          this.scene.remove(v.mesh);
+          this.vfxList.splice(i, 1);
+        }
+      } else if (v.type === 'spark') {
+        v.vel.y -= 18 * dt;
+        v.mesh.position.addScaledVector(v.vel, dt);
+        v.mesh.material.opacity = Math.max(0, 1 - t);
+        if (v.age >= v.maxAge) {
+          this.scene.remove(v.mesh);
+          this.vfxList.splice(i, 1);
+        }
+      } else if (v.type === 'holospray') {
+        v.mesh.rotation.y += 1.4 * dt;
+        v.mesh.position.y = v.baseY + Math.sin(v.age * 3.0) * 0.14;
         if (v.age >= v.maxAge) {
           this.scene.remove(v.mesh);
           this.vfxList.splice(i, 1);

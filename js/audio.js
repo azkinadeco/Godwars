@@ -421,6 +421,100 @@ class SoundEngine {
     osc.start(now);
     osc.stop(now + 0.4);
   }
+
+  // BATCH 9: Apex Legends Crisp Combat & Movement SFX
+  playArmorSwap() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    [440, 880, 1320].forEach((f, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, now + i * 0.035);
+      gain.gain.setValueAtTime(this.masterVolume * 0.45, now + i * 0.035);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.035 + 0.09);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now + i * 0.035);
+      osc.stop(now + i * 0.035 + 0.1);
+    });
+  }
+
+  playWallBounce() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(68, now + 0.12);
+    gain.gain.setValueAtTime(this.masterVolume * 0.55, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.14);
+  }
+
+  playHoloSpray() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    [587.33, 880, 1174.66, 1760].forEach((f, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, now + i * 0.045);
+      gain.gain.setValueAtTime(this.masterVolume * 0.35, now + i * 0.045);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.045 + 0.25);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now + i * 0.045);
+      osc.stop(now + i * 0.045 + 0.26);
+    });
+  }
+
+  playPerkUnlock() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    [440, 554.37, 659.25, 880, 1108.73].forEach((f, i) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(f, now + i * 0.055);
+      gain.gain.setValueAtTime(this.masterVolume * 0.48, now + i * 0.055);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.055 + 0.28);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now + i * 0.055);
+      osc.stop(now + i * 0.055 + 0.3);
+    });
+  }
+
+  playArcStarStick() {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(1600, now);
+    osc.frequency.exponentialRampToValueAtTime(2800, now + 0.16);
+    gain.gain.setValueAtTime(this.masterVolume * 0.55, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.19);
+  }
 }
 
 window.SFX = new SoundEngine();

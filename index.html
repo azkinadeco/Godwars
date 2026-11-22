@@ -132,8 +132,12 @@
       </div>
     </div>
 
-    <!-- TAB 3: DIVINE ARMORY (P90, KRISS, M4A1, UZI, AK47, MAGNUM + 3 GOD BOMBS) -->
+    <!-- TAB 3: DIVINE ARMORY (P90, KRISS, M4A1, UZI, AK47, MAGNUM + 3 GOD BOMBS + WEAPON SKINS) -->
     <div id="tab-armory" class="lobby-tab-panel">
+      <div>
+        <div class="section-label">DIVINE WEAPON FINISH / SKIN (APPLIES TO 3D VIEWMODEL & LOBBY)</div>
+        <div id="armory-skin-row" class="skin-selector-row"></div>
+      </div>
       <div>
         <div class="section-label">DIVINE FIREARMS (4 ATTACHMENT SLOTS: BARREL, EXTENDED MAG, OPTIC, HOP-UP)</div>
         <div id="armory-weapon-grid"></div>
@@ -190,6 +194,10 @@
         <div class="setting-row">
           <span>Touch / Mouse Look Sensitivity</span>
           <input type="range" id="slider-sensitivity" min="0.4" max="2.5" step="0.1" value="1.0" />
+        </div>
+        <div class="setting-row">
+          <span>Field of View (Apex FOV: <b id="fov-value-label" style="color:#fbbf24">84°</b>)</span>
+          <input type="range" id="slider-fov" min="75" max="110" step="1" value="84" />
         </div>
         <div class="setting-row">
           <span>Graphics Preset (Anti-Lag Mobile / Ultra Shader)</span>
@@ -276,8 +284,27 @@
     <!-- Floating Apex Damage Numbers Layer -->
     <div id="damage-numbers-layer"></div>
 
-    <!-- Announcements, Kill Popup, Context Prompt & Dropship Launch Button -->
+    <!-- Announcements, Kill Popup, Squadmate Callout, Perk Upgrade & Skydive Telemetry -->
     <div id="hud-event-banner">WELCOME TO ASGARD</div>
+    <div id="hud-ally-callout" class="hidden"></div>
+    <div id="hud-perk-upgrade-bar" class="hidden">
+      <div class="perk-header">⚡ EVO LEVEL UP! CHOOSE LEGEND UPGRADE PERK ([7] / [8] OR TAP)</div>
+      <div id="perk-choices-row" class="perk-choices-row"></div>
+    </div>
+    <div id="hud-skydive-telemetry" class="hidden">
+      <div class="sky-gauge left"><span>ALT</span><b id="sky-alt-val">160m</b></div>
+      <div class="sky-center-hint">⚡ JUMPMASTER FORMATION • [SPACE / TAP] SKYDIVE EMOTE</div>
+      <div class="sky-gauge right"><span>SPD</span><b id="sky-spd-val">142 km/h</b></div>
+    </div>
+    <div id="hud-range-controls" class="hidden">
+      <div class="range-title">🎯 ASGARD FIRING RANGE</div>
+      <div class="range-btns">
+        <button id="btn-range-strafe" class="range-btn active">🏃 STRAFE: ON</button>
+        <button id="btn-range-combat" class="range-btn">🔥 COMBAT: OFF</button>
+        <button id="btn-range-reset" class="range-btn">🔄 RESET BOTS</button>
+      </div>
+      <div id="range-accuracy-stat" class="range-stat">ACC: 0% • HEADSHOTS: 0</div>
+    </div>
     <div id="hud-elimination-popup"></div>
     <div id="hud-loot-prompt" class="hidden"></div>
     <button id="btn-dropship-launch" class="hidden">⚡ LAUNCH TO ASGARD [SPACE / TAP]</button>
@@ -383,6 +410,7 @@
       <button id="btn-touch-ping" class="touch-btn">📍<br/>PING</button>
       <button id="btn-touch-inspect" class="touch-btn">✨<br/>INSP</button>
       <button id="btn-touch-holster" class="touch-btn">🏃<br/>RUN</button>
+      <button id="btn-touch-emote" class="touch-btn">🎭<br/>HOLO</button>
       <button id="btn-touch-bag" class="touch-btn">🎒<br/>BAG</button>
       <button id="btn-touch-heal" class="touch-btn">🛡️<br/>HEAL</button>
       <button id="btn-touch-loot" class="touch-btn hidden">📦 OPEN / LOOT</button>
@@ -477,12 +505,35 @@
     </div>
   </div>
 
-  <!-- Match End / Victory Champion Modal -->
+  <!-- Apex 4-Way Tactical Ping Wheel [Hold/Tap Ping Wheel] -->
+  <div id="ping-wheel-modal" class="modal-overlay hidden" onclick="window.GAME && window.GAME.togglePingWheel()">
+    <div class="radial-wheel-container" onclick="event.stopPropagation()">
+      <div class="radial-center-badge">TACTICAL PING<br/><span>CHOOSE CALLOUT</span></div>
+      <button class="radial-ping-btn pos-top" data-ping="enemy" style="--r-color:#f43f5e"><span>⚠️ ENEMY SPOTTED</span><b>HOSTILE</b></button>
+      <button class="radial-ping-btn pos-right" data-ping="go" style="--r-color:#38bdf8"><span>📍 MOVING HERE</span><b>ROTATE</b></button>
+      <button class="radial-ping-btn pos-bottom" data-ping="defend" style="--r-color:#10b981"><span>🛡️ DEFENDING</span><b>HOLD</b></button>
+      <button class="radial-ping-btn pos-left" data-ping="loot" style="--r-color:#fbbf24"><span>📦 LOOT HERE</span><b>GEAR</b></button>
+    </div>
+  </div>
+
+  <!-- Apex 3-Slot Divine Ordnance Wheel [X / Tap Bomb Box] -->
+  <div id="ordnance-wheel-modal" class="modal-overlay hidden" onclick="window.GAME && window.GAME.toggleOrdnanceWheel()">
+    <div class="radial-wheel-container" onclick="event.stopPropagation()">
+      <div class="radial-center-badge">DIVINE BOMBS<br/><span>SELECT ORDNANCE</span></div>
+      <button class="radial-ord-btn pos-top" data-ord="solar_bomb" style="--r-color:#f97316"><span>☀️ SOLAR BOMB</span><b>HIGH DMG</b></button>
+      <button class="radial-ord-btn pos-right" data-ord="yggdrasil_arc" style="--r-color:#38bdf8"><span>✦ ARC STAR</span><b>STICKY EMP</b></button>
+      <button class="radial-ord-btn pos-left" data-ord="apollo_flash" style="--r-color:#fde047"><span>⚡ FLASHBANG</span><b>BLIND 4s</b></button>
+    </div>
+  </div>
+
+  <!-- Match End / Victory Champion Modal + Apex Death Recap & Match XP -->
   <div id="match-end-modal" class="modal-overlay hidden">
     <div class="modal-box">
       <div id="match-end-title">CHAMPION OF ASGARD</div>
       <div id="match-end-subtitle">YOUR SQUAD CONQUERED THE GOD WARS BATTLE ROYALE</div>
+      <div id="match-death-recap" class="death-recap-card hidden"></div>
       <div id="match-end-stats"></div>
+      <div id="match-xp-progress" class="match-xp-box"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:8px;">
         <button id="btn-play-again" class="btn-apex-play">⚡ PLAY AGAIN</button>
         <button id="btn-spectate-match" class="btn-apex-secondary">👁️ SPECTATE MATCH</button>
