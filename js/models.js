@@ -10,6 +10,58 @@
 
 window.ModelFactory = {
   _texCache: {},
+  _glbCache: {},
+  _glbLoading: {},
+  _loader: null,
+
+  initGLBPreload() {
+    if (typeof THREE === 'undefined' || !THREE.GLTFLoader) return;
+    if (!this._loader) this._loader = new THREE.GLTFLoader();
+
+    const assetList = [
+      'weapon_p90', 'weapon_kriss', 'weapon_m4a1', 'weapon_uzi', 'weapon_ak47', 'weapon_magnum',
+      'hero_loki', 'hero_thor', 'hero_hades', 'hero_zeus', 'hero_hela', 'hero_valkyrie',
+      'prop_dropship', 'prop_carepackage', 'prop_supplybin', 'prop_replicator'
+    ];
+
+    assetList.forEach(name => {
+      if (this._glbCache[name] || this._glbLoading[name]) return;
+      this._glbLoading[name] = [];
+      this._loader.load(
+        `assets/models/${name}.glb`,
+        (gltf) => {
+          this._glbCache[name] = gltf.scene;
+          const callbacks = this._glbLoading[name] || [];
+          delete this._glbLoading[name];
+          callbacks.forEach(cb => cb(gltf.scene.clone(true)));
+        },
+        undefined,
+        () => {
+          delete this._glbLoading[name];
+        }
+      );
+    });
+  },
+
+  attachBlenderGLB(assetName, targetGroup, onLoadedTransform = null) {
+    if (typeof THREE === 'undefined' || !THREE.GLTFLoader) return false;
+    this.initGLBPreload();
+
+    const applyClone = (clonedScene) => {
+      if (onLoadedTransform) onLoadedTransform(clonedScene);
+      targetGroup.add(clonedScene);
+    };
+
+    if (this._glbCache[assetName]) {
+      applyClone(this._glbCache[assetName].clone(true));
+      return true;
+    }
+    if (this._glbLoading[assetName]) {
+      this._glbLoading[assetName].push(applyClone);
+      return false;
+    }
+    return false;
+  },
 
   getRuneTexture(hexColor = '#fbbf24', bgHex = '#111827') {
     const key = `${hexColor}_${bgHex}`;
@@ -312,6 +364,11 @@ window.ModelFactory = {
     sightGroup.add(sightBase, sightFrame, reticleDot);
     group.add(sightGroup);
 
+    // Attach High-Detail Beveled Blender 3.6 GLB Mesh (assets/models/weapon_<id>.glb)
+    this.attachBlenderGLB(`weapon_${weaponId}`, group, (glbScene) => {
+      glbScene.scale.set(1.02, 1.02, 1.02);
+    });
+
     // First-person God Gauntlet / Hands + Hidden Heirloom Melee Mesh
     if (isFirstPerson) {
       const armMat = new THREE.MeshStandardMaterial({ color: hData.hexColor, metalness: 0.75, roughness: 0.25 });
@@ -528,6 +585,9 @@ window.ModelFactory = {
     gun.position.set(0.46, 1.12, 0.38);
     root.add(gun);
 
+    // Attach High-Detail Beveled Blender 3.6 GLB Hero Armor Overlay (assets/models/hero_<id>.glb)
+    this.attachBlenderGLB(`hero_${heroId}`, root);
+
     return root;
   },
 
@@ -552,6 +612,8 @@ window.ModelFactory = {
       strip.rotation.y = a;
       group.add(strip);
     }
+
+    this.attachBlenderGLB('prop_carepackage', group);
 
     // Sky-Piercing Beacon Beam
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 120, 12, 1, true), redGlow);
@@ -582,6 +644,7 @@ window.ModelFactory = {
     engineR.position.x = 5.2;
 
     ship.add(hull, prow, wings, engineL, engineR);
+    this.attachBlenderGLB('prop_dropship', ship);
     return ship;
   }
 };
