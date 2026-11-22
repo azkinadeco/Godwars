@@ -267,10 +267,32 @@
         <div class="counter-item"><span>DMG</span><b id="hud-damage-count">0</b></div>
         <div class="counter-item"><span>LEADER</span><b id="hud-kill-leader">👑 NONE</b></div>
         <div class="counter-item"><b id="hud-fps" style="color:#10b981">60 FPS</b></div>
+        <button id="btn-hud-cam-toggle" class="hud-gear-btn" aria-label="Toggle 1st or 3rd Person Camera" title="Toggle 1st / 3rd Person Camera [P]">🎥 3RD</button>
         <button id="btn-hud-tac-tray" class="hud-gear-btn" aria-label="Tactical Utility Tray" title="Ping / Melee / Bag / Holster / Holo">⋯</button>
         <button id="btn-hud-quick-settings" class="hud-gear-btn" aria-label="In-Match Settings" title="In-Match Settings">⚙️</button>
       </div>
       <div id="kill-feed"></div>
+    </div>
+
+    <!-- Euphoria-Inspired Live Combat Combo & Style Rank Meter (C -> B -> A -> S -> SS -> SSS) -->
+    <div id="hud-combo-meter" class="hidden">
+      <div id="combo-rank-badge" class="combo-rank r-c">C</div>
+      <div class="combo-info">
+        <div class="combo-count-row"><b id="combo-hit-count">1</b><span>HITS</span></div>
+        <div id="combo-total-dmg" class="combo-dmg-text">0 DMG</div>
+        <div class="combo-bar-track"><div id="combo-timer-fill"></div></div>
+      </div>
+    </div>
+
+    <!-- Euphoria-Inspired Ultimate Burst Cut-In Banner -->
+    <div id="hud-burst-cutin" class="hidden">
+      <div class="cutin-inner">
+        <span id="cutin-hero-icon" class="cutin-icon">⚡</span>
+        <div>
+          <div id="cutin-hero-name" class="cutin-name">THOR • GOD OF THUNDER</div>
+          <div id="cutin-skill-name" class="cutin-skill">BIFROST SKY SLAM</div>
+        </div>
+      </div>
     </div>
 
     <!-- BATCH 3: Apex Mobile 360° Visual Sound Radar Ring (Footsteps / Gunfire / Grenades) -->

@@ -34,6 +34,12 @@ class GodWarsGame {
     this.lobbyOrbitYaw = 0;
     this.lobbyDragActive = false;
     this.lobbyDragLastX = 0;
+    this.thirdPersonMode = false;
+    this.comboHits = 0;
+    this.comboDmg = 0;
+    this.comboTimer = 0;
+    this.slowMoTimer = 0;
+    this.fovKick = 0;
     this.gyroLastBeta = null;
     this.gyroLastGamma = null;
     this.touchScale = parseFloat(localStorage.getItem('godwars_touch_scale') || '1.0');
@@ -529,7 +535,11 @@ class GodWarsGame {
       });
     }
 
-    // BATCH 1: In-Match Quick Settings Gear Drawer & Collapsible Tactical Utility Tray (⋯)
+    // BATCH 1: In-Match Quick Settings Gear Drawer, 1st/3rd Person Camera Toggle (🎥) & Tactical Utility Tray (⋯)
+    const camToggleBtn = document.getElementById('btn-hud-cam-toggle');
+    if (camToggleBtn) {
+      camToggleBtn.addEventListener('click', () => this.toggleThirdPersonCamera());
+    }
     const tacTrayBtn = document.getElementById('btn-hud-tac-tray');
     const tacTray = document.getElementById('mobile-tac-tray');
     if (tacTrayBtn && tacTray) {
@@ -1607,6 +1617,8 @@ class GodWarsGame {
         this.togglePingWheel();
       } else if (code === 'KeyY') {
         this.dropHoloSpray();
+      } else if (code === 'KeyP') {
+        this.toggleThirdPersonCamera();
       } else if (code === 'Digit7') {
         this.selectLegendPerk(0);
       } else if (code === 'Digit8') {
@@ -2525,6 +2537,19 @@ class GodWarsGame {
       this.player.isSliding = true;
       this.player.slideTimer = 0.88;
       this.player.slideCooldown = 1.05;
+
+      // Euphoria-Inspired PERFECT SLIDE DODGE when sliding under active enemy gunfire!
+      const underFire = this.bots.some(b => b.alive && !b.isAlly && b.currentEnemy === this.player && b.fireTimer < 0.32 && b.position.distanceTo(this.player.position) < 42);
+      if (underFire) {
+        this.slowMoTimer = 0.38;
+        this.fovKick = 11;
+        this.player.shield = Math.min(this.player.maxShield, this.player.shield + 18);
+        this.player.ultCharge = Math.min(100, (this.player.ultCharge || 0) + 12);
+        this.combat.spawnExplosionVFX(this.player.position.clone().add(new THREE.Vector3(0, 0.3, 0)), 3.8, 0x38bdf8, 0.38);
+        window.SFX.playArmorSwap();
+        this.vibrate(22);
+        this.showBanner('⚡ PERFECT SLIDE DODGE! (+18 SHIELD • +12% ULT)', '#38bdf8');
+      }
     } else {
       this.player.isSliding = false;
     }
@@ -2567,7 +2592,9 @@ class GodWarsGame {
     if (this.player.tacticalCooldown > 0) return;
 
     const hData = window.GODWARS_DATA.HEROES[this.player.heroId];
-    this.player.tacticalCooldown = this.isFiringRange ? 2.5 : hData.tacticalCooldown;
+    const cdMult = (this.player.perks && this.player.perks.tacCdMult) || 1.0;
+    this.player.tacticalCooldown = (this.isFiringRange ? 2.5 : hData.tacticalCooldown) * cdMult;
+    this.fovKick = 6;
 
     const eyePos = this.camera.position.clone();
     const lookDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion).normalize();
@@ -2581,9 +2608,95 @@ class GodWarsGame {
       return;
     }
     this.player.ultCharge = this.isFiringRange ? 100 : 0;
+
+    // Euphoria-Inspired Ultimate Burst Cut-In Banner + Cinematic Micro Slow-Mo & FOV Kick!
+    const hData = window.GODWARS_DATA.HEROES[this.player.heroId];
+    this.slowMoTimer = 0.42;
+    this.fovKick = 14;
+    this.vibrate(40);
+    const cutinEl = document.getElementById('hud-burst-cutin');
+    if (cutinEl && hData) {
+      const ic = document.getElementById('cutin-hero-icon');
+      const nm = document.getElementById('cutin-hero-name');
+      const sk = document.getElementById('cutin-skill-name');
+      if (ic) ic.textContent = hData.classIcon;
+      if (nm) nm.textContent = `${hData.name} • ${hData.title.toUpperCase()}`;
+      if (sk) sk.textContent = hData.ultimateName.toUpperCase();
+      cutinEl.style.setProperty('--cutin-c', hData.color);
+      cutinEl.classList.remove('hidden');
+      clearTimeout(this._cutinTimer);
+      this._cutinTimer = setTimeout(() => cutinEl.classList.add('hidden'), 1350);
+    }
+
     const eyePos = this.camera.position.clone();
     const lookDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion).normalize();
     this.combat.triggerHeroUltimate(this.player, eyePos, lookDir);
+  }
+
+  // =========================================================================
+  // EUPHORIA-INSPIRED 1ST/3RD-PERSON ACTION CAMERA TOGGLE & LIVE COMBO RANK
+  // =========================================================================
+  toggleThirdPersonCamera() {
+    this.thirdPersonMode = !this.thirdPersonMode;
+    const btn = document.getElementById('btn-hud-cam-toggle');
+    if (btn) btn.textContent = this.thirdPersonMode ? '🎥 1ST' : '🎥 3RD';
+    this.vibrate(14);
+    this.showBanner(
+      this.thirdPersonMode ? '🎥 3RD-PERSON ACTION CAMERA ACTIVE' : '🎥 1ST-PERSON APEX FPS CAMERA ACTIVE',
+      '#38bdf8'
+    );
+  }
+
+  getComboStyleRank(hits) {
+    if (hits >= 32) return 'SSS';
+    if (hits >= 22) return 'SS';
+    if (hits >= 14) return 'S';
+    if (hits >= 8)  return 'A';
+    if (hits >= 4)  return 'B';
+    return 'C';
+  }
+
+  registerComboHit(dmg, isHeadshot = false, shieldBroken = false) {
+    this.comboHits = (this.comboHits || 0) + (isHeadshot ? 2 : 1);
+    this.comboDmg = (this.comboDmg || 0) + dmg;
+    this.comboTimer = 3.6;
+    if (shieldBroken || isHeadshot) {
+      this.fovKick = Math.max(this.fovKick || 0, 5.5);
+    }
+
+    const meter = document.getElementById('hud-combo-meter');
+    const rankBadge = document.getElementById('combo-rank-badge');
+    const cntEl = document.getElementById('combo-hit-count');
+    const dmgEl = document.getElementById('combo-total-dmg');
+    if (meter && rankBadge && cntEl && dmgEl) {
+      meter.classList.remove('hidden');
+      meter.classList.add('pop');
+      clearTimeout(this._comboPopTimer);
+      this._comboPopTimer = setTimeout(() => meter.classList.remove('pop'), 110);
+
+      const rank = this.getComboStyleRank(this.comboHits);
+      rankBadge.textContent = rank;
+      rankBadge.className = `combo-rank r-${rank.toLowerCase()}`;
+      cntEl.textContent = String(this.comboHits);
+      dmgEl.textContent = `${Math.round(this.comboDmg)} DMG`;
+    }
+  }
+
+  updateComboMeter(realDt) {
+    if (this.fovKick > 0) {
+      this.fovKick = Math.max(0, this.fovKick - realDt * 22);
+    }
+    if (this.comboTimer > 0) {
+      this.comboTimer -= realDt;
+      const fill = document.getElementById('combo-timer-fill');
+      if (fill) fill.style.width = `${Math.max(0, (this.comboTimer / 3.6) * 100)}%`;
+      if (this.comboTimer <= 0) {
+        this.comboHits = 0;
+        this.comboDmg = 0;
+        const meter = document.getElementById('hud-combo-meter');
+        if (meter) meter.classList.add('hidden');
+      }
+    }
   }
 
   throwEquippedGrenade() {
@@ -2777,8 +2890,14 @@ class GodWarsGame {
   // =========================================================================
   loop(now) {
     requestAnimationFrame((t) => this.loop(t));
-    const dt = Math.min(0.05, (now - this.lastTime) / 1000);
+    const realDt = Math.min(0.05, (now - this.lastTime) / 1000);
     this.lastTime = now;
+    let dt = realDt;
+    if (this.slowMoTimer > 0) {
+      this.slowMoTimer = Math.max(0, this.slowMoTimer - realDt);
+      dt = realDt * 0.42;
+    }
+    this.updateComboMeter(realDt);
 
     this.fpsFrames++;
     this.fpsTimer += dt;
@@ -3149,13 +3268,41 @@ class GodWarsGame {
       speedLinesEl.classList.toggle('active', highSpeed);
     }
 
-    // Camera Positioning: 3rd-Person during Skydive vs 1st-Person with Slide Roll Tilt & Landing Dip!
+    // Camera Positioning: 3rd-Person Skydive / 3rd-Person Over-The-Shoulder Action Mode / 1st-Person FPS!
     if (p.skydiving) {
+      if (p.diveTrail) p.diveTrail.visible = true;
       const camBack = new THREE.Vector3(Math.sin(p.yaw) * 6.2, 3.2, Math.cos(p.yaw) * 6.2);
       this.camera.position.copy(p.position).add(camBack);
       this.camera.rotation.set(p.pitch - 0.18, p.yaw, 0, 'YXZ');
       this.viewmodelHolder.visible = false;
+    } else if (this.thirdPersonMode && !p.knocked) {
+      // Euphoria-Inspired 3rd-Person Over-The-Shoulder Action Camera!
+      if (p.thirdPersonMesh) {
+        p.thirdPersonMesh.visible = true;
+        if (p.diveTrail) p.diveTrail.visible = false;
+        p.thirdPersonMesh.position.copy(p.position);
+        p.thirdPersonMesh.rotation.set(p.isSliding ? -0.48 : 0, p.yaw + Math.PI, 0);
+        p.thirdPersonMesh.scale.y = p.isSliding ? 0.72 : 1.0;
+
+        // Animate 3rd-Person Hero Legs & Arms while running!
+        const ud = p.thirdPersonMesh.userData;
+        if (ud && ud.leftLeg && ud.rightLeg) {
+          const swing = (inputLen > 0.1 && p.onGround && !p.isSliding) ? Math.sin(this.matchTime * 14) * 0.68 : 0;
+          ud.leftLeg.rotation.x = swing;
+          ud.rightLeg.rotation.x = -swing;
+          if (ud.leftArm) ud.leftArm.rotation.x = -swing * 0.6;
+        }
+      }
+      const shoulderDist = p.isADS ? 2.15 : 3.35;
+      const rightOff = new THREE.Vector3(Math.cos(p.yaw) * 0.68, 0, -Math.sin(p.yaw) * 0.68);
+      const backOff = new THREE.Vector3(Math.sin(p.yaw) * shoulderDist, (p.isSliding ? 1.35 : 2.05) - p.pitch * 1.1, Math.cos(p.yaw) * shoulderDist);
+      this.camera.position.copy(p.position).add(rightOff).add(backOff);
+      const targetRoll = p.isSliding ? -0.08 : 0;
+      p.camRoll = (p.camRoll || 0) + (targetRoll - (p.camRoll || 0)) * Math.min(1, dt * 14);
+      this.camera.rotation.set(p.pitch * 0.85, p.yaw, p.camRoll, 'YXZ');
+      this.viewmodelHolder.visible = false;
     } else {
+      if (p.thirdPersonMesh) p.thirdPersonMesh.visible = false;
       const eyeHeight = (p.knocked ? 0.65 : p.isSliding ? 0.92 : 1.68) - (p.landingDip || 0);
       const targetRoll = p.isSliding ? -0.115 : (p.wallJumpCd > 0.3 ? 0.095 : 0);
       p.camRoll = (p.camRoll || 0) + (targetRoll - (p.camRoll || 0)) * Math.min(1, dt * 14);
@@ -3164,11 +3311,12 @@ class GodWarsGame {
       this.viewmodelHolder.visible = !p.knocked;
     }
 
-    // Apply Optic Attachment Zoom Multiplier
+    // Apply Optic Attachment Zoom Multiplier + Euphoria Style FOV Kick!
     const wep = p.weapons[p.activeSlot];
     const opticTier = window.GODWARS_DATA.ATTACHMENTS.optic.tiers[wep.attachments.optic || 0];
     const adsTargetFov = (wep.data.adsFov || 55) * opticTier.zoomMult;
-    const targetFov = p.isADS && !p.knocked ? adsTargetFov : (p.isSprinting || p.isSliding || p.ziplining || p.skydiving ? this.fov + 10 : this.fov);
+    const baseTargetFov = p.isADS && !p.knocked ? adsTargetFov : (p.isSprinting || p.isSliding || p.ziplining || p.skydiving ? this.fov + 10 : this.fov);
+    const targetFov = baseTargetFov + (this.fovKick || 0);
     this.camera.fov += (targetFov - this.camera.fov) * Math.min(1, dt * 14);
     this.camera.updateProjectionMatrix();
 

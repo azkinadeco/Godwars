@@ -144,6 +144,14 @@ class AIContender {
     if (this.slowTimer > 0) this.slowTimer -= dt;
     if (this.cloakTimer > 0) this.cloakTimer -= dt;
     if (this.ultBuffTimer > 0) this.ultBuffTimer -= dt;
+    if (this.hitFlinchTimer > 0) {
+      this.hitFlinchTimer -= dt;
+      if (this.mesh && this.mesh.userData.torso) {
+        this.mesh.userData.torso.rotation.x = -Math.sin((this.hitFlinchTimer / 0.22) * Math.PI) * 0.36;
+      }
+    } else if (this.mesh && this.mesh.userData.torso) {
+      this.mesh.userData.torso.rotation.x = 0;
+    }
     this.ultCharge = Math.min(100, this.ultCharge + dt * 1.4);
 
     // 1. Dropship & Skydive Phase

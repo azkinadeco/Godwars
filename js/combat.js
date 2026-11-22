@@ -16,6 +16,8 @@ class CombatManager {
     this.vfxList = [];
     this.decoys = [];
     this.activeZones = [];
+    this.energyOrbs = [];
+    this._orbGeo = new THREE.OctahedronGeometry(0.18, 0);
   }
 
   isEnemy(actorA, actorB) {
@@ -41,25 +43,57 @@ class CombatManager {
   }
 
   spawnTracer(startPos, endPos, colorHex, thickness = 1) {
-    const points = [startPos.clone(), endPos.clone()];
-    const geo = new THREE.BufferGeometry().setFromPoints(points);
-    const mat = new THREE.LineBasicMaterial({
+    // 3D Glowing Additive Plasma Bolt Cylinder (Visible on iPhone/macOS Metal unlike 1px THREE.Line!)
+    const diff = endPos.clone().sub(startPos);
+    const len = Math.max(0.2, diff.length());
+    const radius = 0.028 * Math.max(1, thickness * 0.7);
+    const boltGeo = new THREE.CylinderGeometry(radius * 0.65, radius, len, 6);
+    boltGeo.rotateX(Math.PI / 2);
+    const mat = new THREE.MeshBasicMaterial({
       color: colorHex,
       transparent: true,
-      opacity: 0.95,
-      linewidth: thickness
+      opacity: 0.92,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
     });
-    const line = new THREE.Line(geo, mat);
+    const line = new THREE.Mesh(boltGeo, mat);
+    line.position.copy(startPos).addScaledVector(diff, 0.5);
+    line.lookAt(endPos);
     this.scene.add(line);
 
     const spark = new THREE.Mesh(
-      new THREE.OctahedronGeometry(0.16, 0),
-      new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 1 })
+      new THREE.OctahedronGeometry(0.18, 0),
+      new THREE.MeshBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity: 1,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      })
     );
     spark.position.copy(endPos);
     this.scene.add(spark);
 
-    this.tracers.push({ line, spark, age: 0, maxAge: 0.14 });
+    this.tracers.push({ line, spark, age: 0, maxAge: 0.15 });
+  }
+
+  // Euphoria-Style Homing Divine Energy Orbs (Pop out on Shield Break / Kill and fly into Player!)
+  spawnEnergyOrbs(pos, colorHex = 0x38bdf8, count = 3) {
+    for (let i = 0; i < count; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity: 0.95,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const m = new THREE.Mesh(this._orbGeo, mat);
+      m.position.copy(pos).add(new THREE.Vector3(0, 1.1, 0));
+      this.scene.add(m);
+      const a = Math.random() * Math.PI * 2;
+      const vel = new THREE.Vector3(Math.cos(a) * 3.6, 5.2 + Math.random() * 2.5, Math.sin(a) * 3.6);
+      this.energyOrbs.push({ mesh: m, vel, age: 0 });
+    }
   }
 
   spawnExplosionVFX(pos, radius, colorHex, duration = 0.55) {
@@ -162,8 +196,30 @@ class CombatManager {
   performMelee(actor, origin, lookDir) {
     window.SFX.playMelee();
     const hData = window.GODWARS_DATA.HEROES[actor.heroId] || window.GODWARS_DATA.HEROES.thor;
-    this.spawnSlashArc(origin, lookDir, hData.hexColor);
-    const endPt = origin.clone().addScaledVector(lookDir, 3.5);
+
+    // Euphoria-Style 3-Hit Heirloom Melee Lunge Combo (Hit 1 -> Hit 2 -> Heavy AoE God Slam 3!)
+    const now = performance.now();
+    if (!actor._lastMeleeTime || now - actor._lastMeleeTime > 1350) {
+      actor.meleeComboStep = 1;
+    } else {
+      actor.meleeComboStep = ((actor.meleeComboStep || 1) % 3) + 1;
+    }
+    actor._lastMeleeTime = now;
+    const step = actor.meleeComboStep;
+
+    // Forward Lunge Impulse so melee feels snappy & closes gaps!
+    if (actor.isPlayer) {
+      actor.momentumBoost = step === 3 ? 13.5 : 9.5;
+      actor.momentumDir = new THREE.Vector3(lookDir.x, 0, lookDir.z).normalize();
+    }
+
+    this.spawnSlashArc(origin, lookDir, step === 3 ? 0xfde047 : hData.hexColor);
+    if (step === 3) {
+      const slamPt = actor.position.clone().addScaledVector(new THREE.Vector3(lookDir.x, 0, lookDir.z).normalize(), 2.2);
+      this.spawnExplosionVFX(slamPt, 4.8, hData.hexColor, 0.42);
+      if (actor.isPlayer) this.game.showBanner(`⚔️ 3-HIT HEIRLOOM FINISHER: ${hData.meleeName.toUpperCase()}!`, '#fde047');
+    }
+    const endPt = origin.clone().addScaledVector(lookDir, 4.2);
     this.spawnTracer(origin.clone().addScaledVector(lookDir, 0.5), endPt, hData.hexColor, 3);
 
     // Check if Melee Kicking an Apex Energy Door!
@@ -183,12 +239,13 @@ class CombatManager {
       if (!target.alive || !this.isEnemy(actor, target)) continue;
       const tCenter = target.position.clone().add(new THREE.Vector3(0, 1.0, 0));
       const dist = origin.distanceTo(tCenter);
-      if (dist <= 3.85) {
+      const maxRange = actor.meleeComboStep === 3 ? 5.2 : 4.25;
+      if (dist <= maxRange) {
         const toTarget = tCenter.clone().sub(origin).normalize();
-        if (toTarget.dot(lookDir) > 0.45) {
-          let dmg = 35;
+        if (actor.meleeComboStep === 3 || toTarget.dot(lookDir) > 0.35) {
+          let dmg = actor.meleeComboStep === 3 ? 65 : actor.meleeComboStep === 2 ? 44 : 36;
           if (actor.heroId === 'thor' && actor.thunderCharge >= 50) {
-            dmg = 50;
+            dmg += 18;
             actor.thunderCharge = 0;
             this.spawnLightningBolt(origin, tCenter, 0x38bdf8, 0.4);
           }
@@ -492,15 +549,35 @@ class CombatManager {
       }
     }
 
+    // Enemy 3D Hit-Flinch Stagger & Knockback Impulse (Makes shooting bots feel visceral!)
+    if (!victim.isPlayer && victim.alive) {
+      victim.hitFlinchTimer = 0.22;
+      if (attacker && victim.position) {
+        const kb = victim.position.clone().sub(attacker.position).setY(0);
+        if (kb.lengthSq() > 0.01) {
+          kb.normalize();
+          const push = (isHeadshot || shieldBroken) ? 0.45 : 0.16;
+          victim.position.x += kb.x * push;
+          victim.position.z += kb.z * push;
+        }
+      }
+    }
+
     if (shieldBroken) {
       const tierHex = (window.GODWARS_DATA.EVO_TIERS[victim.shieldTier] || { hex: 0x38bdf8 }).hex;
       this.spawnImpactSparks(hitWorldPos || victim.position.clone().add(new THREE.Vector3(0, 1.3, 0)), tierHex, 10);
+      if (attacker && attacker.isPlayer) {
+        this.spawnEnergyOrbs(victim.position, tierHex, 3);
+      }
       if (victim.isPlayer && this.game.triggerShieldBreakFlash) {
         this.game.triggerShieldBreakFlash();
       }
     }
 
     if (attacker && attacker.isPlayer) {
+      if (this.game.registerComboHit) {
+        this.game.registerComboHit(amount, isHeadshot, shieldBroken);
+      }
       window.SFX.playHitmarker(isHeadshot, hitShield, shieldBroken);
       const worldPt = hitWorldPos || victim.position.clone().add(new THREE.Vector3(0, 1.5, 0));
       this.game.spawnFloatingDamageNumber(worldPt, amount, isHeadshot, hitShield, shieldBroken, victim.shieldTier, victim);
@@ -602,6 +679,7 @@ class CombatManager {
 
       if (killer.isPlayer) {
         window.SFX.playKillSound();
+        this.spawnEnergyOrbs(victim.position, 0xfde047, 5);
         this.game.showEliminationPopup(victim.name, victim.heroId, killer.kills);
       }
 
@@ -1143,6 +1221,35 @@ class CombatManager {
       if (z.ttl <= 0) {
         this.scene.remove(z.mesh);
         this.activeZones.splice(i, 1);
+      }
+    }
+
+    // Update Euphoria-Style Homing Divine Energy Orbs (Pop out, then magnet-fly into Player!)
+    const p = this.game.player;
+    for (let i = this.energyOrbs.length - 1; i >= 0; i--) {
+      const o = this.energyOrbs[i];
+      o.age += dt;
+      o.mesh.rotation.y += dt * 7;
+      o.mesh.rotation.x += dt * 5;
+      if (o.age < 0.38 || !p || !p.alive) {
+        o.vel.y -= 15 * dt;
+        o.mesh.position.addScaledVector(o.vel, dt);
+      } else {
+        const target = p.position.clone().add(new THREE.Vector3(0, 1.15, 0));
+        const toP = target.sub(o.mesh.position);
+        const dist = toP.length();
+        if (dist < 1.15 || o.age > 4.0) {
+          if (dist < 1.15 && p.alive) {
+            p.shield = Math.min(p.maxShield, p.shield + 10);
+            p.ultCharge = Math.min(100, (p.ultCharge || 0) + 7);
+            window.SFX.playArmorSwap();
+          }
+          this.scene.remove(o.mesh);
+          this.energyOrbs.splice(i, 1);
+          continue;
+        }
+        toP.normalize();
+        o.mesh.position.addScaledVector(toP, Math.min(dist, (15 + o.age * 22) * dt));
       }
     }
   }
