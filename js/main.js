@@ -16,14 +16,22 @@ class GodWarsGame {
     this.selectedGrenadeId = 'solar_bomb';
     this.selectedHealId = 'shield_battery';
     this.gameMode = 'trios'; // 'trios' | 'solos' | 'firing_range'
-    this.qualityPreset = 'balanced';
+    this.forceMobileUI = this.detectMobile();
+    this.qualityPreset = this.forceMobileUI ? 'mobile' : 'balanced';
     this.fov = parseInt(localStorage.getItem('godwars_fov') || '84', 10);
     this.selectedWeaponSkin = localStorage.getItem('godwars_skin') || 'divine_default';
     this.rangeSettings = { movingDummies: true, combatDummies: false };
     this.activePerkOffer = null;
     this.lookSensitivity = 1.0;
     this.mobileAutoFire = false;
-    this.forceMobileUI = this.detectMobile();
+    this.mobileAimAssist = true;
+    this.mobileGyroEnabled = false;
+    this.mobileHaptics = true;
+    this.autoSprintLocked = false;
+    this.portraitDismissed = false;
+    this.gyroLastBeta = null;
+    this.gyroLastGamma = null;
+    this.touchScale = parseFloat(localStorage.getItem('godwars_touch_scale') || '1.0');
 
     this.matchActive = false;
     this.isFiringRange = false;
@@ -51,6 +59,7 @@ class GodWarsGame {
     this.initLobby3DStage();
     this.initLobbyUI();
     this.initInputHandlers();
+    this.initMobileCompatibilitySystem();
     this.initLobbyMusicAutoUnlock();
 
     this.lastTime = performance.now();
@@ -475,6 +484,7 @@ class GodWarsGame {
       touchToggle.checked = this.forceMobileUI;
       touchToggle.addEventListener('change', (e) => {
         this.forceMobileUI = e.target.checked;
+        document.body.classList.toggle('mobile-mode', this.forceMobileUI);
         this.syncMobileHUDVisibility();
       });
     }
@@ -484,6 +494,59 @@ class GodWarsGame {
       autoFireToggle.checked = this.mobileAutoFire;
       autoFireToggle.addEventListener('change', (e) => {
         this.mobileAutoFire = e.target.checked;
+      });
+    }
+
+    // BATCH 6, 7, 8, 9: Mobile Aim Assist, Gyroscope, Haptics & Touch Scale
+    const aimAssistToggle = document.getElementById('toggle-aim-assist');
+    if (aimAssistToggle) {
+      aimAssistToggle.checked = this.mobileAimAssist;
+      aimAssistToggle.addEventListener('change', (e) => {
+        this.mobileAimAssist = e.target.checked;
+      });
+    }
+
+    const gyroToggle = document.getElementById('toggle-gyro-aim');
+    if (gyroToggle) {
+      gyroToggle.checked = this.mobileGyroEnabled;
+      gyroToggle.addEventListener('change', async (e) => {
+        if (e.target.checked && typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+          try {
+            const perm = await DeviceOrientationEvent.requestPermission();
+            this.mobileGyroEnabled = (perm === 'granted');
+            e.target.checked = this.mobileGyroEnabled;
+          } catch (err) {
+            this.mobileGyroEnabled = false;
+            e.target.checked = false;
+          }
+        } else {
+          this.mobileGyroEnabled = e.target.checked;
+        }
+        this.gyroLastBeta = null;
+        this.gyroLastGamma = null;
+      });
+    }
+
+    const hapticsToggle = document.getElementById('toggle-haptics');
+    if (hapticsToggle) {
+      hapticsToggle.checked = this.mobileHaptics;
+      hapticsToggle.addEventListener('change', (e) => {
+        this.mobileHaptics = e.target.checked;
+        if (this.mobileHaptics) this.vibrate(25);
+      });
+    }
+
+    const touchScaleSlider = document.getElementById('slider-touch-scale');
+    const touchScaleLabel = document.getElementById('touch-scale-label');
+    if (touchScaleSlider) {
+      touchScaleSlider.value = this.touchScale;
+      if (touchScaleLabel) touchScaleLabel.textContent = `${Math.round(this.touchScale * 100)}%`;
+      document.documentElement.style.setProperty('--touch-scale', String(this.touchScale));
+      touchScaleSlider.addEventListener('input', (e) => {
+        this.touchScale = parseFloat(e.target.value);
+        if (touchScaleLabel) touchScaleLabel.textContent = `${Math.round(this.touchScale * 100)}%`;
+        document.documentElement.style.setProperty('--touch-scale', String(this.touchScale));
+        try { localStorage.setItem('godwars_touch_scale', String(this.touchScale)); } catch (err) {}
       });
     }
 
@@ -598,6 +661,7 @@ class GodWarsGame {
 
     const qualitySelect = document.getElementById('select-quality');
     if (qualitySelect) {
+      qualitySelect.value = this.qualityPreset;
       qualitySelect.addEventListener('change', (e) => {
         this.qualityPreset = e.target.value;
         this.applyQualityPreset();
@@ -705,6 +769,131 @@ class GodWarsGame {
 
     this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  // =========================================================================
+  // 10-BATCH MOBILE PHONE COMPATIBILITY SYSTEM (ORIENTATION, GYRO, HAPTICS, AIM ASSIST)
+  // =========================================================================
+  initMobileCompatibilitySystem() {
+    document.body.classList.toggle('mobile-mode', this.forceMobileUI);
+    document.documentElement.style.setProperty('--touch-scale', String(this.touchScale));
+
+    // Batch 2: Portrait -> Landscape Prompt & Orientation Lock
+    const checkOrientation = () => {
+      const rotOverlay = document.getElementById('rotate-landscape-overlay');
+      if (!rotOverlay) return;
+      const isPortrait = window.innerHeight > window.innerWidth;
+      if (this.forceMobileUI && isPortrait && !this.portraitDismissed) {
+        rotOverlay.classList.remove('hidden');
+      } else {
+        rotOverlay.classList.add('hidden');
+      }
+    };
+    checkOrientation();
+    window.addEventListener('resize', checkOrientation);
+    window.addEventListener('orientationchange', () => setTimeout(checkOrientation, 150));
+
+    const btnForceLand = document.getElementById('btn-force-landscape');
+    if (btnForceLand) {
+      btnForceLand.addEventListener('click', () => {
+        this.requestMobileFullscreenLandscape();
+        this.portraitDismissed = true;
+        document.getElementById('rotate-landscape-overlay').classList.add('hidden');
+      });
+    }
+    const btnDismissRot = document.getElementById('btn-dismiss-rotate');
+    if (btnDismissRot) {
+      btnDismissRot.addEventListener('click', () => {
+        this.portraitDismissed = true;
+        document.getElementById('rotate-landscape-overlay').classList.add('hidden');
+      });
+    }
+
+    // Batch 7: Mobile Gyroscope Aim Listener
+    window.addEventListener('deviceorientation', (e) => {
+      if (!this.mobileGyroEnabled || !this.matchActive || !this.player || !this.player.alive) return;
+      if (e.beta === null || e.gamma === null) return;
+      if (this.gyroLastBeta === null) {
+        this.gyroLastBeta = e.beta;
+        this.gyroLastGamma = e.gamma;
+        return;
+      }
+      const dBeta = e.beta - this.gyroLastBeta;
+      const dGamma = e.gamma - this.gyroLastGamma;
+      this.gyroLastBeta = e.beta;
+      this.gyroLastGamma = e.gamma;
+
+      // In landscape, beta controls yaw and gamma controls pitch
+      const isLandscape = window.innerWidth >= window.innerHeight;
+      const gSens = 0.011 * this.lookSensitivity * (this.player.isADS ? 0.65 : 1.0);
+      if (isLandscape) {
+        if (Math.abs(dBeta) < 12) this.player.yaw -= dBeta * gSens;
+        if (Math.abs(dGamma) < 12) this.player.pitch = Math.max(-1.42, Math.min(1.42, this.player.pitch + dGamma * gSens));
+      } else {
+        if (Math.abs(dGamma) < 12) this.player.yaw -= dGamma * gSens;
+        if (Math.abs(dBeta) < 12) this.player.pitch = Math.max(-1.42, Math.min(1.42, this.player.pitch + dBeta * gSens));
+      }
+    });
+  }
+
+  requestMobileFullscreenLandscape() {
+    const elem = document.documentElement;
+    const fsReq = elem.requestFullscreen || elem.webkitRequestFullscreen;
+    if (fsReq) {
+      try {
+        const p = fsReq.call(elem);
+        if (p && p.then) {
+          p.then(() => {
+            if (screen.orientation && screen.orientation.lock) {
+              screen.orientation.lock('landscape').catch(() => {});
+            }
+          }).catch(() => {});
+        }
+      } catch (e) {}
+    } else if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(() => {});
+    }
+  }
+
+  vibrate(ms = 12) {
+    if (!this.mobileHaptics || !this.forceMobileUI) return;
+    if (navigator && typeof navigator.vibrate === 'function') {
+      try { navigator.vibrate(ms); } catch (e) {}
+    }
+  }
+
+  // Batch 6: Apex Mobile Magnetic Aim Assist (gently tracks enemy torso when aiming/firing on HP)
+  applyMobileAimAssist(dt) {
+    if (!this.forceMobileUI || !this.mobileAimAssist || !this.player || !this.player.alive || this.player.skydiving) return;
+    const p = this.player;
+    const camPos = this.camera.position;
+    const lookDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion).normalize();
+
+    let bestTarget = null;
+    let bestDot = p.isADS ? 0.982 : 0.968;
+    for (const bot of this.bots) {
+      if (!bot.alive || bot.inDropship || bot.isAlly) continue;
+      const aimPt = new THREE.Vector3(bot.position.x, bot.position.y + 1.32, bot.position.z);
+      const dist = camPos.distanceTo(aimPt);
+      if (dist > 85) continue;
+      const toBot = aimPt.sub(camPos).normalize();
+      const dot = lookDir.dot(toBot);
+      if (dot > bestDot) {
+        bestDot = dot;
+        bestTarget = { dir: toBot };
+      }
+    }
+
+    if (bestTarget && (this.touchFiring || p.isADS || this.touchLook.active)) {
+      const desiredYaw = Math.atan2(-bestTarget.dir.x, -bestTarget.dir.z);
+      const desiredPitch = Math.asin(Math.max(-0.98, Math.min(0.98, bestTarget.dir.y)));
+      let yawDiff = desiredYaw - p.yaw;
+      while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+      while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+      const pull = Math.min(1, dt * (this.touchFiring ? 7.5 : 4.2));
+      p.yaw += yawDiff * pull;
+      p.pitch += (desiredPitch - p.pitch) * pull;
+    }
   }
 
   // =========================================================================
@@ -1050,10 +1239,13 @@ class GodWarsGame {
     document.getElementById('kill-feed').innerHTML = '';
 
     this.syncMobileHUDVisibility();
+    document.body.classList.toggle('mobile-mode', this.forceMobileUI);
     this.matchActive = true;
     this.matchTime = 0;
 
-    if (!this.forceMobileUI) {
+    if (this.forceMobileUI) {
+      this.requestMobileFullscreenLandscape();
+    } else {
       const canvas = document.getElementById('game-canvas');
       if (canvas.requestPointerLock) canvas.requestPointerLock();
     }
@@ -1235,15 +1427,28 @@ class GodWarsGame {
     const lookZone = document.getElementById('touch-look-zone');
 
     if (joyZone) {
+      const sprintLockEl = document.getElementById('joystick-sprint-lock');
       joyZone.addEventListener('touchstart', (e) => {
         e.preventDefault();
         window.SFX.init();
         const t = e.changedTouches[0];
         this.touchMove.active = true;
         this.touchMove.id = t.identifier;
-        const rect = joyBase.getBoundingClientRect();
-        this.touchMove.startX = rect.left + rect.width / 2;
-        this.touchMove.startY = rect.top + rect.height / 2;
+        this.autoSprintLocked = false;
+        if (sprintLockEl) sprintLockEl.classList.add('hidden');
+
+        // BATCH 5: Floating Dynamic Joystick teleports right under left thumb!
+        const zoneRect = joyZone.getBoundingClientRect();
+        const localX = Math.max(54, Math.min(zoneRect.width - 54, t.clientX - zoneRect.left));
+        const localY = Math.max(54, Math.min(zoneRect.height - 54, t.clientY - zoneRect.top));
+        if (joyBase) {
+          joyBase.style.left = `${localX}px`;
+          joyBase.style.top = `${localY}px`;
+          joyBase.style.bottom = 'auto';
+          joyBase.style.transform = 'translate(-50%, -50%)';
+        }
+        this.touchMove.startX = zoneRect.left + localX;
+        this.touchMove.startY = zoneRect.top + localY;
         this.updateJoystick(t.clientX, t.clientY, joyKnob);
       }, { passive: false });
 
@@ -1252,6 +1457,13 @@ class GodWarsGame {
         for (const t of e.changedTouches) {
           if (t.identifier === this.touchMove.id) {
             this.updateJoystick(t.clientX, t.clientY, joyKnob);
+            if (this.touchMove.dy < -0.92 && Math.abs(this.touchMove.dx) < 0.38) {
+              this.autoSprintLocked = true;
+              if (sprintLockEl) sprintLockEl.classList.remove('hidden');
+            } else if (this.touchMove.dy > -0.45) {
+              this.autoSprintLocked = false;
+              if (sprintLockEl) sprintLockEl.classList.add('hidden');
+            }
           }
         }
       }, { passive: false });
@@ -1291,7 +1503,8 @@ class GodWarsGame {
             this.touchLook.lastX = t.clientX;
             this.touchLook.lastY = t.clientY;
 
-            const sens = 0.0044 * this.lookSensitivity * (this.player.isADS ? 0.6 : 1.0);
+            const onTargetSlow = (this.mobileAimAssist && this.isCrosshairOnEnemy()) ? 0.62 : 1.0;
+            const sens = 0.0044 * this.lookSensitivity * (this.player.isADS ? 0.6 : 1.0) * onTargetSlow;
             this.player.yaw -= dx * sens;
             this.player.pitch = Math.max(-1.42, Math.min(1.42, this.player.pitch - dy * sens));
           }
@@ -2466,7 +2679,12 @@ class GodWarsGame {
     if (this.touchMove.active) {
       moveRight += this.touchMove.dx;
       moveForward -= this.touchMove.dy;
+    } else if (this.autoSprintLocked) {
+      moveForward = 1;
     }
+
+    // BATCH 6: Apex Mobile Magnetic Aim Assist
+    this.applyMobileAimAssist(dt);
 
     const inputLen = Math.hypot(moveForward, moveRight);
     if (inputLen > 1) {
@@ -2539,7 +2757,7 @@ class GodWarsGame {
 
       // 3. Ground / Air / Slide / Valkyrie Jetpack Movement + Batch 2 Perk Modifiers
       const hData = window.GODWARS_DATA.HEROES[p.heroId];
-      p.isSprinting = !p.knocked && (this.keys['ShiftLeft'] || this.touchMove.dy < -0.75) && moveForward > 0.3 && !p.isADS;
+      p.isSprinting = !p.knocked && (this.keys['ShiftLeft'] || this.touchMove.dy < -0.75 || this.autoSprintLocked) && moveForward > 0.3 && !p.isADS;
 
       const perkSpeed = 1 + ((p.perks && p.perks.speedBonus) || 0);
       let speed = (p.knocked ? 2.2 : 7.8) * (hData.speedMult || 1.0) * perkSpeed;
@@ -2761,6 +2979,7 @@ class GodWarsGame {
           this.muzzleLight.color.setHex(wep.isMythicGold ? 0xfde047 : wep.data.hexColor);
           this.muzzleLight.intensity = 4.2;
         }
+        this.vibrate(8);
         const helaUltActive = p.heroId === 'hela' && p.ultBuffTimer > 0;
         if (!helaUltActive) {
           wep.mag--;

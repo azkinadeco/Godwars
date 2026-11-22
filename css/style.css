@@ -30,11 +30,14 @@
 html, body {
   width: 100%;
   height: 100%;
+  height: 100dvh;
   overflow: hidden;
+  overscroll-behavior: none;
   background: var(--bg-dark);
   color: var(--text-main);
   font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-  touch-action: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .hidden {
@@ -46,7 +49,9 @@ html, body {
   inset: 0;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   z-index: 1;
+  touch-action: none;
 }
 
 /* ==========================================================================
@@ -1622,4 +1627,350 @@ html, body {
   border-color: var(--skin-c, #fbbf24);
   color: var(--skin-c, #fbbf24);
   box-shadow: 0 0 12px rgba(251, 191, 36, 0.3);
+}
+
+
+/* =========================================================================
+   10-BATCH MOBILE PHONE COMPATIBILITY & ZERO-OVERLAP RESPONSIVE HUD
+   ========================================================================= */
+.lobby-tab-panel, .modal-box, #armory-weapon-grid, #armory-bomb-grid, .poi-grid {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Batch 2: Rotate Phone to Landscape Overlay */
+#rotate-landscape-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: rgba(5, 9, 22, 0.96);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.rotate-card {
+  max-width: 360px;
+  text-align: center;
+  background: rgba(15, 23, 42, 0.95);
+  border: 2px solid var(--gold);
+  border-radius: 12px;
+  padding: 24px 20px;
+  box-shadow: 0 0 35px rgba(251, 191, 36, 0.3);
+}
+.rotate-phone-icon {
+  font-size: 48px;
+  margin-bottom: 10px;
+  display: inline-block;
+  animation: rotatePhoneAnim 2s ease-in-out infinite;
+}
+@keyframes rotatePhoneAnim {
+  0%, 100% { transform: rotate(0deg); }
+  45%, 65% { transform: rotate(-90deg); }
+}
+.rotate-card h2 { font-size: 18px; color: var(--gold); letter-spacing: 1.2px; margin-bottom: 8px; }
+.rotate-card p { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+/* Batch 5: Floating Dynamic Joystick + Auto-Sprint Lock */
+#joystick-sprint-lock {
+  position: absolute;
+  top: -28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(56, 189, 248, 0.92);
+  color: #070b19;
+  font-size: 9px;
+  font-weight: 900;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Batch 3: Mobile-Friendly Lobby on Phones (Portrait & Short Landscape) */
+@media (max-width: 960px), (max-height: 520px) {
+  .lobby-topbar {
+    padding: 5px calc(10px + env(safe-area-inset-right)) 5px calc(10px + env(safe-area-inset-left));
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  .brand-sub, #slider-music-volume, #career-rank-badge { display: none !important; }
+  .brand-title { font-size: 15px; }
+  .lobby-nav {
+    display: flex;
+    overflow-x: auto;
+    gap: 4px;
+    flex: 1;
+    touch-action: pan-x;
+    scrollbar-width: none;
+  }
+  .lobby-nav::-webkit-scrollbar { display: none; }
+  .lobby-tab-btn {
+    padding: 5px 9px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+  .lobby-music-pill { padding: 3px 6px; }
+  .btn-music-toggle { font-size: 9.5px; }
+  .btn-icon { padding: 4px 8px; font-size: 10px; }
+
+  .lobby-tab-panel {
+    padding: 8px calc(10px + env(safe-area-inset-right)) 10px calc(10px + env(safe-area-inset-left));
+    max-height: calc(100dvh - 46px);
+    overflow-y: auto;
+  }
+  .stage-squad-tags { gap: 10px; margin-top: 2px; }
+  .stage-nameplate { padding: 4px 8px; }
+  .stage-np-title { font-size: 10.5px; }
+  .stage-np-sub { font-size: 8.5px; }
+
+  .play-bottom-dock {
+    padding: 6px 10px;
+    gap: 8px;
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+  .mode-selector-card, .ready-action-card { padding: 6px 8px; }
+  .btn-apex-ready { padding: 9px 18px; font-size: 14px; }
+  .btn-apex-secondary { padding: 6px 10px; font-size: 10.5px; }
+  .quick-hero-bar { gap: 4px; }
+  .quick-hero-chip { padding: 4px 7px; font-size: 10px; }
+
+  /* Batch 10: Compact Modals & Radial Wheels on Short Phone Landscape */
+  .modal-box {
+    max-height: 92dvh;
+    overflow-y: auto;
+    padding: 12px 14px;
+  }
+  .radial-wheel-container { transform: scale(0.78); }
+  .ls-hero-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .ls-hero-tile { padding: 7px 4px; }
+  .ls-icon { font-size: 18px; }
+  .ls-name { font-size: 11px; }
+}
+
+/* Batch 4: ZERO-OVERLAP ERGONOMIC MOBILE LANDSCAPE COMBAT HUD */
+body.mobile-mode #hud-screen {
+  touch-action: none;
+}
+body.mobile-mode .hud-bottom-center {
+  display: none !important; /* Replaced by ergonomic mobile touch buttons */
+}
+body.mobile-mode #compass-bar {
+  top: 4px;
+  width: 170px;
+  font-size: 10px;
+  padding: 2px 8px;
+}
+body.mobile-mode #minimap-container {
+  top: 6px;
+  left: calc(8px + env(safe-area-inset-left));
+  width: 84px;
+  height: 84px;
+}
+body.mobile-mode #minimap-canvas {
+  width: 84px;
+  height: 84px;
+}
+body.mobile-mode #hud-ring-timer {
+  top: 94px;
+  left: calc(8px + env(safe-area-inset-left));
+  font-size: 9px;
+  padding: 2px 6px;
+}
+body.mobile-mode .hud-top-right {
+  top: 6px;
+  right: calc(8px + env(safe-area-inset-right));
+}
+body.mobile-mode .match-counters {
+  gap: 4px;
+}
+body.mobile-mode .counter-item {
+  padding: 2px 5px;
+  font-size: 8.5px;
+}
+body.mobile-mode .counter-item b { font-size: 10px; }
+body.mobile-mode #kill-feed {
+  max-width: 180px;
+  font-size: 9px;
+}
+
+/* Compact HP/Evo Shield & Dual Weapon Swap Cards centered at bottom (ZERO overlap with thumbs!) */
+body.mobile-mode #hud-squadmates-list {
+  top: 118px;
+  left: calc(8px + env(safe-area-inset-left));
+  bottom: auto;
+  transform: scale(0.82);
+  transform-origin: top left;
+}
+body.mobile-mode .hud-bottom-left {
+  bottom: calc(6px + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-104%);
+  width: 162px;
+  padding: 5px 8px;
+}
+body.mobile-mode #hud-hero-name { font-size: 11px; }
+body.mobile-mode #hud-shield-tier { font-size: 8px; }
+body.mobile-mode .bar-label { font-size: 8.5px; }
+body.mobile-mode #hud-shield-cells { height: 7px; }
+body.mobile-mode .bar-track { height: 7px; }
+body.mobile-mode #hud-next-evo { display: none; }
+
+body.mobile-mode .hud-bottom-right {
+  bottom: calc(6px + env(safe-area-inset-bottom));
+  left: 50%;
+  right: auto;
+  transform: translateX(4%);
+  width: 176px;
+  flex-direction: row;
+  gap: 4px;
+}
+body.mobile-mode .weapon-hud-card {
+  flex: 1;
+  padding: 4px 6px;
+  min-width: 0;
+}
+body.mobile-mode .weapon-hud-card.active { transform: translateY(-3px); }
+body.mobile-mode .wep-card-top { font-size: 7px; }
+body.mobile-mode .wep-card-name { font-size: 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.mobile-mode .wep-card-ammo { font-size: 10.5px; }
+body.mobile-mode .wep-att-pips { display: none; }
+
+/* Ergonomic Safe-Area Multi-Touch Button Layout (fits 640x360 to 932x430!) */
+body.mobile-mode #touch-joystick-zone {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 38vw;
+  height: calc(100dvh - 120px);
+}
+body.mobile-mode #touch-look-zone {
+  position: absolute;
+  top: 42px;
+  right: 0;
+  width: 58vw;
+  height: calc(100dvh - 105px);
+}
+body.mobile-mode .touch-btn {
+  transform: scale(var(--touch-scale, 1));
+  font-size: 9px;
+  line-height: 1.05;
+  opacity: 0.88;
+}
+body.mobile-mode .touch-btn:active {
+  transform: scale(calc(var(--touch-scale, 1) * 0.9));
+  opacity: 1;
+}
+
+/* Right-Thumb Combat Arc (Zero Overlap!) */
+body.mobile-mode #btn-touch-fire {
+  bottom: calc(62px + env(safe-area-inset-bottom));
+  right: calc(18px + env(safe-area-inset-right));
+  width: 66px;
+  height: 66px;
+  font-size: 11px;
+}
+body.mobile-mode #btn-touch-ads {
+  bottom: calc(136px + env(safe-area-inset-bottom));
+  right: calc(18px + env(safe-area-inset-right));
+  width: 46px;
+  height: 46px;
+}
+body.mobile-mode #btn-touch-jump {
+  bottom: calc(122px + env(safe-area-inset-bottom));
+  right: calc(78px + env(safe-area-inset-right));
+  width: 48px;
+  height: 48px;
+}
+body.mobile-mode #btn-touch-slide {
+  bottom: calc(66px + env(safe-area-inset-bottom));
+  right: calc(92px + env(safe-area-inset-right));
+  width: 46px;
+  height: 46px;
+}
+body.mobile-mode #btn-touch-reload {
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  right: calc(92px + env(safe-area-inset-right));
+  width: 42px;
+  height: 42px;
+}
+body.mobile-mode #btn-touch-tactical {
+  bottom: calc(176px + env(safe-area-inset-bottom));
+  right: calc(74px + env(safe-area-inset-right));
+  width: 46px;
+  height: 46px;
+}
+body.mobile-mode #btn-touch-ult {
+  bottom: calc(176px + env(safe-area-inset-bottom));
+  right: calc(128px + env(safe-area-inset-right));
+  width: 48px;
+  height: 48px;
+}
+body.mobile-mode #btn-touch-grenade {
+  bottom: calc(122px + env(safe-area-inset-bottom));
+  right: calc(134px + env(safe-area-inset-right));
+  width: 42px;
+  height: 42px;
+}
+body.mobile-mode #btn-touch-melee {
+  bottom: calc(68px + env(safe-area-inset-bottom));
+  right: calc(144px + env(safe-area-inset-right));
+  width: 42px;
+  height: 42px;
+}
+
+/* Left-Side Utility Strip (Above Joystick, Zero Overlap!) */
+body.mobile-mode #btn-touch-fire-left {
+  top: 48px;
+  left: calc(104px + env(safe-area-inset-left));
+  width: 50px;
+  height: 50px;
+}
+body.mobile-mode #btn-touch-heal {
+  top: 48px;
+  left: calc(162px + env(safe-area-inset-left));
+  bottom: auto;
+  width: 44px;
+  height: 44px;
+}
+body.mobile-mode #btn-touch-ping {
+  top: 48px;
+  left: calc(214px + env(safe-area-inset-left));
+  width: 42px;
+  height: 42px;
+}
+body.mobile-mode #btn-touch-bag {
+  top: 102px;
+  left: calc(104px + env(safe-area-inset-left));
+  width: 38px;
+  height: 38px;
+}
+body.mobile-mode #btn-touch-holster {
+  top: 102px;
+  left: calc(150px + env(safe-area-inset-left));
+  width: 38px;
+  height: 38px;
+}
+body.mobile-mode #btn-touch-emote {
+  top: 102px;
+  left: calc(196px + env(safe-area-inset-left));
+  width: 38px;
+  height: 38px;
+}
+body.mobile-mode #btn-touch-inspect {
+  display: none; /* Keep mobile HUD clean; inspect available on desktop */
+}
+
+body.mobile-mode #hud-perk-upgrade-bar {
+  bottom: 72px;
+  min-width: 280px;
+  padding: 6px 10px;
+}
+body.mobile-mode #hud-range-controls {
+  top: 152px;
+  width: 165px;
+  padding: 5px 7px;
 }

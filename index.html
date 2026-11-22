@@ -192,6 +192,22 @@
           <input type="checkbox" id="toggle-auto-fire" />
         </div>
         <div class="setting-row">
+          <span>Apex Mobile Aim Assist (Target Slowdown & Lock)</span>
+          <input type="checkbox" id="toggle-aim-assist" checked />
+        </div>
+        <div class="setting-row">
+          <span>Mobile Gyroscope Aim (Miringkan HP untuk Aim)</span>
+          <input type="checkbox" id="toggle-gyro-aim" />
+        </div>
+        <div class="setting-row">
+          <span>Mobile Haptic Vibration (Getar Tembak & Kill)</span>
+          <input type="checkbox" id="toggle-haptics" checked />
+        </div>
+        <div class="setting-row">
+          <span>Touch Button Scale (<b id="touch-scale-label" style="color:#fbbf24">100%</b>)</span>
+          <input type="range" id="slider-touch-scale" min="0.75" max="1.25" step="0.05" value="1.0" />
+        </div>
+        <div class="setting-row">
           <span>Touch / Mouse Look Sensitivity</span>
           <input type="range" id="slider-sensitivity" min="0.4" max="2.5" step="0.1" value="1.0" />
         </div>
@@ -391,6 +407,7 @@
     <!-- MOBILE MULTI-TOUCH PRO CONTROLS OVERLAY -->
     <div id="mobile-touch-controls">
       <div id="touch-joystick-zone">
+        <div id="joystick-sprint-lock" class="hidden">⚡ AUTO-SPRINT</div>
         <div id="joystick-base">
           <div id="joystick-knob"></div>
         </div>
@@ -538,6 +555,19 @@
         <button id="btn-play-again" class="btn-apex-play">⚡ PLAY AGAIN</button>
         <button id="btn-spectate-match" class="btn-apex-secondary">👁️ SPECTATE MATCH</button>
         <button id="btn-back-lobby" class="btn-apex-secondary">🏛️ RETURN TO LOBBY</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Portrait -> Landscape Prompt Overlay (Dismissible) -->
+  <div id="rotate-landscape-overlay" class="hidden">
+    <div class="rotate-card">
+      <div class="rotate-phone-icon">📱</div>
+      <h2>PUTAR HP KE MODE LANDSCAPE</h2>
+      <p>GOD WARS: ASGARD ROYALE dirancang untuk layar horizontal seperti Apex Legends Mobile agar kontrol 2-jempol & HUD maksimal.</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;">
+        <button id="btn-force-landscape" class="btn-apex-play">⛶ FULLSCREEN & LANDSCAPE</button>
+        <button id="btn-dismiss-rotate" class="btn-apex-secondary">LANJUT PORTRAIT</button>
       </div>
     </div>
   </div>
