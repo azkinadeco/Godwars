@@ -33,11 +33,18 @@ def make_mat(name, col, metallic=0.82, roughness=0.22, emissive=None, em_str=1.5
     return m
 
 def attach_to_bone(obj, arm_obj, bone_name):
+    # Bone-parenting in Blender is relative to the bone TAIL. The old hand-rolled parent inverse
+    # used the bone HEAD, so every part was shoved along its bone ("exploded" heroes in-game).
+    # Keep the authored world transform instead and let Blender solve the local matrix.
+    bpy.context.view_layer.update()
+    world = obj.matrix_world.copy()
     obj.parent = arm_obj
     obj.parent_type = 'BONE'
     obj.parent_bone = bone_name
-    # Reset parent inverse so local coords are relative to bone tail/head cleanly
-    obj.matrix_parent_inverse = arm_obj.matrix_world.inverted() @ (arm_obj.matrix_world @ arm_obj.pose.bones[bone_name].matrix).inverted()
+    obj.matrix_parent_inverse.identity()
+    bpy.context.view_layer.update()
+    obj.matrix_world = world
+    bpy.context.view_layer.update()
 
 def add_part(arm_obj, bone_name, prim, loc, scale, mat, rot=(0, 0, 0)):
     if prim == 'cube':
@@ -130,11 +137,20 @@ def build_rigged_hero(hero_id, cfg):
     else:
         add_part(arm_obj, "Head", "cyl", (0, 0, 1.94), (0.34, 0.34, 0.06), mat_em)
 
+    # Neck, belt & shoulder straps (fills the gaps between torso / head / hips)
+    add_part(arm_obj, "Chest", "cyl", (0, 0, 1.585), (0.15, 0.15, 0.10), mat_skn)
+    add_part(arm_obj, "Hips", "cyl", (0, 0, 1.09), (0.50, 0.32, 0.07), mat_acc)
+    add_part(arm_obj, "Chest", "cube", (0, 0, 1.20), (0.48, 0.27, 0.14), mat_drk)
+
     # Arms & Gauntlets
     add_part(arm_obj, "UpperArmL", "cyl", (-0.36, 0, 1.32), (0.15, 0.15, 0.30), mat_drk)
     add_part(arm_obj, "ForearmL",  "cyl", (-0.38, -0.08, 1.07), (0.14, 0.14, 0.28), mat_acc, rot=(math.radians(35), 0, 0))
     add_part(arm_obj, "UpperArmR", "cyl", (0.36, 0, 1.32),  (0.15, 0.15, 0.30), mat_drk)
     add_part(arm_obj, "ForearmR",  "cyl", (0.38, -0.10, 1.08), (0.14, 0.14, 0.28), mat_acc, rot=(math.radians(42), 0, 0))
+
+    # Hands (gloved fists at the end of each forearm)
+    add_part(arm_obj, "ForearmL", "sphere", (-0.38, -0.17, 0.95), (0.12, 0.12, 0.12), mat_drk)
+    add_part(arm_obj, "ForearmR", "sphere", (0.38, -0.21, 0.99), (0.12, 0.12, 0.12), mat_drk)
 
     # Legs, Knee Guards & Armored Boots
     add_part(arm_obj, "ThighL", "cyl",  (-0.16, 0, 0.72), (0.18, 0.18, 0.44), mat_drk)

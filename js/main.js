@@ -9,6 +9,16 @@
  * - Center-Screen Cast Progress Bar for Shield Cells/Batteries/Medkits/Phoenix Kits & Interactive Backpack [I]
  */
 
+// Pointer lock throws (or returns a rejecting promise) on touch devices, iframes and file://.
+// Never let that abort the click handler that is starting a match.
+window.gwSafePointerLock = function (el) {
+  if (!el || !el.requestPointerLock) return;
+  try {
+    const r = el.requestPointerLock();
+    if (r && typeof r.catch === 'function') r.catch(() => {});
+  } catch (e) { /* unsupported here; mouse-look falls back to drag */ }
+};
+
 class GodWarsGame {
   constructor() {
     this.selectedHeroId = 'thor';
@@ -455,7 +465,7 @@ class GodWarsGame {
         document.getElementById('heal-wheel-modal').classList.add('hidden');
         if (!this.forceMobileUI) {
           const canvas = document.getElementById('game-canvas');
-          if (canvas.requestPointerLock) canvas.requestPointerLock();
+          window.gwSafePointerLock(canvas);
         }
         this.startHealing();
       });
@@ -701,7 +711,7 @@ class GodWarsGame {
         document.getElementById('ping-wheel-modal').classList.add('hidden');
         if (!this.forceMobileUI) {
           const canvas = document.getElementById('game-canvas');
-          if (canvas.requestPointerLock) canvas.requestPointerLock();
+          window.gwSafePointerLock(canvas);
         }
         this.triggerApexPing(pType);
       });
@@ -715,7 +725,7 @@ class GodWarsGame {
         document.getElementById('ordnance-wheel-modal').classList.add('hidden');
         if (!this.forceMobileUI) {
           const canvas = document.getElementById('game-canvas');
-          if (canvas.requestPointerLock) canvas.requestPointerLock();
+          window.gwSafePointerLock(canvas);
         }
         const gData = window.GODWARS_DATA.GRENADES[this.selectedGrenadeId];
         if (gData) this.showBanner(`EQUIPPED ORDNANCE: ${gData.name}`, gData.color);
@@ -1046,7 +1056,7 @@ class GodWarsGame {
       modal.classList.add('hidden');
       if (!this.forceMobileUI) {
         const canvas = document.getElementById('game-canvas');
-        if (canvas.requestPointerLock) canvas.requestPointerLock();
+        window.gwSafePointerLock(canvas);
       }
     }
   }
@@ -1280,7 +1290,7 @@ class GodWarsGame {
       modal.classList.add('hidden');
       if (!this.forceMobileUI) {
         const canvas = document.getElementById('game-canvas');
-        if (canvas.requestPointerLock) canvas.requestPointerLock();
+        window.gwSafePointerLock(canvas);
       }
     }
   }
@@ -1314,7 +1324,7 @@ class GodWarsGame {
     if (modal) modal.classList.add('hidden');
     if (!this.forceMobileUI) {
       const canvas = document.getElementById('game-canvas');
-      if (canvas.requestPointerLock) canvas.requestPointerLock();
+      window.gwSafePointerLock(canvas);
     }
   }
 
@@ -1572,7 +1582,7 @@ class GodWarsGame {
       this.requestMobileFullscreenLandscape();
     } else {
       const canvas = document.getElementById('game-canvas');
-      if (canvas.requestPointerLock) canvas.requestPointerLock();
+      window.gwSafePointerLock(canvas);
     }
 
     if (!isFiringRange && !instantGroundDrop) {
@@ -1636,7 +1646,7 @@ class GodWarsGame {
       const invOpen = !document.getElementById('inventory-modal').classList.contains('hidden');
       const mapOpen = !document.getElementById('fullmap-modal').classList.contains('hidden');
       if (this.matchActive && !this.forceMobileUI && !invOpen && !mapOpen && document.pointerLockElement !== canvas) {
-        if (canvas.requestPointerLock) canvas.requestPointerLock();
+        window.gwSafePointerLock(canvas);
       }
     });
 
@@ -2048,7 +2058,7 @@ class GodWarsGame {
       modal.classList.add('hidden');
       if (!this.forceMobileUI) {
         const canvas = document.getElementById('game-canvas');
-        if (canvas.requestPointerLock) canvas.requestPointerLock();
+        window.gwSafePointerLock(canvas);
       }
     }
   }
@@ -2064,7 +2074,7 @@ class GodWarsGame {
       modal.classList.add('hidden');
       if (!this.forceMobileUI) {
         const canvas = document.getElementById('game-canvas');
-        if (canvas.requestPointerLock) canvas.requestPointerLock();
+        window.gwSafePointerLock(canvas);
       }
     }
   }
@@ -2450,7 +2460,7 @@ class GodWarsGame {
       modal.classList.add('hidden');
       if (!this.forceMobileUI) {
         const canvas = document.getElementById('game-canvas');
-        if (canvas.requestPointerLock) canvas.requestPointerLock();
+        window.gwSafePointerLock(canvas);
       }
     }
   }

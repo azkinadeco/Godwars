@@ -25,7 +25,7 @@ window.ModelFactory = {
     if (!this._loader || this._glbCache[assetName] || this._glbLoading[assetName]) return;
     this._glbLoading[assetName] = [];
     this._loader.load(
-      `assets/models/${assetName}.glb?v=20261123a`,
+      `assets/models/${assetName}.glb?v=20261123c`,
       (gltf) => {
         this._glbCache[assetName] = { scene: gltf.scene, animations: gltf.animations || [] };
         const callbacks = this._glbLoading[assetName] || [];

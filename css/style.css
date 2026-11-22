@@ -1975,16 +1975,17 @@ body.mobile-mode #btn-touch-ult {
 
 /* Quick Heal & Bomb neatly centered above the Bottom Dock (Zero overlap!) */
 body.mobile-mode #btn-touch-heal {
-  bottom: calc(64px + env(safe-area-inset-bottom));
-  left: calc(50% - 54px);
+  /* sits just above the player status panel instead of on top of its Evo label */
+  bottom: calc(108px + env(safe-area-inset-bottom));
+  left: calc(50% - 150px);
   top: auto;
   width: 46px;
   height: 46px;
   border-color: rgba(16, 185, 129, 0.75);
 }
 body.mobile-mode #btn-touch-grenade {
-  bottom: calc(64px + env(safe-area-inset-bottom));
-  left: calc(50% + 8px);
+  bottom: calc(108px + env(safe-area-inset-bottom));
+  left: calc(50% - 94px);
   right: auto;
   top: auto;
   width: 46px;
