@@ -1,0 +1,10 @@
+{
+  "name": "God Wars: Asgard Royale",
+  "short_name": "God Wars",
+  "description": "3D FPS Mythological Battle Royale on Asgard Island — 6 Gods, Divine Weapons & 16-Player Apex Combat",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#070b19",
+  "theme_color": "#fbbf24"
+}
