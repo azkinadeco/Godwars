@@ -781,30 +781,72 @@ window.ModelFactory = {
       const cuffMat = new THREE.MeshStandardMaterial({ color: hData.hexAccent, metalness: 0.92, roughness: 0.18 });
       const gloveMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.65, roughness: 0.35 });
 
-      const rightArmGroup = new THREE.Group();
-      const rightForearm = new THREE.Mesh(new THREE.CylinderGeometry(0.044, 0.052, 0.28, 12), armMat);
-      rightForearm.rotation.x = Math.PI * 0.42;
-      rightForearm.position.set(0.05, -0.13, 0.22);
-      const rightCuff = new THREE.Mesh(new THREE.CylinderGeometry(0.054, 0.056, 0.07, 12), cuffMat);
-      rightCuff.rotation.x = Math.PI * 0.42;
-      rightCuff.position.set(0.04, -0.11, 0.12);
-      const rightFist = new THREE.Mesh(new THREE.SphereGeometry(0.046, 10, 10), gloveMat);
-      rightFist.position.set(0.02, -0.09, 0.06);
-      rightArmGroup.add(rightForearm, rightCuff, rightFist);
-      group.add(rightArmGroup);
+      // First-person hands that actually hold the weapon: palm + curled fingers + thumb on the grip,
+      // armored cuff and a tapered forearm running off the bottom of the screen.
+      // Grip anchors measured from each weapon GLB (pistol grip / handguard centres).
+      const GRIPS = {
+        m4a1:   { r: [0, -0.11, 0.11], l: [0, -0.02, -0.29] },
+        ak47:   { r: [0, -0.10, 0.11], l: [0, -0.03, -0.29] },
+        p90:    { r: [0, -0.09, 0.05], l: [0, -0.09, -0.14] },
+        kriss:  { r: [0, -0.07, 0.11], l: [0, -0.05, -0.27] },
+        uzi:    { r: [0, -0.08, 0.01], l: [0, -0.16, -0.03] },
+        magnum: { r: [0, -0.09, 0.08], l: [-0.02, -0.12, 0.09] }
+      };
+      const grip = GRIPS[weaponId] || GRIPS.m4a1;
+      const sleeveMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(hData.hexColor).multiplyScalar(0.5), metalness: 0.2, roughness: 0.7 });
+      const plateMat = new THREE.MeshStandardMaterial({ color: hData.hexAccent, metalness: 0.7, roughness: 0.35 });
+      const leatherMat = new THREE.MeshStandardMaterial({ color: 0x1c1d21, metalness: 0.05, roughness: 0.78 });
 
-      const leftArmGroup = new THREE.Group();
-      const leftForearm = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.05, 0.30, 12), armMat);
-      leftForearm.rotation.x = Math.PI * 0.44;
-      leftForearm.rotation.z = -0.22;
-      leftForearm.position.set(-0.09, -0.12, 0.04);
-      const leftCuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.054, 0.07, 12), cuffMat);
-      leftCuff.rotation.x = Math.PI * 0.44;
-      leftCuff.rotation.z = -0.22;
-      leftCuff.position.set(-0.06, -0.10, -0.08);
-      const leftFist = new THREE.Mesh(new THREE.SphereGeometry(0.044, 10, 10), gloveMat);
-      leftFist.position.set(-0.04, -0.08, -0.15);
-      leftArmGroup.add(leftForearm, leftCuff, leftFist);
+      const buildHand = (side, anchor, forearmDir) => {
+        const g = new THREE.Group();
+        const hand = new THREE.Group();
+        hand.position.set(anchor[0] + side * 0.042, anchor[1], anchor[2]);
+        // palm wraps the side of the grip
+        const palm = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.085, 0.075), leatherMat);
+        hand.add(palm);
+        // four curled fingers crossing in front of the grip toward the other side
+        for (let f = 0; f < 4; f++) {
+          const finger = new THREE.Group();
+          finger.position.set(-side * 0.006, 0.03 - f * 0.021, -0.034);
+          const prox = new THREE.Mesh(new THREE.CylinderGeometry(0.0095, 0.0105, 0.05, 8), leatherMat);
+          prox.rotation.z = Math.PI / 2;
+          prox.position.x = -side * 0.024;
+          const tip = new THREE.Mesh(new THREE.SphereGeometry(0.0105, 8, 6), leatherMat);
+          tip.position.x = -side * 0.05;
+          finger.add(prox, tip);
+          hand.add(finger);
+        }
+        // thumb hooked over the top
+        const thumb = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.0115, 0.055, 8), leatherMat);
+        thumb.rotation.set(0.5, 0, side * 1.0);
+        thumb.position.set(-side * 0.02, 0.05, -0.01);
+        hand.add(thumb);
+        // knuckle guard (hero accent colour)
+        const knuckle = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.08, 0.03), plateMat);
+        knuckle.position.set(side * 0.018, -0.002, -0.03);
+        hand.add(knuckle);
+        g.add(hand);
+
+        // forearm: cuff at the wrist, tapered sleeve running off-screen
+        const wrist = new THREE.Vector3(hand.position.x + side * 0.01, hand.position.y - 0.035, hand.position.z + 0.045);
+        const dir = new THREE.Vector3(...forearmDir).normalize();
+        const len = 0.42;
+        const mid = wrist.clone().addScaledVector(dir, len / 2);
+        const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.04, 0.06, 12), plateMat);
+        cuff.position.copy(wrist.clone().addScaledVector(dir, 0.035)); cuff.quaternion.copy(q);
+        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.05, len, 12), sleeveMat);
+        sleeve.position.copy(mid); sleeve.quaternion.copy(q);
+        const strap = new THREE.Mesh(new THREE.CylinderGeometry(0.0425, 0.0445, 0.018, 12), leatherMat);
+        strap.position.copy(wrist.clone().addScaledVector(dir, 0.14)); strap.quaternion.copy(q);
+        g.add(cuff, sleeve, strap);
+        g.traverse(m => { if (m.isMesh) { m.castShadow = false; m.receiveShadow = false; } });
+        return g;
+      };
+
+      const rightArmGroup = buildHand(1, grip.r, [0.35, -0.55, 0.75]);
+      group.add(rightArmGroup);
+      const leftArmGroup = buildHand(-1, grip.l, [-0.45, -0.6, 0.65]);
       group.add(leftArmGroup);
 
       // NOTE: the 'viewmodel_god_arms' GLB rendered as a box-on-a-pole dead centre of the screen,

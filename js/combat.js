@@ -565,7 +565,7 @@ class CombatManager {
           attacker.shield = Math.min(attacker.maxShield, attacker.shield + 25);
           if (attacker.isPlayer) {
             window.SFX.playEvoUpgrade();
-            this.game.showBanner(`EVO SHIELD UPGRADED: ${tiers[tLvl].name} (${attacker.maxShield})`, tiers[tLvl].color);
+            this.game.showBanner(`RUNE ARMOR UPGRADED: ${tiers[tLvl].name} (${attacker.maxShield})`, tiers[tLvl].color);
             if (tLvl === 2 || tLvl === 3) {
               this.game.offerLegendPerkUpgrade(tLvl);
             }
@@ -686,7 +686,7 @@ class CombatManager {
       if (killer && killer.isPlayer && victim.teamId !== killer.teamId && this.game.gameMode === 'trios') {
         killer.damageDealt += 50;
         window.SFX.playSquadWipe();
-        this.game.showBanner(`☠️ SQUAD WIPED! (+50 EVO BONUS)`, '#fbbf24');
+        this.game.showBanner(`☠️ SQUAD WIPED! (+50 RUNE BONUS)`, '#fbbf24');
       }
     }
 
@@ -700,7 +700,7 @@ class CombatManager {
       }
       if (killer.perks && killer.perks.shieldOnKill) {
         killer.shield = Math.min(killer.maxShield, killer.shield + killer.perks.shieldOnKill);
-        if (killer.isPlayer) this.game.showBanner(`PERK SIPHON: +${killer.perks.shieldOnKill} EVO SHIELD!`, '#38bdf8');
+        if (killer.isPlayer) this.game.showBanner(`PERK SIPHON: +${killer.perks.shieldOnKill} RUNE ARMOR!`, '#38bdf8');
       }
 
       if (killer.isPlayer) {
@@ -1122,9 +1122,9 @@ class CombatManager {
               g.stuck = true;
               g.stuckTarget = t;
               window.SFX.playArcStarStick();
-              this.applyDamage(g.thrower, t, 30, 'Yggdrasil Arc Star (STUCK)', false, tCenter);
+              this.applyDamage(g.thrower, t, 30, 'Yggdrasil Arc Rune (STUCK)', false, tCenter);
               if (g.thrower && g.thrower.isPlayer) {
-                this.game.showBanner(`⚡ ARC STAR STUCK ON ${t.name}! (+30)`, '#38bdf8');
+                this.game.showBanner(`⚡ ARC RUNE STUCK ON ${t.name}! (+30)`, '#38bdf8');
               }
               break;
             }

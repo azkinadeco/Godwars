@@ -146,7 +146,7 @@
         <div id="armory-weapon-grid"></div>
       </div>
       <div>
-        <div class="section-label">DIVINE ORDNANCE (SOLAR BOMB, APOLLO FLASHBANG, YGGDRASIL ARC STAR)</div>
+        <div class="section-label">DIVINE ORDNANCE (SOLAR BOMB, APOLLO FLASHBANG, YGGDRASIL ARC RUNE)</div>
         <div id="armory-bomb-grid"></div>
       </div>
     </div>
@@ -195,11 +195,11 @@
           <input type="checkbox" id="toggle-auto-fire" />
         </div>
         <div class="setting-row">
-          <span>Apex Mobile Aim Assist (Target Slowdown & Lock)</span>
+          <span>Aim Assist (Target Slowdown & Lock)</span>
           <input type="checkbox" id="toggle-aim-assist" checked />
         </div>
         <div class="setting-row">
-          <span>Apex Mobile Smart Auto-Loot & Auto-Open Doors</span>
+          <span>Smart Auto-Loot & Auto-Open Doors</span>
           <input type="checkbox" id="toggle-auto-loot" checked />
         </div>
         <div class="setting-row">
@@ -223,22 +223,22 @@
           <input type="range" id="slider-sensitivity" min="0.4" max="2.5" step="0.1" value="1.0" />
         </div>
         <div class="setting-row">
-          <span>Field of View (Apex FOV: <b id="fov-value-label" style="color:#fbbf24">84°</b>)</span>
+          <span>Field of View (FOV: <b id="fov-value-label" style="color:#fbbf24">84°</b>)</span>
           <input type="range" id="slider-fov" min="75" max="110" step="1" value="84" />
         </div>
         <div class="setting-row">
           <span>Graphics Preset (Anti-Lag Mobile / Ultra Shader)</span>
           <select id="select-quality" style="background:#0f172a;color:#fbbf24;padding:6px 10px;border:1px solid #fbbf24;border-radius:4px;">
             <option value="mobile">Mobile Performance (Max 60 FPS)</option>
-            <option value="balanced" selected>Balanced Apex HD</option>
+            <option value="balanced" selected>Balanced HD</option>
             <option value="ultra">Ultra Asgard High-DPI</option>
           </select>
         </div>
         <div style="font-size:11.5px;color:#94a3b8;line-height:1.55;border-top:1px solid rgba(148,163,184,0.2);padding-top:10px;">
-          <b>COMPLETE APEX CONTROLS GUIDE:</b><br/>
+          <b>COMPLETE CONTROLS GUIDE:</b><br/>
           • <b>Movement:</b> <b>WASD</b> Move • <b>Shift</b> Sprint • <b>C</b> Slide (Downhill Boost!) • <b>Space</b> Jump / Ledge Mantle Climb / Valkyrie Jetpack / Zipline Super-Jump.<br/>
           • <b>Combat:</b> <b>Left Click</b> Fire • <b>Right Click</b> ADS Optic / Hold Knockdown Shield • <b>B</b> Toggle Fire Mode (Auto/Burst/Single) • <b>R</b> Reload • <b>1 / 2</b> Swap Weapons • <b>V</b> Heirloom Quick Melee (Kick Doors!) • <b>N</b> 3D Weapon Inspect.<br/>
-          • <b>Abilities & Tactical:</b> <b>Q</b> Tactical Skill • <b>Z</b> Ultimate Skill • <b>G</b> Throw God Bomb • <b>X</b> Cycle Bomb • <b>H</b> Use Heal • <b>4</b> Cycle Heal Item • <b>F / Middle Click</b> Apex Ping • <b>E</b> Open Door / Loot / Ride Zipline / Revive Ally / Execute Finisher / Replicator / Survey Beacon • <b>I / Tab</b> Tactical Backpack & Attachments • <b>M</b> Full Map.
+          • <b>Abilities & Tactical:</b> <b>Q</b> Tactical Skill • <b>Z</b> Ultimate Skill • <b>G</b> Throw God Bomb • <b>X</b> Cycle Bomb • <b>H</b> Use Heal • <b>4</b> Cycle Heal Item • <b>F / Middle Click</b> Ping • <b>E</b> Open Door / Loot / Ride Zipline / Revive Ally / Execute Finisher / Replicator / Survey Beacon • <b>I / Tab</b> Tactical Backpack & Attachments • <b>M</b> Full Map.
         </div>
       </div>
     </div>
@@ -303,7 +303,7 @@
 
     <!-- Center Crosshair, Holographic ADS Optic & Directional Hit Indicator -->
     <div id="ads-optic-overlay">
-      <div id="ads-optic-label">1X HCOG</div>
+      <div id="ads-optic-label">1X HOLO</div>
     </div>
     <div id="damage-direction-indicator"></div>
     <div id="crosshair-wrapper">
@@ -342,7 +342,7 @@
     <div id="hud-event-banner">WELCOME TO ASGARD</div>
     <div id="hud-ally-callout" class="hidden"></div>
     <div id="hud-perk-upgrade-bar" class="hidden">
-      <div class="perk-header">⚡ EVO LEVEL UP! CHOOSE LEGEND UPGRADE PERK ([7] / [8] OR TAP)</div>
+      <div class="perk-header">⚡ RUNE LEVEL UP! CHOOSE LEGEND UPGRADE PERK ([7] / [8] OR TAP)</div>
       <div id="perk-choices-row" class="perk-choices-row"></div>
     </div>
     <div id="hud-skydive-telemetry" class="hidden">
@@ -368,11 +368,11 @@
     <div class="hud-bottom-left">
       <div class="player-header-row">
         <span id="hud-hero-name">⚡ THOR</span>
-        <span id="hud-shield-tier">LV2 BLUE EVO</span>
+        <span id="hud-shield-tier">LV2 BLUE RUNE</span>
       </div>
       <div class="bar-row">
         <div class="bar-label">
-          <span>EVO SHIELD</span>
+          <span>RUNE ARMOR</span>
           <span id="hud-shield-text">75/75</span>
         </div>
         <div id="hud-shield-cells"></div>
@@ -384,7 +384,7 @@
         </div>
         <div class="bar-track"><div id="hud-hp-fill"></div></div>
       </div>
-      <div id="hud-next-evo">NEXT EVO: 280 DMG</div>
+      <div id="hud-next-evo">NEXT RUNE: 280 DMG</div>
     </div>
 
     <!-- Bottom-Center Heal (H/4), Tactical (Q), Ultimate (Z), Divine Bomb (G/X) & Backpack (I/Tab) -->
@@ -499,7 +499,7 @@
     <div class="radial-wheel-container" onclick="event.stopPropagation()">
       <div class="radial-center-badge">HEAL WHEEL<br/><span>TAP TO USE</span></div>
       <button class="radial-heal-btn pos-top" data-heal="phoenix_kit" style="--r-color:#a855f7">
-        <span>🔥 PHOENIX KIT</span>
+        <span>🔥 NECTAR KIT</span>
         <b id="wheel-cnt-phoenix_kit">x1</b>
       </button>
       <button class="radial-heal-btn pos-right" data-heal="shield_battery" style="--r-color:#38bdf8">
@@ -584,7 +584,7 @@
     <div class="radial-wheel-container" onclick="event.stopPropagation()">
       <div class="radial-center-badge">DIVINE BOMBS<br/><span>SELECT ORDNANCE</span></div>
       <button class="radial-ord-btn pos-top" data-ord="solar_bomb" style="--r-color:#f97316"><span>☀️ SOLAR BOMB</span><b>HIGH DMG</b></button>
-      <button class="radial-ord-btn pos-right" data-ord="yggdrasil_arc" style="--r-color:#38bdf8"><span>✦ ARC STAR</span><b>STICKY EMP</b></button>
+      <button class="radial-ord-btn pos-right" data-ord="yggdrasil_arc" style="--r-color:#38bdf8"><span>✦ ARC RUNE</span><b>STICKY EMP</b></button>
       <button class="radial-ord-btn pos-left" data-ord="apollo_flash" style="--r-color:#fde047"><span>⚡ FLASHBANG</span><b>BLIND 4s</b></button>
     </div>
   </div>
@@ -621,7 +621,7 @@
       <img src="assets/icons/logo.png?v=20261123c" alt="God Wars" style="width:88px;height:88px;border-radius:16px;margin-bottom:6px;box-shadow:0 0 20px rgba(56,189,248,0.45);" />
       <div class="rotate-phone-icon">📱</div>
       <h2>MIRINGKAN IPHONE KE LANDSCAPE</h2>
-      <p>GOD WARS: ASGARD ROYALE didesain khusus layar horizontal (Landscape) agar kontrol 2-jempol & grafik Asgard tampil penuh seperti Apex Legends Mobile.</p>
+      <p>GOD WARS: ASGARD ROYALE didesain khusus layar horizontal (Landscape) agar kontrol 2-jempol & grafik Asgard tampil penuh seperti God Wars Mobile.</p>
       <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;">
         <button id="btn-force-landscape" class="btn-apex-play">⛶ AKTIFKAN FULLSCREEN</button>
       </div>

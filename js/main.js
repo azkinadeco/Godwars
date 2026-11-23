@@ -1092,7 +1092,7 @@ class GodWarsGame {
             p.maxShield = window.GODWARS_DATA.EVO_TIERS[loot.shieldTier].maxShield;
             p.shield = p.maxShield;
             window.SFX.playArmorSwap();
-            this.showBanner(`⚡ AUTO-EQUIPPED LV${loot.shieldTier} EVO SHIELD!`, window.GODWARS_DATA.EVO_TIERS[loot.shieldTier].color);
+            this.showBanner(`⚡ AUTO-EQUIPPED LV${loot.shieldTier} RUNE ARMOR!`, window.GODWARS_DATA.EVO_TIERS[loot.shieldTier].color);
           } else {
             p.heals.shield_cell += 2;
             p.heals.shield_battery += 1;
@@ -2578,7 +2578,7 @@ class GodWarsGame {
       p.shield = p.maxShield;
       window.SFX.playEvoUpgrade();
       this.combat.handleElimination(p, victimBot, `FINISHER: ${hData.finisherName}`);
-      this.showBanner('FINISHER COMPLETE: 100% EVO SHIELD RESTORED!', '#38bdf8');
+      this.showBanner('FINISHER COMPLETE: 100% RUNE ARMOR RESTORED!', '#38bdf8');
     }, 1450);
   }
 
@@ -2641,7 +2641,7 @@ class GodWarsGame {
       p.momentumDir = p.wallContactNormal.clone().addScaledVector(forwardVec, 0.5).normalize();
       p.wallJumpCd = 0.55;
       window.SFX.playWallBounce();
-      this.showBanner('⚡ APEX WALL-BOUNCE!', '#38bdf8');
+      this.showBanner('⚡ WALL-BOUNCE!', '#38bdf8');
     } else if (p.heroId === 'valkyrie' && p.jetpackFuel > 10) {
       p.velocity.y = 8.5;
     }
@@ -2758,7 +2758,7 @@ class GodWarsGame {
     if (btn) btn.textContent = this.thirdPersonMode ? '🎥 1ST' : '🎥 3RD';
     this.vibrate(14);
     this.showBanner(
-      this.thirdPersonMode ? '🎥 3RD-PERSON ACTION CAMERA ACTIVE' : '🎥 1ST-PERSON APEX FPS CAMERA ACTIVE',
+      this.thirdPersonMode ? '🎥 3RD-PERSON ACTION CAMERA ACTIVE' : '🎥 1ST-PERSON FPS CAMERA ACTIVE',
       '#38bdf8'
     );
   }
@@ -3088,7 +3088,7 @@ class GodWarsGame {
         const cx = this.ringCenter.x + Math.cos(a) * r;
         const cz = this.ringCenter.z + Math.sin(a) * r;
         this.world.spawnCarePackage(cx, cz);
-        this.showBanner('📦 ODIN CARE PACKAGE INCOMING (MYTHIC LV5 RED EVO & GOLD WEAPON)!', '#f43f5e');
+        this.showBanner('📦 ODIN CARE PACKAGE INCOMING (MYTHIC LV5 RED RUNE & GOLD WEAPON)!', '#f43f5e');
         window.SFX.announce('Care package incoming.');
       }
     }
@@ -3518,9 +3518,9 @@ class GodWarsGame {
       this.swayX += (swayClamp(-dYaw * 0.45) - this.swayX) * Math.min(1, dt * 12);
       this.swayY += (swayClamp(-dPitch * 0.45) - this.swayY) * Math.min(1, dt * 12);
 
-      const targetX = (p.isADS ? 0.0 : p.inspectTimer > 0 ? 0.06 : 0.24) + this.swayX * (p.isADS ? 0.25 : 1.0);
-      const targetY = (p.isADS ? -0.132 : p.inspectTimer > 0 ? -0.14 : -0.22) + this.swayY * (p.isADS ? 0.25 : 1.0);
-      const targetZ = p.isADS ? -0.32 : p.meleeTimer > 0 ? -0.24 : -0.45;
+      const targetX = (p.isADS ? 0.0 : p.inspectTimer > 0 ? 0.06 : 0.19) + this.swayX * (p.isADS ? 0.25 : 1.0);
+      const targetY = (p.isADS ? -0.132 : p.inspectTimer > 0 ? -0.14 : -0.235) + this.swayY * (p.isADS ? 0.25 : 1.0);
+      const targetZ = p.isADS ? -0.32 : p.meleeTimer > 0 ? -0.24 : -0.58; // pushed out so the stock no longer clips the lens and both hands read
       const bob = (inputLen > 0.1 && p.onGround && !p.isADS) ? Math.sin(this.matchTime * 11) * 0.012 : 0;
 
       this.activeViewmodel.position.x += (targetX - this.activeViewmodel.position.x) * Math.min(1, dt * 16);
@@ -3608,7 +3608,7 @@ class GodWarsGame {
         this.activeViewmodel.rotation.z = -0.15;
       } else {
         this.activeViewmodel.rotation.x += (0 - this.activeViewmodel.rotation.x) * Math.min(1, dt * 15);
-        this.activeViewmodel.rotation.y += (0 - this.activeViewmodel.rotation.y) * Math.min(1, dt * 15);
+        this.activeViewmodel.rotation.y += ((p.isADS ? 0 : 0.07) - this.activeViewmodel.rotation.y) * Math.min(1, dt * 15); // slight inward cant at hip shows the support hand
         this.activeViewmodel.rotation.z += (0 - this.activeViewmodel.rotation.z) * Math.min(1, dt * 15);
       }
     }
@@ -4058,9 +4058,9 @@ class GodWarsGame {
 
     if (tierInfo.nextThreshold) {
       const rem = Math.max(0, Math.ceil(tierInfo.nextThreshold - p.damageDealt));
-      setTxt('hud-next-evo', `NEXT EVO: ${rem} DMG`);
+      setTxt('hud-next-evo', `NEXT RUNE: ${rem} DMG`);
     } else {
-      setTxt('hud-next-evo', `★ MAX MYTHIC EVO ★`);
+      setTxt('hud-next-evo', `★ MAX MYTHIC RUNE ★`);
     }
 
     const hpFill = document.getElementById('hud-hp-fill');
@@ -4179,7 +4179,7 @@ class GodWarsGame {
 
     if (p.knocked) {
       if (p.shieldTier >= 4 && !p.usedSelfRevive) {
-        promptHtml = `<b style="color:#fbbf24">[E / TAP] GOLD EVO GUARDIAN ANGEL: SELF-REVIVE • HOLD [ADS] FOR SHIELD!</b>`;
+        promptHtml = `<b style="color:#fbbf24">[E / TAP] GOLD RUNE GUARDIAN ANGEL: SELF-REVIVE • HOLD [ADS] FOR SHIELD!</b>`;
         mobileBtnText = `⚡ SELF-REVIVE`;
       } else {
         promptHtml = `<b style="color:#38bdf8">KNOCKED DOWN • HOLD [RIGHT-CLICK / ADS] FOR KNOCKDOWN SHIELD!</b>`;
@@ -4201,10 +4201,10 @@ class GodWarsGame {
       mobileBtnText = `🚪 ${this.nearestDoor.open ? 'CLOSE' : 'OPEN'} DOOR`;
     } else if (this.nearestGroundLoot) {
       const glWep = window.GODWARS_DATA.WEAPONS[this.nearestGroundLoot.loot.weaponId];
-      promptHtml = `<b>[E / TAP] PICK UP:</b> <span style="color:${glWep.color}">${glWep.divineName}</span> + LV${this.nearestGroundLoot.loot.shieldTier} EVO SHIELD`;
+      promptHtml = `<b>[E / TAP] PICK UP:</b> <span style="color:${glWep.color}">${glWep.divineName}</span> + LV${this.nearestGroundLoot.loot.shieldTier} RUNE ARMOR`;
       mobileBtnText = `🔫 EQUIP ${glWep.baseName}`;
     } else if (this.nearestReplicator) {
-      promptHtml = `<b style="color:#2dd4bf">[E / TAP] ${this.nearestReplicator.name.toUpperCase()}: CRAFT ★ MYTHIC LV4 ATTACHMENTS & EVO</b>`;
+      promptHtml = `<b style="color:#2dd4bf">[E / TAP] ${this.nearestReplicator.name.toUpperCase()}: CRAFT ★ MYTHIC LV4 ATTACHMENTS & RUNE</b>`;
       mobileBtnText = `🛠️ CRAFT MYTHIC`;
     } else if (this.nearestBeacon) {
       promptHtml = `<b style="color:#38bdf8">[E / TAP] ${this.nearestBeacon.name.toUpperCase()}: SCAN ALL HOSTILES ON MAP</b>`;
@@ -4219,7 +4219,7 @@ class GodWarsGame {
         : this.nearestBin.isDeathBox
           ? `DEATH BOX (${this.nearestBin.victimName})`
           : 'DIVINE SUPPLY BIN';
-      promptHtml = `<b>[E / TAP]</b> ${title}: <span style="color:${binWep.color}">${binWep.divineName}</span> + LV${this.nearestBin.loot.shieldTier} EVO`;
+      promptHtml = `<b>[E / TAP]</b> ${title}: <span style="color:${binWep.color}">${binWep.divineName}</span> + LV${this.nearestBin.loot.shieldTier} RUNE`;
       mobileBtnText = `📦 OPEN / LOOT`;
     }
 
@@ -4646,7 +4646,7 @@ class GodWarsGame {
         title.style.color = '#fbbf24';
         subtitle.textContent = 'YOUR SQUAD CONQUERED THE GOD WARS BATTLE ROYALE (#1 / 16)';
         window.SFX.playAbility('ultimate');
-        window.SFX.announce('You are the Apex Champion of Asgard.');
+        window.SFX.announce('You are the Champion of Asgard.');
         if (specBtn) specBtn.classList.add('hidden');
       } else {
         title.textContent = 'SQUAD ELIMINATED';
@@ -4665,7 +4665,7 @@ class GodWarsGame {
         if (!isChampion && this.player.lastDamageSource) {
           const src = this.player.lastDamageSource;
           recapEl.classList.remove('hidden');
-          recapEl.innerHTML = `<b>☠️ APEX DEATH RECAP:</b> Eliminated by <span style="color:#fde047">${src.attackerName}</span> using <b>${src.weaponName}</b> (Final Hit: ${src.amount} DMG) • Accuracy: ${acc}% • Headshots: ${this.player.headshotsLanded || 0}`;
+          recapEl.innerHTML = `<b>☠️ DEATH RECAP:</b> Eliminated by <span style="color:#fde047">${src.attackerName}</span> using <b>${src.weaponName}</b> (Final Hit: ${src.amount} DMG) • Accuracy: ${acc}% • Headshots: ${this.player.headshotsLanded || 0}`;
         } else {
           recapEl.classList.add('hidden');
         }

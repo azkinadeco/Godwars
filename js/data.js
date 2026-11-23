@@ -24,10 +24,10 @@ window.GODWARS_DATA = {
   },
 
   EVO_TIERS: {
-    1: { level: 1, name: 'LV1 WHITE EVO',  maxShield: 50,  cells: 2, color: '#e2e8f0', hex: 0xe2e8f0, nextThreshold: 120 },
-    2: { level: 2, name: 'LV2 BLUE EVO',   maxShield: 75,  cells: 3, color: '#38bdf8', hex: 0x38bdf8, nextThreshold: 280 },
-    3: { level: 3, name: 'LV3 PURPLE EVO', maxShield: 100, cells: 4, color: '#a855f7', hex: 0xa855f7, nextThreshold: 500 },
-    4: { level: 4, name: 'LV4 GOLD EVO',   maxShield: 100, cells: 4, color: '#fbbf24', hex: 0xfbbf24, nextThreshold: 750, selfRevive: true },
+    1: { level: 1, name: 'LV1 WHITE RUNE',  maxShield: 50,  cells: 2, color: '#e2e8f0', hex: 0xe2e8f0, nextThreshold: 120 },
+    2: { level: 2, name: 'LV2 BLUE RUNE',   maxShield: 75,  cells: 3, color: '#38bdf8', hex: 0x38bdf8, nextThreshold: 280 },
+    3: { level: 3, name: 'LV3 PURPLE RUNE', maxShield: 100, cells: 4, color: '#a855f7', hex: 0xa855f7, nextThreshold: 500 },
+    4: { level: 4, name: 'LV4 GOLD RUNE',   maxShield: 100, cells: 4, color: '#fbbf24', hex: 0xfbbf24, nextThreshold: 750, selfRevive: true },
     5: { level: 5, name: 'LV5 MYTHIC RED', maxShield: 125, cells: 5, color: '#f43f5e', hex: 0xf43f5e, nextThreshold: null, selfRevive: true }
   },
 
@@ -56,10 +56,10 @@ window.GODWARS_DATA = {
       name: 'Rune Optic Sight',
       tiers: {
         0: { level: 0, name: '1x Iron Rune Sight', color: '#475569', zoomMult: 1.0, label: '1X RUNE' },
-        1: { level: 1, name: '1x HCOG Heimdall Classic', color: '#e2e8f0', zoomMult: 0.92, label: '1X HCOG' },
-        2: { level: 2, name: '2x Bruiser Odin Sight', color: '#38bdf8', zoomMult: 0.78, label: '2X BRUISER' },
-        3: { level: 3, name: '3x HCOG Valkyrie Ranger', color: '#a855f7', zoomMult: 0.68, label: '3X RANGER' },
-        4: { level: 4, name: '1x-2x Gold Digital Threat', color: '#fbbf24', zoomMult: 0.74, label: '1-2X THREAT', threatHighlight: true }
+        1: { level: 1, name: '1x Heimdall Holo', color: '#e2e8f0', zoomMult: 0.92, label: '1X HOLO' },
+        2: { level: 2, name: '2x Odin Sight', color: '#38bdf8', zoomMult: 0.78, label: '2X ODIN' },
+        3: { level: 3, name: '3x Valkyrie Scope', color: '#a855f7', zoomMult: 0.68, label: '3X SCOPE' },
+        4: { level: 4, name: '1x-2x Gold Seer Sight', color: '#fbbf24', zoomMult: 0.74, label: '1-2X SEER', threatHighlight: true }
       }
     },
     hopup: {
@@ -67,9 +67,9 @@ window.GODWARS_DATA = {
       tiers: {
         0: { level: 0, name: 'No Hop-Up', color: '#475569', dmgMult: 1.0, rpmMult: 1.0 },
         1: { level: 1, name: 'Lv1 Quickdraw Stock', color: '#e2e8f0', dmgMult: 1.04, rpmMult: 1.03 },
-        2: { level: 2, name: 'Lv2 Disruptor Runes', color: '#38bdf8', dmgMult: 1.10, rpmMult: 1.05 },
-        3: { level: 3, name: 'Lv3 Hammerpoint Forged', color: '#a855f7', dmgMult: 1.16, rpmMult: 1.08 },
-        4: { level: 4, name: 'Lv4 Mythic Turbocharger', color: '#fbbf24', dmgMult: 1.24, rpmMult: 1.14 }
+        2: { level: 2, name: 'Lv2 Shieldbreaker Runes', color: '#38bdf8', dmgMult: 1.10, rpmMult: 1.05 },
+        3: { level: 3, name: 'Lv3 Forge-Point Rounds', color: '#a855f7', dmgMult: 1.16, rpmMult: 1.08 },
+        4: { level: 4, name: 'Lv4 Mythic Overcharger', color: '#fbbf24', dmgMult: 1.24, rpmMult: 1.14 }
       }
     }
   },
@@ -107,8 +107,8 @@ window.GODWARS_DATA = {
     },
     phoenix_kit: {
       id: 'phoenix_kit',
-      name: 'Phoenix Idunn Nectar',
-      shortName: 'PHOENIX KIT',
+      name: 'Idunn Golden Nectar',
+      shortName: 'NECTAR KIT',
       castTime: 3.4,
       shieldRestore: 999,
       hpRestore: 999,
@@ -189,7 +189,7 @@ window.GODWARS_DATA = {
       meleeName: 'Bident of Tartarus',
       finisherName: 'Soul Harvest Reaping',
       passiveName: 'Soul Siphon',
-      passiveDesc: 'Every elimination immediately restores 45 Evo Shield and 30 Health from fallen souls.',
+      passiveDesc: 'Every elimination immediately restores 45 Rune Armor and 30 Health from fallen souls.',
       tacticalName: 'Stygian Wave',
       tacticalDesc: 'Unleashes a dark spectral surge forward that deals 35 damage to enemies and heals Hades for 100% of damage dealt.',
       tacticalCooldown: 15,
@@ -216,7 +216,7 @@ window.GODWARS_DATA = {
       meleeName: 'Olympian Thunderbolt Fist',
       finisherName: 'Judgment of Olympus',
       passiveName: 'Olympian Overcharge',
-      passiveDesc: '+20% faster weapon reload speed and golden thunder rounds that deal +15% extra damage to Evo Shields.',
+      passiveDesc: '+20% faster weapon reload speed and golden thunder rounds that deal +15% extra damage to Rune Shields.',
       tacticalName: 'Aegis Thunder Wall',
       tacticalDesc: 'Deploys a golden one-way energy barrier in front of you that blocks incoming fire and amps your bullets by +20%.',
       tacticalCooldown: 16,
@@ -286,7 +286,7 @@ window.GODWARS_DATA = {
     p90: {
       id: 'p90',
       baseName: 'P90',
-      divineName: 'BIFROST P90 • HEIMDALL PDW',
+      divineName: 'HEIMDALL PDW',
       ammoType: 'LIGHT RUNE',
       category: 'Divine Submachine Gun',
       desc: 'Bullpup P90 infused with a glowing rainbow-cyan Bifrost crystal top magazine. Massive 50-round capacity with laser hipfire.',
@@ -316,7 +316,7 @@ window.GODWARS_DATA = {
     kriss: {
       id: 'kriss',
       baseName: 'KRISS VECTOR',
-      divineName: 'FENRIR KRISS • FANG VECTOR',
+      divineName: 'FENRIR FANG',
       ammoType: 'LIGHT RUNE',
       category: 'Mythic Hyper-SMG',
       desc: 'Kriss Vector engineered with Fenrir’s Super-V recoil mitigation and crimson rune fangs. Blistering 1050 RPM close-range shredder.',
@@ -345,7 +345,7 @@ window.GODWARS_DATA = {
     m4a1: {
       id: 'm4a1',
       baseName: 'M4A1',
-      divineName: 'VALHALLA M4A1 • ODIN CARBINE',
+      divineName: 'ODIN CARBINE',
       ammoType: 'ENERGY RUNE',
       category: 'Divine Assault Rifle',
       desc: 'Tactical M4A1 forged in gold-titanium with Valkyrie wing guards and an Asgardian rune holographic sight. Pinpoint mid-to-long range precision.',
@@ -375,7 +375,7 @@ window.GODWARS_DATA = {
     uzi: {
       id: 'uzi',
       baseName: 'UZI',
-      divineName: 'HERMES UZI • ZEPHYR MICRO',
+      divineName: 'ZEPHYR MICRO',
       ammoType: 'LIGHT RUNE',
       category: 'Speedster Micro-SMG',
       desc: 'Ultra-compact Micro-Uzi adorned with winged golden Hermes stabilizers. Instant draw speed and lethal accuracy while sliding or flying.',
@@ -400,10 +400,10 @@ window.GODWARS_DATA = {
     ak47: {
       id: 'ak47',
       baseName: 'AK-47',
-      divineName: 'SURTR AK-47 • MUSPELHEIM WRATH',
+      divineName: 'SURTR WRATH',
       ammoType: 'HEAVY MAGMA',
       category: 'Volcanic Heavy Rifle',
-      desc: 'Heavy AK-47 infused with the eternal magma of Surtr. Fires incendiary rune rounds that hit like a truck and sear through Evo Shields.',
+      desc: 'Heavy AK-47 infused with the eternal magma of Surtr. Fires incendiary rune rounds that hit like a truck and sear through Rune Shields.',
       damage: 25,
       headshotMult: 1.9,
       rpm: 560,
@@ -430,9 +430,9 @@ window.GODWARS_DATA = {
     magnum: {
       id: 'magnum',
       baseName: 'MAGNUM .50',
-      divineName: 'GUNGNIR MAGNUM • ALLFATHER CANNON',
+      divineName: 'GUNGNIR CANNON',
       ammoType: 'SNIPER .50',
-      category: 'Mythic Handcannon (Wingman Class)',
+      category: 'Mythic Heavy Handcannon',
       desc: 'Revolving heavy Magnum sculpted from Odin’s spear Gungnir. High-skill handcannon with devastating 46 body / 96 headshot damage.',
       damage: 46,
       headshotMult: 2.1,
@@ -483,7 +483,7 @@ window.GODWARS_DATA = {
     },
     yggdrasil_arc: {
       id: 'yggdrasil_arc',
-      name: 'Yggdrasil Arc Star',
+      name: 'Yggdrasil Arc Rune',
       shortName: 'ARC RUNE',
       baseType: 'Sticky Lightning Bomb',
       color: '#38bdf8',
@@ -492,7 +492,7 @@ window.GODWARS_DATA = {
       radius: 11,
       fuseTime: 1.9,
       icon: '✦',
-      desc: 'Sticks to surfaces or armor and detonates in an EMP lightning field that shatters Evo Shields.'
+      desc: 'Sticks to surfaces or armor and detonates in an EMP lightning field that shatters Rune Shields.'
     }
   },
 
@@ -601,7 +601,7 @@ window.GODWARS_DATA = {
         { id: 'thor_slide', name: 'THUNDER SLIDE', desc: '+22% Slide Boost Velocity', effect: { slideBoostBonus: 0.22 } }
       ],
       3: [
-        { id: 'thor_siphon', name: 'ALLFATHER AEGIS', desc: 'Restore +30 Evo Shield on Knock/Kill', effect: { shieldOnKill: 30 } },
+        { id: 'thor_siphon', name: 'ALLFATHER AEGIS', desc: 'Restore +30 Rune Armor on Knock/Kill', effect: { shieldOnKill: 30 } },
         { id: 'thor_dmg',    name: 'OVERCHARGED RUNES', desc: '+10% Weapon Damage vs Shields', effect: { dmgMult: 1.10 } }
       ]
     },
