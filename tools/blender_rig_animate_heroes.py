@@ -46,23 +46,35 @@ def attach_to_bone(obj, arm_obj, bone_name):
     obj.matrix_world = world
     bpy.context.view_layer.update()
 
-def add_part(arm_obj, bone_name, prim, loc, scale, mat, rot=(0, 0, 0)):
+def add_part(arm_obj, bone_name, prim, loc, scale, mat, rot=(0, 0, 0), taper=1.0):
+    # 'taper' < 1 narrows the top of cylinders/cubes (anatomical limbs, V-shaped torso).
     if prim == 'cube':
         bpy.ops.mesh.primitive_cube_add(size=1.0, location=loc, rotation=rot)
     elif prim == 'cyl':
-        bpy.ops.mesh.primitive_cylinder_add(vertices=14, radius=0.5, depth=1.0, location=loc, rotation=rot)
+        bpy.ops.mesh.primitive_cone_add(vertices=18, radius1=0.5, radius2=0.5 * taper, depth=1.0, location=loc, rotation=rot)
     elif prim == 'sphere':
-        bpy.ops.mesh.primitive_uv_sphere_add(segments=14, ring_count=10, radius=0.5, location=loc, rotation=rot)
+        bpy.ops.mesh.primitive_uv_sphere_add(segments=20, ring_count=14, radius=0.5, location=loc, rotation=rot)
     elif prim == 'cone':
-        bpy.ops.mesh.primitive_cone_add(vertices=12, radius1=0.5, depth=1.0, location=loc, rotation=rot)
+        bpy.ops.mesh.primitive_cone_add(vertices=14, radius1=0.5, depth=1.0, location=loc, rotation=rot)
     obj = bpy.context.active_object
+    if prim == 'cube' and taper != 1.0:
+        # narrow the bottom face (waist) relative to the top (shoulders)
+        for v in obj.data.vertices:
+            if v.co.z < 0:
+                v.co.x *= taper
+                v.co.y *= (0.5 + taper * 0.5)
     obj.scale = scale
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
-    if prim == 'cube':
+    if prim in ('cube', 'cyl'):
+        # Generous multi-segment bevel = rounded armour plates instead of toy blocks
         bev = obj.modifiers.new("Bevel", 'BEVEL')
-        bev.width = 0.018
-        bev.segments = 2
+        bev.width = 0.035 if prim == 'cube' else 0.02
+        bev.segments = 3
+        bev.limit_method = 'ANGLE'
         bpy.ops.object.modifier_apply(modifier="Bevel")
+    bpy.ops.object.shade_smooth()
+    obj.data.use_auto_smooth = True
+    obj.data.auto_smooth_angle = math.radians(40)
     obj.data.materials.append(mat)
     attach_to_bone(obj, arm_obj, bone_name)
     return obj
@@ -114,7 +126,10 @@ def build_rigged_hero(hero_id, cfg):
     add_part(arm_obj, "Hips", "cube", (0, -0.13, 0.98), (0.14, 0.06, 0.12), mat_acc)
 
     # Chest Armor, Glowing Core & Cape
-    add_part(arm_obj, "Chest", "cube", (0, 0, 1.34), (0.56, 0.30, 0.44), mat_pri)
+    add_part(arm_obj, "Chest", "cube", (0, 0, 1.34), (0.58, 0.32, 0.46), mat_pri, taper=0.72)
+    # abdominal plate + layered chest plate for silhouette depth
+    add_part(arm_obj, "Chest", "cube", (0, -0.15, 1.40), (0.40, 0.05, 0.22), mat_acc)
+    add_part(arm_obj, "Hips", "cube", (0, -0.12, 1.02), (0.30, 0.06, 0.16), mat_drk, taper=0.8)
     add_part(arm_obj, "Chest", "sphere", (0, -0.16, 1.38), (0.15, 0.08, 0.15), mat_em)
     add_part(arm_obj, "Chest", "cube", (0, 0.19, 1.12), (0.48, 0.04, 0.72), mat_pri, rot=(math.radians(10), 0, 0))
     # Pauldrons
@@ -143,23 +158,23 @@ def build_rigged_hero(hero_id, cfg):
     add_part(arm_obj, "Chest", "cube", (0, 0, 1.20), (0.48, 0.27, 0.14), mat_drk)
 
     # Arms & Gauntlets
-    add_part(arm_obj, "UpperArmL", "cyl", (-0.36, 0, 1.32), (0.15, 0.15, 0.30), mat_drk)
-    add_part(arm_obj, "ForearmL",  "cyl", (-0.38, -0.08, 1.07), (0.14, 0.14, 0.28), mat_acc, rot=(math.radians(35), 0, 0))
-    add_part(arm_obj, "UpperArmR", "cyl", (0.36, 0, 1.32),  (0.15, 0.15, 0.30), mat_drk)
-    add_part(arm_obj, "ForearmR",  "cyl", (0.38, -0.10, 1.08), (0.14, 0.14, 0.28), mat_acc, rot=(math.radians(42), 0, 0))
+    add_part(arm_obj, "UpperArmL", "cyl", (-0.36, 0, 1.32), (0.15, 0.15, 0.30), mat_drk, taper=1.15)
+    add_part(arm_obj, "ForearmL",  "cyl", (-0.38, -0.08, 1.07), (0.14, 0.14, 0.28), mat_acc, rot=(math.radians(35), 0, 0), taper=1.2)
+    add_part(arm_obj, "UpperArmR", "cyl", (0.36, 0, 1.32),  (0.15, 0.15, 0.30), mat_drk, taper=1.15)
+    add_part(arm_obj, "ForearmR",  "cyl", (0.38, -0.10, 1.08), (0.14, 0.14, 0.28), mat_acc, rot=(math.radians(42), 0, 0), taper=1.2)
 
     # Hands (gloved fists at the end of each forearm)
     add_part(arm_obj, "ForearmL", "sphere", (-0.38, -0.17, 0.95), (0.12, 0.12, 0.12), mat_drk)
     add_part(arm_obj, "ForearmR", "sphere", (0.38, -0.21, 0.99), (0.12, 0.12, 0.12), mat_drk)
 
     # Legs, Knee Guards & Armored Boots
-    add_part(arm_obj, "ThighL", "cyl",  (-0.16, 0, 0.72), (0.18, 0.18, 0.44), mat_drk)
-    add_part(arm_obj, "ShinL",  "cyl",  (-0.17, 0, 0.28), (0.16, 0.16, 0.44), mat_pri)
+    add_part(arm_obj, "ThighL", "cyl",  (-0.16, 0, 0.72), (0.18, 0.18, 0.44), mat_drk, taper=1.18)
+    add_part(arm_obj, "ShinL",  "cyl",  (-0.17, 0, 0.28), (0.16, 0.16, 0.44), mat_pri, taper=1.2)
     add_part(arm_obj, "ShinL",  "cube", (-0.17, -0.09, 0.48), (0.16, 0.08, 0.14), mat_acc)
     add_part(arm_obj, "ShinL",  "cube", (-0.17, -0.05, 0.06), (0.18, 0.26, 0.12), mat_acc)
 
-    add_part(arm_obj, "ThighR", "cyl",  (0.16, 0, 0.72),  (0.18, 0.18, 0.44), mat_drk)
-    add_part(arm_obj, "ShinR",  "cyl",  (0.17, 0, 0.28),  (0.16, 0.16, 0.44), mat_pri)
+    add_part(arm_obj, "ThighR", "cyl",  (0.16, 0, 0.72),  (0.18, 0.18, 0.44), mat_drk, taper=1.18)
+    add_part(arm_obj, "ShinR",  "cyl",  (0.17, 0, 0.28),  (0.16, 0.16, 0.44), mat_pri, taper=1.2)
     add_part(arm_obj, "ShinR",  "cube", (0.17, -0.09, 0.48), (0.16, 0.08, 0.14), mat_acc)
     add_part(arm_obj, "ShinR",  "cube", (0.17, -0.05, 0.06), (0.18, 0.26, 0.12), mat_acc)
 

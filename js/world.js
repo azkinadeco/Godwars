@@ -413,6 +413,80 @@ class AsgardWorld {
         });
       }
     }
+    this.decorateBuildingArchetype(cx, cz, width, depth, floorCount * fh, wallMat, trimMat);
+  }
+
+  /**
+   * Per-theme silhouette pass so POIs stop sharing one box template.
+   * Style is inferred from the wall material: marble=temple, darkSteel=foundry, obsidian=crypt.
+   * Bifrost / Sky Docks get crystal crown / radar via their trim material.
+   */
+  decorateBuildingArchetype(cx, cz, width, depth, roofY, wallMat, trimMat) {
+    const M = this.mats;
+    const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z); m.rotation.set(rx, ry, rz);
+      m.castShadow = true; m.receiveShadow = true;
+      this.scene.add(m);
+      return m;
+    };
+    let style = 'temple';
+    if (wallMat === M.darkSteel) style = trimMat === M.frostTrim ? 'crystal' : trimMat === M.brightGold ? 'skydock' : 'foundry';
+    else if (wallMat === M.obsidian) style = 'crypt';
+
+    if (style === 'temple') {
+      // Triangular pediment crowning both long facades + acroteria; walkable roof stays open in the middle.
+      const pedW = Math.min(width * 0.62, 18), pedH = 2.6;
+      const tri = new THREE.Shape();
+      tri.moveTo(-pedW / 2, 0); tri.lineTo(pedW / 2, 0); tri.lineTo(0, pedH); tri.lineTo(-pedW / 2, 0);
+      const pedGeo = new THREE.ExtrudeGeometry(tri, { depth: 0.7, bevelEnabled: false });
+      for (const sz of [-1, 1]) {
+        add(pedGeo, M.marbleWall, cx, roofY + 1.25, cz + sz * (depth / 2 + 0.35) - 0.35);
+        add(new THREE.BoxGeometry(pedW + 0.8, 0.35, 1.0), M.cornice, cx, roofY + 1.3, cz + sz * (depth / 2 + 0.2));
+        add(new THREE.ConeGeometry(0.45, 1.4, 6), M.brightGold, cx, roofY + 1.25 + pedH + 0.6, cz + sz * (depth / 2 + 0.1));
+      }
+    } else if (style === 'foundry') {
+      // Smokestacks with glowing mouths + exterior pipe runs: readable "industrial" skyline from 150 m.
+      const glow = new THREE.MeshBasicMaterial({ color: 0xff7a1a });
+      [[-0.32, -0.3], [0.3, 0.28]].forEach(([fx, fz], i) => {
+        const x = cx + fx * width, z = cz + fz * depth, h = 9 + i * 3;
+        add(new THREE.CylinderGeometry(0.9, 1.15, h, 14), M.darkSteel, x, roofY + h / 2, z);
+        add(new THREE.CylinderGeometry(1.05, 1.05, 0.5, 14), M.cornice, x, roofY + h, z);
+        add(new THREE.CylinderGeometry(0.7, 0.7, 0.12, 14), glow, x, roofY + h + 0.3, z);
+        this.colliders.push({ minX: x - 1.15, maxX: x + 1.15, minZ: z - 1.15, maxZ: z + 1.15, minY: roofY, maxY: roofY + h, isClimbable: false });
+      });
+      for (const sz of [-1, 1]) {
+        add(new THREE.CylinderGeometry(0.28, 0.28, width * 0.9, 10), M.gold, cx, roofY * 0.55, cz + sz * (depth / 2 + 0.55), 0, 0, Math.PI / 2);
+        add(new THREE.CylinderGeometry(0.28, 0.28, roofY * 0.55, 10), M.gold, cx + width * 0.45, roofY * 0.275, cz + sz * (depth / 2 + 0.55));
+      }
+    } else if (style === 'crypt') {
+      // Leaning buttresses down the long sides + needle spires: jagged gothic silhouette.
+      const n = Math.max(2, Math.round(width / 7));
+      for (let i = 0; i < n; i++) {
+        const x = cx - width / 2 + (i + 0.5) * (width / n);
+        for (const sz of [-1, 1]) {
+          const b = add(new THREE.BoxGeometry(0.9, roofY * 0.8, 1.6), M.obsidian, x, roofY * 0.4, cz + sz * (depth / 2 + 1.0), sz * 0.16, 0, 0);
+          b.position.z += sz * 0.4;
+          add(new THREE.ConeGeometry(0.45, 3.4, 5), M.helTrim, x, roofY * 0.8 + 1.4, cz + sz * (depth / 2 + 1.6));
+        }
+      }
+      add(new THREE.ConeGeometry(1.4, 9, 6), M.obsidian, cx, roofY + 4.5, cz);
+      add(new THREE.OctahedronGeometry(0.8, 0), M.necroGlow, cx, roofY + 9.4, cz);
+    } else if (style === 'crystal') {
+      // Cluster of tall translucent-looking crystal blades on the roof centre.
+      const crystalMat = new THREE.MeshStandardMaterial({ color: 0x9fd8ff, emissive: 0x2a7fd4, emissiveIntensity: 0.45, roughness: 0.15, metalness: 0.1 });
+      [[0, 0, 7.5, 0], [-2, 1.2, 5.2, 0.25], [2.1, -1, 5.8, -0.22], [0.8, 2.2, 4.2, 0.4]].forEach(([dx, dz, h, tilt]) => {
+        add(new THREE.ConeGeometry(0.9, h, 6), crystalMat, cx + dx, roofY + h / 2, cz + dz, tilt * 0.6, 0, tilt);
+      });
+    } else if (style === 'skydock') {
+      // Comms mast + tilted radar dish + landing-pad ring: aerodrome read.
+      const mx = cx + width * 0.3, mz = cz - depth * 0.3;
+      add(new THREE.CylinderGeometry(0.22, 0.35, 10, 8), M.darkSteel, mx, roofY + 5, mz);
+      const dish = add(new THREE.SphereGeometry(2.2, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2.6), M.cornice, mx, roofY + 10.4, mz, -0.9, 0.6, 0);
+      dish.material = M.cornice;
+      add(new THREE.SphereGeometry(0.25, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3b3b }), mx, roofY + 10.2, mz);
+      add(new THREE.TorusGeometry(Math.min(width, depth) * 0.28, 0.12, 6, 40), M.brightGold, cx - width * 0.15, roofY + 0.08, cz + depth * 0.1, Math.PI / 2);
+    }
   }
 
   /**

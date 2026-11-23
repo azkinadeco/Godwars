@@ -25,7 +25,7 @@ window.ModelFactory = {
     if (!this._loader || this._glbCache[assetName] || this._glbLoading[assetName]) return;
     this._glbLoading[assetName] = [];
     this._loader.load(
-      `assets/models/${assetName}.glb?v=20261123c`,
+      `assets/models/${assetName}.glb?v=20261123d`,
       (gltf) => {
         this._glbCache[assetName] = { scene: gltf.scene, animations: gltf.animations || [] };
         const callbacks = this._glbLoading[assetName] || [];
@@ -793,7 +793,7 @@ window.ModelFactory = {
         magnum: { r: [0, -0.09, 0.08], l: [-0.02, -0.12, 0.09] }
       };
       const grip = GRIPS[weaponId] || GRIPS.m4a1;
-      const sleeveMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(hData.hexColor).multiplyScalar(0.5), metalness: 0.2, roughness: 0.7 });
+      const sleeveMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(hData.hexColor).multiplyScalar(0.32), metalness: 0.2, roughness: 0.75 });
       const plateMat = new THREE.MeshStandardMaterial({ color: hData.hexAccent, metalness: 0.7, roughness: 0.35 });
       const leatherMat = new THREE.MeshStandardMaterial({ color: 0x1c1d21, metalness: 0.05, roughness: 0.78 });
 
@@ -830,12 +830,12 @@ window.ModelFactory = {
         // forearm: cuff at the wrist, tapered sleeve running off-screen
         const wrist = new THREE.Vector3(hand.position.x + side * 0.01, hand.position.y - 0.035, hand.position.z + 0.045);
         const dir = new THREE.Vector3(...forearmDir).normalize();
-        const len = 0.42;
+        const len = 0.3;
         const mid = wrist.clone().addScaledVector(dir, len / 2);
         const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
         const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.04, 0.06, 12), plateMat);
         cuff.position.copy(wrist.clone().addScaledVector(dir, 0.035)); cuff.quaternion.copy(q);
-        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.05, len, 12), sleeveMat);
+        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.058, len, 12), sleeveMat);
         sleeve.position.copy(mid); sleeve.quaternion.copy(q);
         const strap = new THREE.Mesh(new THREE.CylinderGeometry(0.0425, 0.0445, 0.018, 12), leatherMat);
         strap.position.copy(wrist.clone().addScaledVector(dir, 0.14)); strap.quaternion.copy(q);
