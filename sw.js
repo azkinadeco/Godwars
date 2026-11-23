@@ -2,7 +2,7 @@
  * GOD WARS: ASGARD ROYALE — Lightweight Mobile PWA Service Worker
  * Enables native full-screen "Add to Home Screen" app experience on Android & iOS.
  */
-const CACHE_NAME = 'godwars-asgard-v7';
+const CACHE_NAME = 'godwars-asgard-v8';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

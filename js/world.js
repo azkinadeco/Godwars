@@ -75,6 +75,7 @@ class AsgardWorld {
     this.buildArenaChampionBanners();
     this.buildSupplyBins();
     this.buildPropKit();
+    this.furnishInteriors();
     this.buildGroundLootAndReplicators();
     this.buildCargoBots();
     this.buildStormRing();
@@ -433,6 +434,22 @@ class AsgardWorld {
    * Collision stays AABB (walls/sills/headers are separate boxes), so windows can be mantled
    * through and shot through, Apex-style.
    */
+  /** Window/door layout along one facade wall (shared by the builder and the interior furnisher). */
+  _wallOpenings(a0, a1, door, avoid, doorW = 3.6, WIN = 2.0) {
+    const L = a1 - a0;
+    const n = Math.max(1, Math.floor((L - 1.5) / 4.0));
+    const ops = [];
+    for (let i = 0; i < n; i++) {
+      const oc = a0 + (i + 0.5) * (L / n);
+      if (door && Math.abs(oc - (a0 + a1) / 2) < doorW / 2 + WIN / 2 + 0.4) continue;
+      if (avoid && oc > avoid[0] - WIN / 2 - 0.3 && oc < avoid[1] + WIN / 2 + 0.3) continue;
+      ops.push({ c: oc, w: WIN, kind: 'win' });
+    }
+    if (door) ops.push({ c: (a0 + a1) / 2, w: doorW, kind: 'door' });
+    ops.sort((p, q) => p.c - q.c);
+    return ops;
+  }
+
   buildApexCompoundBuilding(cx, cz, width, depth, wallMat, trimMat, stories = 2) {
     const floorCount = typeof stories === 'boolean' ? (stories ? 2 : 1) : stories;
     const M = this.mats;
@@ -446,17 +463,7 @@ class AsgardWorld {
 
     // ---- openings along one wall. axis 'X': wall runs along x at z = c; 'Z': along z at x = c.
     const facade = (axis, c, a0, a1, baseY, h, door, avoid) => {
-      const L = a1 - a0;
-      const n = Math.max(1, Math.floor((L - 1.5) / 4.0));
-      const ops = [];
-      for (let i = 0; i < n; i++) {
-        const oc = a0 + (i + 0.5) * (L / n);
-        if (door && Math.abs(oc - (a0 + a1) / 2) < doorW / 2 + WIN / 2 + 0.4) continue;
-        if (avoid && oc > avoid[0] - WIN / 2 - 0.3 && oc < avoid[1] + WIN / 2 + 0.3) continue;
-        ops.push({ c: oc, w: WIN, kind: 'win' });
-      }
-      if (door) ops.push({ c: (a0 + a1) / 2, w: doorW, kind: 'door' });
-      ops.sort((p, q) => p.c - q.c);
+      const ops = this._wallOpenings(a0, a1, door, avoid, doorW, WIN);
       const box = (s0, s1, y0, y1, mat = wallMat) => {
         if (s1 - s0 < 0.05 || y1 - y0 < 0.05) return;
         if (axis === 'X') this.addSolidWall((s0 + s1) / 2, y0, c, s1 - s0, y1 - y0, wallT, mat);
@@ -540,7 +547,7 @@ class AsgardWorld {
     this.addSolidWall(cx + width * 0.05, roofY, cz - depth * 0.25, 1.4, 0.9, 1.4, M.darkSteel, true);
     vis(new THREE.CylinderGeometry(0.35, 0.35, 1.6, 10), M.darkSteel, cx + width * 0.36, roofY + 0.8, cz - depth * 0.3);
 
-    (this.buildings = this.buildings || []).push({ cx, cz, width, depth, roofY });
+    (this.buildings = this.buildings || []).push({ cx, cz, width, depth, roofY, compound: true, floorCount, fh, wallT, doorW, stairX1: sx1, stairZ0: sz0, stairZ1: sz1 });
     this.addBuildingDressing(cx, cz, width, depth, floorCount, wallMat, trimMat);
     this.decorateBuildingArchetype(cx, cz, width, depth, roofY, wallMat, trimMat);
   }
@@ -784,7 +791,8 @@ class AsgardWorld {
       sunDir:  { value: new THREE.Vector3(0.52, 0.62, 0.45).normalize() },
       sunCol:  { value: new THREE.Color(0xfff4c8) },
       time:    { value: 0 },
-      cloudTex:{ value: window.ModelFactory.getDetailTexture() }
+      cloudTex:{ value: window.ModelFactory.getDetailTexture() },
+      linearOut: window.GW_LINEAR_OUT || { value: 0 }  // shared with PostFX: HDR path wants linear radiance
     };
     const skyGeo = new THREE.SphereGeometry(600, 32, 18);
     const skyMat = new THREE.ShaderMaterial({
@@ -807,6 +815,7 @@ class AsgardWorld {
         uniform vec3 sunCol;
         uniform float time;
         uniform sampler2D cloudTex;
+        uniform float linearOut;
         varying vec3 vDir;
         void main() {
           float y = max(vDir.y, 0.0);
@@ -830,6 +839,7 @@ class AsgardWorld {
           } else {
             c = mix(horizon, horizon * 0.68, min(-vDir.y * 3.5, 1.0));
           }
+          if (linearOut > 0.5) c = pow(max(c, vec3(0.0)), vec3(2.2)) * 1.08;
           gl_FragColor = vec4(c, 1.0);
         }
       `
@@ -1885,7 +1895,9 @@ class AsgardWorld {
     this.ringMesh.position.x = centerX;
     this.ringMesh.position.z = centerZ;
     this.ringMesh.scale.set(Math.max(1, radius), 1, Math.max(1, radius));
-    this.ringMesh.material.opacity = 0.2 + Math.sin(time * 3.5) * 0.05;
+    // Linear-space blending (PostFX HDR path) makes a translucent wall read ~3x stronger: compensate.
+    const linK = (window.GW_LINEAR_OUT && window.GW_LINEAR_OUT.value) ? 0.3 : 1;
+    this.ringMesh.material.opacity = (0.2 + Math.sin(time * 3.5) * 0.05) * linK;
 
     this.jumpPads.forEach(p => {
       p.ring.position.y = 0.4 + Math.sin(time * 4) * 0.12;
@@ -2016,7 +2028,7 @@ class AsgardWorld {
     this.scene.add(g);
     // reserve the footprint immediately so later placements don't stack on it
     const res = { minX: x - r * 0.7, maxX: x + r * 0.7, minZ: z - r * 0.7, maxZ: z + r * 0.7, minY: y, maxY: y + 0.01, isClimbable: true, reserved: true };
-    this.colliders.push(res);
+    if (!opts.noCollide) this.colliders.push(res);
     window.ModelFactory.attachBlenderGLB(name, g, (glb) => {
       glb.traverse(m => { if (m.isMesh) { m.castShadow = !opts.noShadow; m.receiveShadow = true; if (m.material && !m.material.userData.gwKit) { m.material.userData.gwKit = true; if (!m.material.emissiveMap && m.material.envMapIntensity !== undefined) m.material.envMapIntensity = 0.45; } } });
       if (opts.noCollide) return;
@@ -2091,6 +2103,151 @@ class AsgardWorld {
       const kinds = ['kit_crate_large', 'kit_barrier', 'kit_sandbags', 'kit_crate_small', 'kit_barrel'];
       if (this.placeKit(kinds[i % kinds.length], x, z, rnd() * Math.PI * 2, { radius: 1.3 })) placed++;
     }
+  }
+
+  /**
+   * Interior furnishing pass for enclosed compound buildings (assets/models/int_*.glb, built by
+   * tools/blender_generate_interiors.py). Per floor: 3-6 wall-standing props (2-3 on phones) in the
+   * piers between windows (low props may sit under a sill), an optional centre table, a rug, a wall
+   * map screen and emissive ceiling panels (no real lights). Keeps clear: the west stair strip + its
+   * approach/landing, the N/S door lanes on the ground floor and a central walking lane.
+   * Deterministic per building (same position hash as addBuildingDressing).
+   */
+  furnishInteriors() {
+    const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    // footprints in model space (front = +Z, back = -Z), from the Blender export report
+    const P = {
+      int_workbench: { x0: -1.10, x1: 1.00, z0: -0.38, z1: 0.53, h: 1.20 },
+      int_lockers:   { x0: -0.64, x1: 0.64, z0: -0.25, z1: 0.27, h: 2.21, tall: true },
+      int_shelf:     { x0: -0.65, x1: 0.65, z0: -0.25, z1: 0.25, h: 2.00, tall: true },
+      int_sofa:      { x0: -1.01, x1: 1.01, z0: -0.42, z1: 0.38, h: 0.81 },
+      int_desk:      { x0: -0.81, x1: 0.81, z0: -0.47, z1: 0.81, h: 1.32 },
+      int_bunk:      { x0: -1.00, x1: 1.00, z0: -0.47, z1: 0.50, h: 1.79, tall: true },
+      int_ammo_stack:{ x0: -0.51, x1: 0.51, z0: -0.31, z1: 0.31, h: 0.84 },
+    };
+    const WALL_KINDS = Object.keys(P);
+    let total = 0;
+    const stats = this.interiorStats = {};
+    const put = (name, x, z, ry, o) => { stats[name] = (stats[name] || 0) + 1; return this.placeKit(name, x, z, ry, o); };   // noShadow: indoor props sit under the roof anyway; keeps them out of the sun shadow pass
+    (this.buildings || []).forEach(b => {
+      if (!b.compound) return;
+      const { cx, cz, width, depth, floorCount, fh, wallT, doorW } = b;
+      const x0 = cx - width / 2, x1 = cx + width / 2, z0 = cz - depth / 2, z1 = cz + depth / 2;
+      const ix0 = x0 + wallT / 2, ix1 = x1 - wallT / 2, iz0 = z0 + wallT / 2, iz1 = z1 - wallT / 2;
+      const stairClearX = b.stairX1 + 1.4;              // stair strip + its approach/landing lane
+      const hsh = Math.abs(Math.sin(cx * 12.9898 + cz * 78.233) * 43758.5453) % 1;
+      for (let lvl = 0; lvl < floorCount; lvl++) {
+        const y = lvl === 0 ? 0.06 : lvl * fh;
+        const ceilY = (lvl + 1) * fh - 0.42;
+        let seed = (Math.floor(hsh * 2147483000) + lvl * 7919 + 1) % 2147483646 + 1;
+        const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+        const placed = [];   // world-space XZ AABBs placed on this floor
+        const free = (bx0, bx1, bz0, bz1, h, pad = 0.25, cpad = 0) => {   // cpad 0: wall-huggers sit 4 cm off the wall face
+          if (bx0 < stairClearX) return false;
+          // stair exits: the top landing (north end) and the foot (south end) open eastward into the room
+          if (bx0 < b.stairX1 + 3.6 && (bz0 < b.stairZ0 + 1.0 || bz1 > b.stairZ1 - 0.6)) return false;
+          if (bx0 < ix0 - 0.01 || bx1 > ix1 + 0.01 || bz0 < iz0 - 0.01 || bz1 > iz1 + 0.01) return false;
+          if (lvl === 0 && Math.abs((bx0 + bx1) / 2 - cx) < (bx1 - bx0) / 2 + doorW / 2 + 0.9 && (bz0 < iz0 + 2.6 || bz1 > iz1 - 2.6)) return false; // door lanes
+          for (const q of placed) if (bx0 < q[1] + pad && bx1 > q[0] - pad && bz0 < q[3] + pad && bz1 > q[2] - pad) return false;
+          for (const c of this.colliders) {
+            if (c.isDoor || c.reserved) continue;
+            if (c.maxY <= y + 0.05 || c.minY >= y + h) continue;
+            if (bx0 < c.maxX + cpad && bx1 > c.minX - cpad && bz0 < c.maxZ + cpad && bz1 > c.minZ - cpad) return false;
+          }
+          return true;
+        };
+        // wall slots: N (z0, faces +Z), S (z1, faces -Z), E (x1, faces -X). West wall hosts the stair.
+        const walls = [
+          { id: 'N', along: 'X', a0: x0, a1: x1, door: lvl === 0, rot: 0 },
+          { id: 'S', along: 'X', a0: x0, a1: x1, door: lvl === 0, rot: Math.PI },
+          { id: 'E', along: 'Z', a0: z0 + wallT / 2, a1: z1 - wallT / 2, door: false, rot: -Math.PI / 2 },
+        ];
+        const slots = [];
+        walls.forEach(w => {
+          const ops = this._wallOpenings(w.a0, w.a1, w.door, null, doorW);
+          const lo = w.along === 'X' ? ix0 : iz0, hi = w.along === 'X' ? ix1 : iz1;
+          let cur = lo;
+          ops.forEach(o => {
+            const s0 = o.c - o.w / 2, s1 = o.c + o.w / 2;
+            if (s0 - cur > 0.6) slots.push({ w, s0: cur, s1: s0, kind: 'pier' });
+            if (o.kind === 'win') slots.push({ w, s0: s0 - 0.15, s1: s1 + 0.15, kind: 'win' });
+            cur = s1;
+          });
+          if (hi - cur > 0.6) slots.push({ w, s0: cur, s1: hi, kind: 'pier' });
+        });
+        // world AABB of a prop with its back against wall w, centred at `a` along it
+        const footprint = (p, w, a) => {
+          const back = -p.z0 + 0.04, front = p.z1;
+          if (w.id === 'N') return { x: a, z: iz0 + back, bb: [a + p.x0, a + p.x1, iz0 + 0.04, iz0 + back + front] };
+          if (w.id === 'S') return { x: a, z: iz1 - back, bb: [a - p.x1, a - p.x0, iz1 - back - front, iz1 - 0.04] };
+          return { x: ix1 - back, z: a, bb: [ix1 - back - front, ix1 - 0.04, a - p.x1, a - p.x0] };
+        };
+        // shuffle slots deterministically; piers first-ish so tall props get used
+        slots.forEach(s => { s.k = rnd() + (s.kind === 'pier' ? 0 : 0.35); });
+        slots.sort((p, q) => p.k - q.k);
+        const want = coarse ? 2 + Math.floor(rnd() * 2) : 3 + Math.floor(rnd() * 4) + (width * depth > 300 ? 2 : 0);   // big halls get a little more
+        const used = {};
+        let n = 0;
+        const screenSlots = [];
+        for (const s of slots) {
+          if (n >= want) break;
+          const len = s.s1 - s.s0;
+          const opts = WALL_KINDS.filter(k => {
+            const p = P[k];
+            if (s.kind === 'win' && p.h > 1.35) return false;          // never block a window with a tall prop
+            if (p.x1 - p.x0 > len - 0.1) return false;
+            if ((used[k] || 0) >= (k === 'int_ammo_stack' ? 2 : 1)) return false;
+            return true;
+          });
+          if (s.kind === 'pier' && len > 2.0) screenSlots.push(s);
+          for (let t = 0; t < 3 && opts.length; t++) {
+            const k = opts.splice(Math.floor(rnd() * opts.length), 1)[0], p = P[k];
+            const slack = len - (p.x1 - p.x0) - 0.1;
+            const a = (s.s0 + s.s1) / 2 + (rnd() - 0.5) * Math.max(0, slack) * 0.6;
+            const f = footprint(p, s.w, a);
+            if (!free(f.bb[0], f.bb[1], f.bb[2], f.bb[3], p.h)) continue;
+            put(k, f.x, f.z, s.w.rot, { y, force: true, radius: 0.5, noShadow: true });
+            (this.interiorPlacements = this.interiorPlacements || []).push({ name: k, x: f.x, z: f.z, y, wall: s.w.id });
+            placed.push(f.bb); used[k] = (used[k] || 0) + 1; n++; total++;
+            if (p.tall) s.tall = true;
+            break;
+          }
+        }
+        // map / ops screen on a free stretch of pier above head-height props
+        if (!coarse || lvl === 0) {
+          const s = screenSlots.find(q => !q.tall && q.s1 - q.s0 > 2.1);
+          if (s) {
+            const f = footprint({ x0: -0.95, x1: 0.95, z0: -0.04, z1: 0.05 }, s.w, (s.s0 + s.s1) / 2);
+            put('int_wall_screen', f.x, f.z, s.w.rot, { y: y + 1.5, force: true, noCollide: true, noShadow: true });
+          }
+        }
+        // centre-room island: mess table (big rooms, desktop) and a floor rug
+        const roomX0 = Math.max(stairClearX, ix0) + 1.2, roomX1 = ix1 - 1.4;
+        const spots = [];
+        for (let i = 0; i < 6; i++) spots.push([roomX0 + rnd() * (roomX1 - roomX0), iz0 + 2.4 + rnd() * Math.max(0, iz1 - iz0 - 4.8)]);
+        const awayFromLane = ([sx]) => Math.abs(sx - cx) > 2.6;
+        let tableAt = null;
+        if (!coarse && width * depth > 200) {
+          const sp = spots.find(([sx, sz]) => awayFromLane([sx]) && free(sx - 1.0, sx + 1.0, sz - 0.95, sz + 0.95, 0.9, 0.9, 0.8));
+          if (sp) { tableAt = sp; put('int_table', sp[0], sp[1], rnd() < 0.5 ? 0 : Math.PI, { y, force: true, radius: 0.5, noShadow: true }); placed.push([sp[0] - 0.9, sp[0] + 0.9, sp[1] - 0.85, sp[1] + 0.85]); total++; }
+        }
+        let rsp = null;
+        if (tableAt && rnd() < 0.6) rsp = tableAt;   // rug under the mess table reads as a deliberate briefing nook
+        else rsp = spots.find(([sx, sz]) => free(sx - 1.4, sx + 1.4, sz - 0.9, sz + 0.9, 0.3, 0.1, 0.3));
+        if (rsp) put('int_rug', rsp[0], rsp[1], 0, { y: y + 0.002, force: true, noCollide: true, noShadow: true });
+        // emissive ceiling light panels in a row down the room (no THREE lights)
+        const lx0 = Math.max(stairClearX, ix0) + 1.0, lx1 = ix1 - 1.2;
+        const nl = Math.max(1, Math.min(coarse ? 2 : 4, Math.round((lx1 - lx0) / 6)));
+        const rows = depth >= 16 && !coarse ? [cz - depth * 0.22, cz + depth * 0.22] : [cz];
+        rows.forEach(rz => {
+          for (let i = 0; i < nl; i++) {
+            const lx = lx0 + (i + 0.5) * (lx1 - lx0) / nl;
+            put('int_ceiling_light', lx, rz, 0, { y: ceilY - 0.15, force: true, noCollide: true, noShadow: true });
+          }
+        });
+      }
+    });
+    this.interiorPropCount = total;
   }
 
   /** Instance every mesh of a Blender GLB at the given world matrices (one draw call per material). */

@@ -25,7 +25,7 @@ window.ModelFactory = {
     if (!this._loader || this._glbCache[assetName] || this._glbLoading[assetName]) return;
     this._glbLoading[assetName] = [];
     this._loader.load(
-      `assets/models/${assetName}.glb?v=20261124b`,
+      `assets/models/${assetName}.glb?v=20261125a`,
       (gltf) => {
         this._glbCache[assetName] = { scene: gltf.scene, animations: gltf.animations || [] };
         const callbacks = this._glbLoading[assetName] || [];
@@ -118,26 +118,52 @@ window.ModelFactory = {
     return false;
   },
 
+  // White star/cross muzzle card (tinted by material colour). Thin long spikes, small hot core, no blob.
   getMuzzleFlashTexture() {
     if (this._texCache._muzzle) return this._texCache._muzzle;
     const c = document.createElement('canvas'); c.width = c.height = 128;
     const g = c.getContext('2d');
-    const core = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-    core.addColorStop(0, 'rgba(255,255,240,1)'); core.addColorStop(0.18, 'rgba(255,220,150,0.95)');
-    core.addColorStop(0.45, 'rgba(255,140,40,0.35)'); core.addColorStop(1, 'rgba(255,80,0,0)');
-    g.fillStyle = core; g.fillRect(0, 0, 128, 128);
     g.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 7; i++) {
-      const a = i / 7 * Math.PI * 2 + (i % 2) * 0.2, len = 48 + (i % 3) * 10;
-      g.save(); g.translate(64, 64); g.rotate(a);
+    const spike = (ang, len, w, a) => {
+      g.save(); g.translate(64, 64); g.rotate(ang);
       const sp = g.createLinearGradient(0, 0, len, 0);
-      sp.addColorStop(0, 'rgba(255,235,190,0.9)'); sp.addColorStop(1, 'rgba(255,120,30,0)');
-      g.fillStyle = sp; g.beginPath(); g.moveTo(0, -5); g.lineTo(len, 0); g.lineTo(0, 5); g.closePath(); g.fill();
+      sp.addColorStop(0, `rgba(255,255,255,${a})`); sp.addColorStop(0.6, `rgba(255,255,255,${a * 0.35})`); sp.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = sp; g.beginPath(); g.moveTo(0, -w); g.lineTo(len, 0); g.lineTo(0, w); g.closePath(); g.fill();
       g.restore();
-    }
+    };
+    // 4 main prongs (uneven lengths so the random roll reads as a different flash each shot)
+    [62, 50, 60, 46].forEach((l, i) => spike(i * Math.PI / 2, l, 6, 1));
+    // 4 thin diagonal flickers
+    [30, 24, 34, 22].forEach((l, i) => spike(Math.PI / 4 + i * Math.PI / 2, l, 2.5, 0.75));
+    const core = g.createRadialGradient(64, 64, 0, 64, 64, 20);
+    core.addColorStop(0, 'rgba(255,255,255,1)'); core.addColorStop(0.45, 'rgba(255,255,255,0.5)'); core.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = core; g.fillRect(0, 0, 128, 128);
     const t = new THREE.CanvasTexture(c);
-    t.encoding = THREE.sRGBEncoding;
     this._texCache._muzzle = t;
+    return t;
+  },
+
+  // Flame-tongue gradient for the muzzle cone / side blasts (hot at v=1 = barrel end).
+  getMuzzleConeTexture() {
+    if (this._texCache._muzzleCone) return this._texCache._muzzleCone;
+    const c = document.createElement('canvas'); c.width = 64; c.height = 128;
+    const g = c.getContext('2d');
+    const gr = g.createLinearGradient(0, 128, 0, 0);
+    gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.55, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,1)');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 128);
+    // streaks around the circumference so the cone reads as flame tongues, not a solid funnel
+    // (mask built on its own canvas: destination-in applies to the whole target)
+    const mc = document.createElement('canvas'); mc.width = 64; mc.height = 128;
+    const mg = mc.getContext('2d');
+    for (let x = 0; x < 64; x += 8) {
+      const w = mg.createLinearGradient(x, 0, x + 8, 0);
+      w.addColorStop(0, 'rgba(0,0,0,0.2)'); w.addColorStop(0.5, 'rgba(0,0,0,1)'); w.addColorStop(1, 'rgba(0,0,0,0.2)');
+      mg.fillStyle = w; mg.fillRect(x, 0, 8, 128);
+    }
+    g.globalCompositeOperation = 'destination-in';
+    g.drawImage(mc, 0, 0);
+    const t = new THREE.CanvasTexture(c);
+    this._texCache._muzzleCone = t;
     return t;
   },
 
@@ -995,25 +1021,54 @@ window.ModelFactory = {
       group.userData.healCore = batCore;
       group.userData.healRing = batRing;
 
-      // Muzzle flash: front star card + two crossed side-blast cards sharing one additive material,
-      // so the existing fade code (material.opacity / rotation.z) drives the whole thing.
-      const flashMat = new THREE.MeshBasicMaterial({
-        map: this.getMuzzleFlashTexture(),
-        color: isMythicGold ? 0xffe680 : 0xffd2a0,
-        transparent: true,
-        opacity: 0.0,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-        side: THREE.DoubleSide
-      });
-      const flash = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.26), flashMat);
-      const sideGeo = new THREE.PlaneGeometry(0.12, 0.34);
-      sideGeo.rotateX(-Math.PI / 2); sideGeo.translate(0, 0, -0.13);
-      const sideA = new THREE.Mesh(sideGeo, flashMat);
-      const sideB = new THREE.Mesh(sideGeo, flashMat);
+      // Muzzle flash. main.js drives `flash.material.opacity` (1 on shot, fades ~22/s) and rolls
+      // flash.rotation.z each shot. The driver material itself is invisible; each layer maps that
+      // value through a hard curve so the flash is only on screen for ~1-2 frames.
+      const flashMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0, visible: false });
+      const flash = new THREE.Mesh(new THREE.PlaneGeometry(0.01, 0.01), flashMat);
+      const wHex = isMythicGold ? 0xfde047 : wData.hexColor;
+      const tint = new THREE.Color(isMythicGold ? 0xffe27a : 0xffc483).lerp(new THREE.Color(wHex), 0.3);
+      const mkLayer = (geo, tex, color, k, order) => {
+        const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+          map: tex, color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending,
+          depthWrite: false, depthTest: false, side: THREE.DoubleSide, toneMapped: false
+        }));
+        m.renderOrder = order;
+        m.userData.k = k;
+        m.visible = false;
+        flash.add(m);
+        return m;
+      };
+      const starTex = this.getMuzzleFlashTexture();
+      const coneTex = this.getMuzzleConeTexture();
+      // 1) tinted star/cross card facing the camera
+      mkLayer(new THREE.PlaneGeometry(0.24, 0.24), starTex, tint, 1.0, 20);
+      // 2) tiny white-hot core (same star texture, smaller, so the centre never becomes a blob)
+      const core = mkLayer(new THREE.PlaneGeometry(0.085, 0.085), starTex, new THREE.Color(0xfff4e0), 0.9, 21);
+      core.rotation.z = Math.PI / 4;
+      // 3) short open cone of flame tongues pushed out of the barrel (apex at the muzzle)
+      const coneGeo = new THREE.ConeGeometry(0.038, 0.16, 10, 1, true);
+      coneGeo.rotateX(Math.PI / 2); coneGeo.translate(0, 0, -0.08);
+      mkLayer(coneGeo, coneTex, tint, 0.75, 19);
+      // 4) two crossed side-blast cards along the barrel axis (read when the gun swings / strafes)
+      const sideGeo = new THREE.PlaneGeometry(0.07, 0.2);
+      sideGeo.rotateX(Math.PI / 2); sideGeo.translate(0, 0, -0.09);
+      const sideA = mkLayer(sideGeo, coneTex, tint, 0.5, 19);
+      const sideB = mkLayer(sideGeo, coneTex, tint, 0.5, 19);
       sideB.rotation.z = Math.PI / 2;
-      flash.add(sideA, sideB);
+      void sideA;
       flash.renderOrder = 5;
+      // Runs every frame during scene.updateMatrixWorld (before culling): layers are only
+      // visible -> only cost draw calls on the 1-2 frames the flash is actually on screen.
+      flash.updateMatrixWorld = function (force) {
+        const o = flashMat.opacity;
+        const f = o > 0.75 ? 1 : o > 0.4 ? 0.45 : 0;
+        for (const c of this.children) {
+          c.visible = f > 0;
+          if (f > 0) c.material.opacity = f * c.userData.k;
+        }
+        THREE.Mesh.prototype.updateMatrixWorld.call(this, force);
+      };
       const MUZZLE_Z = { m4a1: -0.665, ak47: -0.69, p90: -0.425, kriss: -0.42, uzi: -0.34, magnum: -0.465 };
       flash.position.set(0, 0.012, MUZZLE_Z[weaponId] || -0.5);
       group.add(flash);

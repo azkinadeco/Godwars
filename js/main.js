@@ -179,13 +179,14 @@ class GodWarsGame {
     // sky dome: deep blue zenith -> amber horizon with a soft sun glow behind the squad
     const sky = new THREE.Mesh(new THREE.SphereGeometry(150, 32, 16), new THREE.ShaderMaterial({
       side: THREE.BackSide, depthWrite: false, fog: false,
-      uniforms: { top: { value: new THREE.Color(0x14223d) }, mid: { value: new THREE.Color(0x4a5a7a) }, hor: { value: new THREE.Color(HORIZON) } },
+      uniforms: { top: { value: new THREE.Color(0x14223d) }, mid: { value: new THREE.Color(0x4a5a7a) }, hor: { value: new THREE.Color(HORIZON) }, linearOut: window.GW_LINEAR_OUT || { value: 0 } },
       vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-      fragmentShader: `uniform vec3 top; uniform vec3 mid; uniform vec3 hor; varying vec3 vD;
+      fragmentShader: `uniform vec3 top; uniform vec3 mid; uniform vec3 hor; uniform float linearOut; varying vec3 vD;
         void main(){ float y = clamp(vD.y, -0.2, 1.0);
           vec3 c = mix(hor, mid, smoothstep(0.0, 0.18, y)); c = mix(c, top, smoothstep(0.18, 0.7, y));
           vec3 sd = normalize(vec3(0.15, 0.08, -1.0)); float g = max(dot(normalize(vD), sd), 0.0);
           c += vec3(1.0, 0.72, 0.42) * (pow(g, 48.0) * 0.9 + pow(g, 6.0) * 0.25);
+          if (linearOut > 0.5) c = pow(max(c, vec3(0.0)), vec3(2.2)) * 1.08;
           gl_FragColor = vec4(c, 1.0); }`
     }));
     sky.renderOrder = -10;
@@ -234,6 +235,7 @@ class GodWarsGame {
         new THREE.ConeGeometry(1.2, 7.2, 24, 1, true),
         new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.035, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
       );
+      (this.lobbyShafts = this.lobbyShafts || []).push(shaft);
       shaft.position.set(sx * 0.95, 3.6, 1.3);
       shaft.lookAt(sx, 7.2 + 3.6, 2.6 + 1.3);
       shaft.rotateX(Math.PI / 2);
@@ -960,6 +962,8 @@ class GodWarsGame {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.initPMREMEnvironment();
+    this.post = window.PostFX ? new window.PostFX(this.renderer) : null;
+    if (this.post) this.post.params.exposure = 0.86;
     this.applyQualityPreset();
 
     window.addEventListener('resize', () => {
@@ -982,6 +986,9 @@ class GodWarsGame {
 
     this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    if (this.post) {
+      this.post.setEnabled(this.qualityPreset !== 'mobile' && !this.detectMobile() && !this.forceMobileUI && !this.disablePostFX);
+    }
   }
 
   // =========================================================================
@@ -1168,32 +1175,28 @@ class GodWarsGame {
       }
     }
 
-    // Auto-pickup nearby ground loot (Ammo, Heals, Better Evo Shield, Attachments)
-    if (this.world && this.world.groundLoot) {
-      for (const gl of this.world.groundLoot) {
-        if (gl.picked) continue;
-        const dist = Math.hypot(p.position.x - gl.x, p.position.z - gl.z);
-        if (dist < 2.3 && Math.abs(p.position.y - gl.y) < 1.8) {
-          gl.picked = true;
-          if (gl.mesh) gl.mesh.visible = false;
-          const loot = gl.loot;
-          if (loot.shieldTier > p.shieldTier) {
-            p.shieldTier = loot.shieldTier;
-            p.maxShield = window.GODWARS_DATA.EVO_TIERS[loot.shieldTier].maxShield;
-            p.shield = p.maxShield;
-            window.SFX.playArmorSwap();
-            this.showBanner(`⚡ AUTO-EQUIPPED LV${loot.shieldTier} RUNE ARMOR!`, window.GODWARS_DATA.EVO_TIERS[loot.shieldTier].color);
-          } else {
-            p.heals.shield_cell += 2;
-            p.heals.shield_battery += 1;
-            const activeWep = p.weapons[p.activeSlot];
-            if (activeWep) activeWep.reserve += activeWep.maxMag;
-            window.SFX.playReload();
-            this.showBanner('📦 AUTO-LOOT: AMMO & SHIELD CELLS PICKED UP', '#38bdf8');
-          }
-          this.vibrate(14);
-          break;
-        }
+    // Auto-pickup consumables from nearby loot (ammo, heals, grenades, better armor). Weapons stay manual.
+    const tryAuto = (src) => {
+      let took = false;
+      for (const it of this.lootItemsOf(src)) {
+        if (it.taken || it.kind === 'weapon') continue;
+        if (it.kind === 'armor' && it.tier <= p.shieldTier) continue;
+        this.takeLootItem(it);
+        took = true;
+      }
+      if (took && this.activeLootSource === src) this.renderLootPanel();
+      if (this.isLootSourceEmpty(src)) this.markLootSourceEmpty(src);
+      return took;
+    };
+    // Bins / death boxes always stay manual (pick in the loot menu); only floor loot is vacuumed on phones.
+    if (!this.forceMobileUI) return;
+    this._autoLootT = (this._autoLootT || 0) + 1;
+    if (this._autoLootT % 3 !== 0) return;
+    const pools = (this.world && this.world.groundLoot) ? this.world.groundLoot.filter(g => !g.pickedUp && g !== this.activeLootSource) : [];
+    for (const src of pools) {
+      const dist = Math.hypot(p.position.x - src.x, p.position.z - src.z);
+      if (dist < 2.6 && (src.y === undefined || Math.abs(p.position.y - src.y) < 1.8)) {
+        if (tryAuto(src)) break;
       }
     }
   }
@@ -1386,26 +1389,7 @@ class GodWarsGame {
   }
 
   openDeathBoxModal(bin) {
-    this.activeDeathBox = bin;
-    const modal = document.getElementById('deathbox-modal');
-    if (!modal) {
-      this.applyLootPackage(bin.loot, `DEATH BOX (${bin.victimName})`);
-      return;
-    }
-    if (document.exitPointerLock) document.exitPointerLock();
-    const wData = window.GODWARS_DATA.WEAPONS[bin.loot.weaponId];
-    const tInfo = window.GODWARS_DATA.EVO_TIERS[bin.loot.shieldTier] || window.GODWARS_DATA.EVO_TIERS[2];
-    const titleEl = document.getElementById('db-victim-title');
-    const detailsEl = document.getElementById('db-loot-details');
-    if (titleEl) titleEl.textContent = `☠️ ${bin.victimName}’S DEATH BOX`;
-    if (detailsEl) {
-      detailsEl.innerHTML = `
-        <div class="db-pill" style="border-color:${tInfo.color};color:${tInfo.color}">🛡️ ${tInfo.name} (${tInfo.maxShield} FRESH SHIELD)</div>
-        <div class="db-pill" style="border-color:${wData.color};color:${wData.color}">🔫 ${wData.divineName} (LV${bin.loot.attachmentTier || 2} ATTACHMENTS)</div>
-        <div class="db-pill" style="border-color:#38bdf8;color:#38bdf8">⚡ 2x Shield Battery • ➕ 1x Medkit • 💥 2x God Bombs</div>
-      `;
-    }
-    modal.classList.remove('hidden');
+    this.openLootPanel(bin, bin.victimName || 'DEATH BOX');
   }
 
   closeDeathBoxModal() {
@@ -1735,6 +1719,7 @@ class GodWarsGame {
 
     canvas.addEventListener('click', () => {
       window.SFX.init();
+      if (this.activeLootSource && !this.forceMobileUI) this.closeLootPanel(false);
       const invOpen = !document.getElementById('inventory-modal').classList.contains('hidden');
       const mapOpen = !document.getElementById('fullmap-modal').classList.contains('hidden');
       if (this.matchActive && !this.forceMobileUI && !invOpen && !mapOpen && document.pointerLockElement !== canvas) {
@@ -1784,6 +1769,12 @@ class GodWarsGame {
       const code = e.code;
       this.keys[code] = true;
       if (!this.matchActive || !this.player || !this.player.alive) return;
+
+      if (this.activeLootSource) {
+        const dm = /^Digit([1-9])$/.exec(code);
+        if (dm) { this.takeLootByKey(parseInt(dm[1], 10)); return; }
+        if (code === 'Escape') { this.closeLootPanel(false); return; }
+      }
 
       if (code === 'Space') {
         if (this.player.inDropship) this.launchFromDropship();
@@ -2201,10 +2192,10 @@ class GodWarsGame {
     const row = document.getElementById('perk-choices-row');
     if (!bar || !row) return;
     row.innerHTML = choices.map((pk, idx) => `
-      <button class="perk-choice-btn" data-pk-idx="${idx}">
-        <div class="pk-key">[${idx === 0 ? '7' : '8'} / TAP] LV${evoLevel} UPGRADE</div>
-        <div class="pk-name">⚡ ${pk.name}</div>
-        <div class="pk-desc">${pk.desc}</div>
+      <button class="perk-choice-btn" data-pk-idx="${idx}" title="${pk.desc}">
+        ${this.forceMobileUI ? '' : `<kbd>${idx === 0 ? '7' : '8'}</kbd>`}
+        <span class="pk-name">${pk.name}</span>
+        <span class="pk-desc">${pk.desc}</span>
       </button>
     `).join('');
     row.querySelectorAll('.perk-choice-btn').forEach(btn => {
@@ -2383,6 +2374,12 @@ class GodWarsGame {
       return;
     }
 
+    // Loot menu open: E / loot button takes everything useful and closes
+    if (this.activeLootSource) {
+      this.takeAllLoot();
+      return;
+    }
+
     // 2. Detach if currently riding Zipline
     if (p.ziplining) {
       this.detachFromZipline(true);
@@ -2419,7 +2416,6 @@ class GodWarsGame {
     // 7. Open / Close Interactive Apex Building Door
     if (this.nearestDoor) {
       this.world.toggleDoor(this.nearestDoor, false);
-      this.showBanner(this.nearestDoor.open ? 'DOOR OPENED' : 'DOOR CLOSED', '#38bdf8');
       return;
     }
 
@@ -2486,9 +2482,7 @@ class GodWarsGame {
 
   pickupGroundLoot(item) {
     if (!item || item.pickedUp) return;
-    item.pickedUp = true;
-    item.mesh.visible = false;
-    this.applyLootPackage(item.loot, 'GROUND LOOT');
+    this.openLootPanel(item, 'LOOT');
   }
 
   useReplicator(rep) {
@@ -3038,79 +3032,265 @@ class GodWarsGame {
   interactWithLootBin() {
     if (!this.player || !this.player.alive || !this.nearestBin) return;
     const bin = this.nearestBin;
+    const title = bin.isCarePackage ? 'CARE PACKAGE' : bin.isDeathBox ? (bin.victimName || 'DEATH BOX') : 'SUPPLY BIN';
+    this.openLootPanel(bin, title);
+  }
 
-    if (bin.isDeathBox) {
-      this.openDeathBoxModal(bin);
-      return;
+  // =========================================================================
+  // APEX-STYLE LOOT MENU: pick individual items from bins / boxes / ground loot
+  // =========================================================================
+  lootIcon(kind) {
+    const P = {
+      armor: '<path d="M12 2l8 3v6c0 5-3.4 9.3-8 11-4.6-1.7-8-6-8-11V5z" fill="currentColor" opacity=".9"/><path d="M12 6v12M8 9h8" stroke="#0b1220" stroke-width="1.4" fill="none"/>',
+      weapon: '<path d="M2 10h13l2-2h4v3h-3l-1 2H11l-1 4H7l1-4H2z" fill="currentColor"/>',
+      ammo: '<path d="M5 9c0-3 1.2-5 2-5s2 2 2 5v11H5zM10.5 9c0-3 1.2-5 2-5s2 2 2 5v11h-4zM16 9c0-3 1.2-5 2-5s2 2 2 5v11h-4z" fill="currentColor"/>',
+      shield_cell: '<path d="M12 3l7 4v10l-7 4-7-4V7z" fill="currentColor" opacity=".9"/><path d="M12 8v8" stroke="#0b1220" stroke-width="1.6"/>',
+      shield_battery: '<rect x="6" y="4" width="12" height="17" rx="2" fill="currentColor"/><rect x="9" y="2" width="6" height="3" rx="1" fill="currentColor"/><path d="M13 7l-3 5h3l-2 5" stroke="#0b1220" stroke-width="1.5" fill="none"/>',
+      medkit: '<rect x="3" y="6" width="18" height="14" rx="2" fill="currentColor"/><path d="M12 9v8M8 13h8" stroke="#0b1220" stroke-width="2.2"/><path d="M9 6V4h6v2" stroke="currentColor" stroke-width="1.5" fill="none"/>',
+      phoenix_kit: '<path d="M12 2c1 4 6 6 6 12a6 6 0 01-12 0c0-3 2-4 2-7 2 1 3 3 3 5 1-3 0-7 1-10z" fill="currentColor"/>',
+      note: '<circle cx="12" cy="12" r="4" fill="currentColor"/>',
+      grenade: '<circle cx="12" cy="14" r="7" fill="currentColor"/><rect x="10" y="3" width="4" height="5" fill="currentColor"/><path d="M14 5h4" stroke="currentColor" stroke-width="1.6"/>'
+    };
+    return `<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">${P[kind] || P.ammo}</svg>`;
+  }
+
+  buildLootItems(loot) {
+    const D = window.GODWARS_DATA;
+    const items = [];
+    const wData = D.WEAPONS[loot.weaponId];
+    const isMythic = Boolean(loot.isMythicGold);
+    const attTier = isMythic ? 4 : Math.min(4, loot.attachmentTier || loot.shieldTier || 2);
+    const tierCol = ['#94a3b8', '#e2e8f0', '#38bdf8', '#a855f7', '#fbbf24', '#f43f5e'];
+    if (loot.shieldTier) {
+      const t = D.EVO_TIERS[loot.shieldTier];
+      items.push({ kind: 'armor', tier: loot.shieldTier, n: 1, name: `ARMOR ${loot.shieldTier}`, color: t ? t.color : '#38bdf8' });
     }
+    if (wData) items.push({ kind: 'weapon', id: loot.weaponId, attTier, mythic: isMythic, n: 1, name: wData.baseName, color: isMythic ? '#fde047' : tierCol[attTier] });
+    items.push({ kind: 'ammo', n: 2, name: 'AMMO', color: '#cbd5e1' });
+    items.push({ kind: 'heal', id: 'shield_battery', n: loot.shieldBattery || 2, name: 'BATTERY', color: '#38bdf8' });
+    items.push({ kind: 'heal', id: 'shield_cell', n: 3, name: 'CELL', color: '#7dd3fc' });
+    if (loot.medkit) items.push({ kind: 'heal', id: 'medkit', n: loot.medkit, name: 'MEDKIT', color: '#34d399' });
+    if (loot.phoenixKit) items.push({ kind: 'heal', id: 'phoenix_kit', n: loot.phoenixKit, name: 'NECTAR', color: '#c084fc' });
+    if (loot.grenadeId && D.GRENADES[loot.grenadeId]) {
+      const g = D.GRENADES[loot.grenadeId];
+      items.push({ kind: 'grenade', id: loot.grenadeId, n: 2, name: g.shortName.split(' ').pop(), color: g.color });
+    }
+    return items;
+  }
 
-    if (!bin.opened) {
-      bin.opened = true;
-      if (!bin.isDeathBox && !bin.isCarePackage && bin.lid) {
-        bin.lid.position.y = 1.65;
-        bin.lid.position.z = -0.55;
-        bin.lid.rotation.x = -1.1;
+  lootItemsOf(source) {
+    if (!source.lootItems) source.lootItems = this.buildLootItems(source.loot || {});
+    return source.lootItems;
+  }
+
+  // Apply ONE loot item to the player. Returns a short feed label or null if nothing changed.
+  takeLootItem(item) {
+    const p = this.player;
+    const D = window.GODWARS_DATA;
+    if (!p || !item || item.taken) return null;
+    let label = null;
+    if (item.kind === 'armor') {
+      if (item.tier > p.shieldTier) {
+        p.shieldTier = item.tier;
+        p.maxShield = D.EVO_TIERS[item.tier].maxShield;
+        window.SFX.playEvoUpgrade();
+      } else {
+        window.SFX.playArmorSwap();
+      }
+      p.shield = p.maxShield;
+      label = `ARMOR LV${p.shieldTier}`;
+    } else if (item.kind === 'weapon') {
+      const wData = D.WEAPONS[item.id];
+      const hasIdx = p.weapons.findIndex(w => w && w.id === item.id);
+      if (hasIdx >= 0) {
+        const wep = p.weapons[hasIdx];
+        ['barrel', 'mag', 'optic', 'hopup'].forEach(cat => { wep.attachments[cat] = Math.max(wep.attachments[cat] || 1, item.attTier); });
+        this.recalcWeaponAttachmentStats(wep);
+        wep.reserve += wep.maxMag * 2;
+        wep.mag = wep.maxMag;
+        if (item.mythic) wep.isMythicGold = true;
+      } else {
+        const newWep = {
+          id: item.id, data: wData, mag: wData.magSize, maxMag: wData.magSize, reserve: wData.reserveAmmo,
+          fireModeIndex: 0, burstRemaining: 0, isMythicGold: item.mythic,
+          attachments: { barrel: item.attTier, mag: item.attTier, optic: item.attTier, hopup: item.attTier },
+          reloading: false, reloadTimer: 0
+        };
+        this.recalcWeaponAttachmentStats(newWep);
+        newWep.mag = newWep.maxMag;
+        p.weapons[p.activeSlot] = newWep;
+      }
+      this.equipViewmodelWeapon();
+      window.SFX.playReload();
+      label = `${item.mythic ? '★ ' : ''}${wData.baseName} +LV${item.attTier}`;
+    } else if (item.kind === 'ammo') {
+      p.weapons.forEach(w => { if (w) w.reserve += w.maxMag * item.n; });
+      window.SFX.playReload();
+      label = 'AMMO';
+    } else if (item.kind === 'heal') {
+      p.heals[item.id] = (p.heals[item.id] || 0) + item.n;
+      label = `${item.name} ×${item.n}`;
+    } else if (item.kind === 'grenade') {
+      p.grenadeCounts[item.id] = (p.grenadeCounts[item.id] || 0) + item.n;
+      label = `${item.name} ×${item.n}`;
+    }
+    item.taken = true;
+    this.vibrate(10);
+    if (label) this.pushPickupFeed(item, label);
+    return label;
+  }
+
+  isLootSourceEmpty(source) {
+    return this.lootItemsOf(source).every(it => it.taken);
+  }
+
+  markLootSourceEmpty(source) {
+    source.emptied = true;
+    if ('pickedUp' in source) {
+      source.pickedUp = true;
+      if (source.mesh) source.mesh.visible = false;
+    }
+    if (source.strip && source.strip.material && source.strip.material.color && !source.isDeathBox) {
+      try { source.strip.material = source.strip.material.clone(); source.strip.material.color.set(0x334155); } catch (e) {}
+    }
+  }
+
+  openLootPanel(source, title) {
+    if (!source) return;
+    const panel = document.getElementById('loot-panel');
+    if (!panel) { this.lootItemsOf(source).forEach(it => this.takeLootItem(it)); this.markLootSourceEmpty(source); return; }
+    if (this.activeLootSource === source) { this.takeAllLoot(); return; }
+    this.activeLootSource = source;
+    this.activeLootTitle = title;
+    if (!source.opened) {
+      source.opened = true;
+      if (!source.isDeathBox && !source.isCarePackage && source.lid && source.lid !== source.mesh) {
+        source.lid.position.y = 1.65; source.lid.position.z = -0.55; source.lid.rotation.x = -1.1;
       }
     }
+    if (!this.forceMobileUI && document.exitPointerLock) document.exitPointerLock();
+    this.renderLootPanel();
+    panel.classList.remove('hidden');
+    window.SFX.playUIClick && window.SFX.playUIClick();
+  }
 
-    this.applyLootPackage(bin.loot, bin.isCarePackage ? 'CARE PACKAGE' : 'SUPPLY BIN');
+  renderLootPanel() {
+    const panel = document.getElementById('loot-panel');
+    const src = this.activeLootSource;
+    if (!panel || !src) return;
+    const items = this.lootItemsOf(src);
+    const p = this.player;
+    const keyHint = this.forceMobileUI ? '' : '<span class="lp-keys"><kbd>E</kbd> ALL <kbd>ESC</kbd></span>';
+    let idx = 0;
+    const tiles = items.map((it, i) => {
+      if (it.taken) return '';
+      idx++;
+      const iconKind = it.kind === 'heal' ? it.id : it.kind;
+      let note = '';
+      if (it.kind === 'armor' && p) note = it.tier > p.shieldTier ? '▲' : (it.tier === p.shieldTier ? '' : '▼');
+      if (it.kind === 'weapon' && p && p.weapons.some(w => w && w.id === it.id)) note = '▲';
+      return `<button class="lp-tile" data-li="${i}" style="--lc:${it.color}">
+        <span class="lp-ico">${this.lootIcon(iconKind)}</span>
+        ${it.n > 1 ? `<span class="lp-n">${it.n}</span>` : ''}
+        ${note ? `<span class="lp-up${note === '▼' ? ' dn' : ''}">${note}</span>` : ''}
+        ${this.forceMobileUI ? '' : `<span class="lp-k">${idx}</span>`}
+        <span class="lp-name">${it.name}</span>
+      </button>`;
+    }).join('');
+    panel.innerHTML = `<div class="lp-head"><span class="lp-title">${this.activeLootTitle || 'LOOT'}</span>${keyHint}</div>
+      <div class="lp-grid">${tiles}</div>
+      <button class="lp-all">TAKE ALL</button>`;
+    panel.querySelectorAll('.lp-tile').forEach(btn => {
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        this.takeLootIndex(parseInt(btn.dataset.li, 10));
+      });
+    });
+    const all = panel.querySelector('.lp-all');
+    if (all) all.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); this.takeAllLoot(); });
+  }
+
+  takeLootIndex(i) {
+    const src = this.activeLootSource;
+    if (!src) return;
+    const it = this.lootItemsOf(src)[i];
+    if (!it || it.taken) return;
+    this.takeLootItem(it);
+    if (this.isLootSourceEmpty(src)) this.closeLootPanel(true);
+    else this.renderLootPanel();
+  }
+
+  // Number key N while panel open -> Nth remaining tile
+  takeLootByKey(n) {
+    const src = this.activeLootSource;
+    if (!src) return false;
+    const items = this.lootItemsOf(src);
+    let c = 0;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].taken) continue;
+      c++;
+      if (c === n) { this.takeLootIndex(i); return true; }
+    }
+    return true;
+  }
+
+  takeAllLoot() {
+    const src = this.activeLootSource;
+    if (!src) return;
+    const p = this.player;
+    for (const it of this.lootItemsOf(src)) {
+      if (it.taken) continue;
+      // Take-all skips downgrades: lower armor and a weapon that would replace your current gun
+      if (it.kind === 'armor' && p && it.tier < p.shieldTier) continue;
+      if (it.kind === 'weapon' && p && !p.weapons.some(w => w && w.id === it.id) && !it.mythic) continue;
+      this.takeLootItem(it);
+    }
+    this.closeLootPanel(true);
+  }
+
+  closeLootPanel(fromGesture = false) {
+    const src = this.activeLootSource;
+    this.activeLootSource = null;
+    const panel = document.getElementById('loot-panel');
+    if (panel) panel.classList.add('hidden');
+    if (src && this.isLootSourceEmpty(src)) this.markLootSourceEmpty(src);
+    if (fromGesture && !this.forceMobileUI && this.matchActive) {
+      const canvas = document.getElementById('game-canvas');
+      window.gwSafePointerLock(canvas);
+    }
+  }
+
+  updateLootPanelRange() {
+    const src = this.activeLootSource;
+    if (!src || !this.player) return;
+    const p = this.player;
+    const d = Math.hypot(p.position.x - src.x, p.position.z - src.z);
+    if (d > 4.8 || !p.alive || p.knocked) this.closeLootPanel(false);
+  }
+
+  // Small Apex-style pickup feed (bottom-right of crosshair) instead of big banners
+  pushPickupFeed(item, label) {
+    const feed = document.getElementById('pickup-feed');
+    if (!feed) return;
+    const iconKind = item ? (item.kind === 'heal' ? item.id : item.kind) : 'ammo';
+    const row = document.createElement('div');
+    row.className = 'pf-row';
+    row.style.setProperty('--lc', (item && item.color) || '#e2e8f0');
+    row.innerHTML = `<span class="pf-ico">${this.lootIcon(iconKind)}</span><span>${label}</span>`;
+    feed.appendChild(row);
+    while (feed.children.length > 4) feed.removeChild(feed.firstChild);
+    setTimeout(() => row.classList.add('out'), 2200);
+    setTimeout(() => row.remove(), 2600);
+  }
+
+  // Minor notice: tiny text line, no box (used for door/fire-mode/equip chatter)
+  pushMinorNotice(text, color = '#e2e8f0') {
+    this.pushPickupFeed({ kind: 'note', color }, text);
   }
 
   applyLootPackage(loot, sourceLabel = 'LOOTED') {
-    const wData = window.GODWARS_DATA.WEAPONS[loot.weaponId];
-    const isMythic = Boolean(loot.isMythicGold);
-    const attTier = isMythic ? 4 : Math.min(4, loot.attachmentTier || loot.shieldTier || 2);
-
-    if (loot.shieldTier > this.player.shieldTier) {
-      this.player.shieldTier = loot.shieldTier;
-      const tInfo = window.GODWARS_DATA.EVO_TIERS[loot.shieldTier];
-      this.player.maxShield = tInfo.maxShield;
-      window.SFX.playEvoUpgrade();
-    }
-    this.player.shield = this.player.maxShield;
-    this.player.heals.shield_battery += (loot.shieldBattery || 2);
-    this.player.heals.shield_cell += 3;
-    this.player.heals.medkit += (loot.medkit || 1);
-    if (loot.phoenixKit) this.player.heals.phoenix_kit += loot.phoenixKit;
-    this.player.grenadeCounts[loot.grenadeId] = (this.player.grenadeCounts[loot.grenadeId] || 0) + 2;
-
-    const hasWepIdx = this.player.weapons.findIndex(w => w.id === loot.weaponId);
-    if (hasWepIdx >= 0) {
-      const wep = this.player.weapons[hasWepIdx];
-      ['barrel', 'mag', 'optic', 'hopup'].forEach(cat => {
-        wep.attachments[cat] = Math.max(wep.attachments[cat] || 1, attTier);
-      });
-      this.recalcWeaponAttachmentStats(wep);
-      wep.reserve += wep.maxMag * 3;
-      wep.mag = wep.maxMag;
-      if (isMythic) wep.isMythicGold = true;
-      this.equipViewmodelWeapon();
-    } else {
-      const newWep = {
-        id: loot.weaponId,
-        data: wData,
-        mag: wData.magSize,
-        maxMag: wData.magSize,
-        reserve: wData.reserveAmmo,
-        fireModeIndex: 0,
-        burstRemaining: 0,
-        isMythicGold: isMythic,
-        attachments: { barrel: attTier, mag: attTier, optic: attTier, hopup: attTier },
-        reloading: false,
-        reloadTimer: 0
-      };
-      this.recalcWeaponAttachmentStats(newWep);
-      newWep.mag = newWep.maxMag;
-      this.player.weapons[this.player.activeSlot] = newWep;
-      this.equipViewmodelWeapon();
-    }
-
-    window.SFX.playReload();
-    const tierName = window.GODWARS_DATA.EVO_TIERS[this.player.shieldTier].name;
-    this.showBanner(
-      `${sourceLabel}: ${isMythic ? '★ MYTHIC GOLD ' : ''}${wData.divineName} (LV${attTier} ATTACHMENTS) + ${tierName}`,
-      isMythic ? '#fde047' : wData.color
-    );
+    // Legacy path (take everything at once) now routes through per-item looting
+    this.buildLootItems(loot).forEach(it => this.takeLootItem(it));
   }
 
   updateKillLeader(candidate) {
@@ -3213,7 +3393,7 @@ class GodWarsGame {
         // heroes/GLBs attach asynchronously: refresh shadow flags about once a second
         this._lobbyShadowTick = (this._lobbyShadowTick || 0) + 1;
         if (this._lobbyShadowTick % 60 === 1) this.lobbyScene.traverse(o => { if (o.isMesh && !o.material.transparent) { o.castShadow = true; o.receiveShadow = true; } });
-        this.renderer.render(this.lobbyScene, this.lobbyCamera);
+        if (this.post) { this.post.params.exposure = 0.64; this.post.params.bloom = 0.4; if (this.lobbyShafts) this.lobbyShafts.forEach(sh => { sh.material.opacity = this.post.enabled ? 0.012 : 0.035; }); this.post.render(this.lobbyScene, this.lobbyCamera); } else this.renderer.render(this.lobbyScene, this.lobbyCamera);
       }
       return;
     }
@@ -3258,7 +3438,7 @@ class GodWarsGame {
     this.updateHUD(dt);
     this.drawMinimap();
 
-    this.renderer.render(this.scene, this.camera);
+    if (this.post) { this.post.params.exposure = 0.88; this.post.params.bloom = 0.55; this.post.render(this.scene, this.camera); } else this.renderer.render(this.scene, this.camera);
   }
 
   updateSpectatorCamera(dt) {
@@ -3539,6 +3719,7 @@ class GodWarsGame {
         p.landingDip = Math.max(0, p.landingDip - dt * 0.85);
       }
       this.updateFootsteps(dt);
+      this.updateLootPanelRange();
 
       for (const pad of this.world.jumpPads) {
         if (Math.hypot(p.position.x - pad.x, p.position.z - pad.z) < pad.radius && p.position.y < 1.5) {
@@ -3962,6 +4143,7 @@ class GodWarsGame {
     this.nearestBin = null;
     let bestBinDist = 4.2;
     for (const bin of this.world.supplyBins) {
+      if (bin.emptied) continue;
       const d = Math.hypot(p.position.x - bin.x, p.position.z - bin.z);
       if (d < bestBinDist) {
         bestBinDist = d;
@@ -4338,64 +4520,60 @@ class GodWarsGame {
     let promptHtml = '';
     let mobileBtnText = '';
 
-    if (p.knocked) {
+    const K = this.forceMobileUI ? '' : '<kbd>E</kbd> ';
+    const pr = (txt, col) => `${K}<span style="color:${col || '#f1f5f9'}">${txt}</span>`;
+    if (this.activeLootSource) {
+      promptHtml = '';
+      mobileBtnText = 'ALL';
+    } else if (p.knocked) {
       if (p.shieldTier >= 4 && !p.usedSelfRevive) {
-        promptHtml = `<b style="color:#fbbf24">[E / TAP] GOLD RUNE GUARDIAN ANGEL: SELF-REVIVE • HOLD [ADS] FOR SHIELD!</b>`;
-        mobileBtnText = `⚡ SELF-REVIVE`;
+        promptHtml = pr('Self-revive', '#fbbf24');
+        mobileBtnText = 'REVIVE';
       } else {
-        promptHtml = `<b style="color:#38bdf8">KNOCKED DOWN • HOLD [RIGHT-CLICK / ADS] FOR KNOCKDOWN SHIELD!</b>`;
+        promptHtml = `<span style="color:#7dd3fc">Hold ADS: knock shield</span>`;
       }
     } else if (this.nearestKnockedAlly) {
-      promptHtml = `<b style="color:#10b981">[E / TAP] REVIVE SQUADMATE ${this.nearestKnockedAlly.name}!</b>`;
-      mobileBtnText = `➕ REVIVE ALLY`;
+      promptHtml = pr(`Revive ${String(this.nearestKnockedAlly.name).replace(/^ALLY_/, '')}`, '#34d399');
+      mobileBtnText = 'REVIVE';
     } else if (this.nearestKnockedBot) {
-      promptHtml = `<b style="color:#f43f5e">[E / TAP] EXECUTE MYTHIC FINISHER ON ${this.nearestKnockedBot.name} (REFILLS 100% SHIELD)</b>`;
-      mobileBtnText = `💀 EXECUTE FINISHER`;
+      promptHtml = pr('Finisher', '#fb7185');
+      mobileBtnText = 'FINISH';
     } else if (this.nearJumpTower) {
-      promptHtml = `<b style="color:#f43f5e">[E / TAP] RIDE VALHALLA JUMP TOWER (AERIAL SKYDIVE REDEPLOY)</b>`;
-      mobileBtnText = `🎈 JUMP TOWER`;
+      promptHtml = pr('Jump tower');
+      mobileBtnText = 'LAUNCH';
     } else if (this.nearestZipline) {
-      promptHtml = `<b style="color:#fde047">[E / TAP] RIDE BIFROST ZIPLINE (${this.nearestZipline.zip.name})</b>`;
-      mobileBtnText = `⚡ RIDE ZIPLINE`;
+      promptHtml = pr('Zipline');
+      mobileBtnText = 'ZIP';
     } else if (this.nearestDoor) {
-      promptHtml = `<b style="color:#38bdf8">[E / TAP] ${this.nearestDoor.open ? 'CLOSE' : 'OPEN'} DOOR • [V] MELEE KICK TO SMASH</b>`;
-      mobileBtnText = `🚪 ${this.nearestDoor.open ? 'CLOSE' : 'OPEN'} DOOR`;
+      promptHtml = pr(this.nearestDoor.open ? 'Close' : 'Open');
+      mobileBtnText = this.nearestDoor.open ? 'CLOSE' : 'OPEN';
     } else if (this.nearestGroundLoot) {
       const glWep = window.GODWARS_DATA.WEAPONS[this.nearestGroundLoot.loot.weaponId];
-      promptHtml = `<b>[E / TAP] PICK UP:</b> <span style="color:${glWep.color}">${glWep.divineName}</span> + LV${this.nearestGroundLoot.loot.shieldTier} RUNE ARMOR`;
-      mobileBtnText = `🔫 EQUIP ${glWep.baseName}`;
+      promptHtml = pr(`Loot <b style="color:${glWep.color}">${glWep.baseName}</b>`);
+      mobileBtnText = 'LOOT';
     } else if (this.nearestReplicator) {
-      promptHtml = `<b style="color:#2dd4bf">[E / TAP] ${this.nearestReplicator.name.toUpperCase()}: CRAFT ★ MYTHIC LV4 ATTACHMENTS & RUNE</b>`;
-      mobileBtnText = `🛠️ CRAFT MYTHIC`;
+      promptHtml = pr('Craft', '#5eead4');
+      mobileBtnText = 'CRAFT';
     } else if (this.nearestBeacon) {
-      promptHtml = `<b style="color:#38bdf8">[E / TAP] ${this.nearestBeacon.name.toUpperCase()}: SCAN ALL HOSTILES ON MAP</b>`;
-      mobileBtnText = `📡 SCAN MAP`;
+      promptHtml = pr('Scan beacon', '#7dd3fc');
+      mobileBtnText = 'SCAN';
     } else if (this.nearestRespawnBeacon) {
-      promptHtml = `<b style="color:#10b981">[E / TAP] ${this.nearestRespawnBeacon.name.toUpperCase()}: RESPAWN FALLEN SQUADMATES</b>`;
-      mobileBtnText = `🟢 RESPAWN ALLY`;
+      promptHtml = pr('Respawn squad', '#34d399');
+      mobileBtnText = 'RESPAWN';
     } else if (this.nearestBin) {
-      const binWep = window.GODWARS_DATA.WEAPONS[this.nearestBin.loot.weaponId];
-      const title = this.nearestBin.isCarePackage
-        ? '★ ODIN MYTHIC CARE PACKAGE'
-        : this.nearestBin.isDeathBox
-          ? `DEATH BOX (${this.nearestBin.victimName})`
-          : 'DIVINE SUPPLY BIN';
-      promptHtml = `<b>[E / TAP]</b> ${title}: <span style="color:${binWep.color}">${binWep.divineName}</span> + LV${this.nearestBin.loot.shieldTier} RUNE`;
-      mobileBtnText = `📦 OPEN / LOOT`;
+      const nb = this.nearestBin;
+      const title = nb.isCarePackage ? 'Care package' : nb.isDeathBox ? 'Death box' : 'Supply bin';
+      promptHtml = pr(title, nb.isCarePackage ? '#fde047' : '#f1f5f9');
+      mobileBtnText = 'LOOT';
     }
 
-    if (promptHtml) {
-      if (lootPrompt) {
-        lootPrompt.classList.remove('hidden');
-        lootPrompt.innerHTML = promptHtml;
-      }
-      if (mobileLootBtn && mobileBtnText) {
-        mobileLootBtn.classList.remove('hidden');
-        mobileLootBtn.textContent = mobileBtnText;
-      }
-    } else {
-      if (lootPrompt) lootPrompt.classList.add('hidden');
-      if (mobileLootBtn) mobileLootBtn.classList.add('hidden');
+    if (lootPrompt) {
+      lootPrompt.classList.toggle('hidden', !promptHtml);
+      if (promptHtml && this._lastPromptHtml !== promptHtml) { lootPrompt.innerHTML = promptHtml; this._lastPromptHtml = promptHtml; }
+    }
+    if (mobileLootBtn) {
+      mobileLootBtn.classList.toggle('hidden', !mobileBtnText);
+      if (mobileBtnText && mobileLootBtn.textContent !== mobileBtnText) mobileLootBtn.textContent = mobileBtnText;
     }
 
     // 3D-to-2D Projected Apex Ping Diamond Marker
@@ -4527,10 +4705,13 @@ class GodWarsGame {
         ctx.arc(px, py, poi.radius * scale * 0.65, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = '#f8fafc';
-        ctx.font = idx === 1 ? 'bold 11px sans-serif' : 'bold 8px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(poi.name.split(' ')[0], px, py + 3);
+        // Names only on the big map (idx 1); the minimap stays clean like Apex.
+        if (idx === 1) {
+          ctx.fillStyle = '#f8fafc';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(poi.name.split(' ')[0], px, py + 3);
+        }
       });
 
       this.world.carePackages.forEach(pkg => {
@@ -4732,23 +4913,36 @@ class GodWarsGame {
   }
 
   showBanner(text, color = '#fbbf24') {
+    // Compact Apex-style notice: strip emoji, parentheticals, key hints and secondary clauses.
+    let t = String(text || '');
+    try { t = t.replace(/\p{Extended_Pictographic}️?/gu, ''); } catch (e) {}
+    t = t.replace(/\s*\([^)]*\)/g, '').replace(/\s*\[[^\]]*\]/g, '').split(/\s+•\s+/)[0];
+    t = t.replace(/!+/g, '').replace(/\s{2,}/g, ' ').trim();
+    if (!t) return;
+    // Your own ability casts already have VFX + the slim ult strip: no extra banner.
+    if (/^(ULTIMATE:|LOKI:|THOR:|HADES:|ZEUS:|HELA:|VALKYRIE:)/.test(t)) return;
+    const minor = /^(KNOCKED DOWN|REVIVE COMPLETE|SOUL SIPHON|PERK SIPHON|RUNE ARMOR UPGRADED|ARC RUNE|DOOR SMASHED|3-HIT|SQUADMATE .* REVIVING|LEGEND PERK|EQUIPPED|SELECTED|FIRE MODE|INSPECTING|WEAPON HOLSTERED|3RD-PERSON|1ST-PERSON|RIDING|DOOR|GOLD MAG|WALL-BOUNCE|ULTIMATE CHARGING|PERFECT SLIDE|SKYDIVE EMOTE|HOLO-SPRAY|AUTO-|.*COMPLETE$|NO .* LEFT)/i;
+    if (minor.test(t)) {
+      this.pushMinorNotice(t.length > 30 ? t.slice(0, 29) + '…' : t, color);
+      return;
+    }
+    if (t.length > 36) t = t.slice(0, 35) + '…';
     const banner = document.getElementById('hud-event-banner');
     if (!banner) return;
-    banner.textContent = text;
-    banner.style.borderColor = color;
-    banner.style.color = color;
+    banner.textContent = t;
+    banner.style.setProperty('--bc', color);
     banner.classList.add('visible');
     clearTimeout(this.bannerTimeout);
-    this.bannerTimeout = setTimeout(() => banner.classList.remove('visible'), 3200);
+    this.bannerTimeout = setTimeout(() => banner.classList.remove('visible'), 2200);
   }
 
   showEliminationPopup(victimName, victimHeroId, totalKills) {
     const pop = document.getElementById('hud-elimination-popup');
     if (!pop) return;
-    pop.innerHTML = `☠️ ELIMINATED <b>${victimName}</b> <span class="kill-badge">${totalKills} KILLS</span>`;
+    pop.innerHTML = `ELIMINATED <b>${String(victimName).replace(/^ALLY_/, '')}</b>`;
     pop.classList.add('visible');
     clearTimeout(this.elimTimeout);
-    this.elimTimeout = setTimeout(() => pop.classList.remove('visible'), 2600);
+    this.elimTimeout = setTimeout(() => pop.classList.remove('visible'), 1800);
   }
 
   addKillFeed(killer, victim, weaponName) {
