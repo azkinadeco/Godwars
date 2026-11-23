@@ -74,6 +74,11 @@
             <button class="mode-pill-btn active" data-mode="trios">🛡️ TRIOS SQUADS</button>
             <button class="mode-pill-btn" data-mode="solos">⚔️ SOLOS (FFA)</button>
             <button class="mode-pill-btn" data-mode="firing_range">🎯 FIRING RANGE</button>
+            <button class="mode-pill-btn" data-mode="online">🌐 ONLINE ARENA</button>
+          </div>
+          <div id="online-arena-fields" class="online-arena-fields hidden">
+            <input id="online-name" maxlength="14" placeholder="NAMA KAMU" autocomplete="off" aria-label="Nama pemain" />
+            <input id="online-room" maxlength="12" placeholder="ROOM" value="ASGARD" autocomplete="off" aria-label="Kode room" />
           </div>
           <div style="font-size:11px;color:#94a3b8;">
             Map: <b style="color:#fbbf24">ASGARD FLOATING ISLAND (6 POIs)</b>
@@ -669,6 +674,7 @@
   <script src="js/batcher.js?v=20261123c"></script>
   <script src="js/combat.js?v=20261123c"></script>
   <script src="js/ai.js?v=20261123c"></script>
+  <script src="js/net.js?v=20261123c"></script>
   <script src="js/main.js?v=20261123c"></script>
   <script>
     if ('serviceWorker' in navigator) {

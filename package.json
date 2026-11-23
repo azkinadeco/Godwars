@@ -1,0 +1,10 @@
+{
+  "name": "god-wars",
+  "private": true,
+  "version": "0.3.0",
+  "description": "God Wars: Asgard Royale — web hero shooter with Online Arena",
+  "scripts": {
+    "start": "node server/server.js"
+  },
+  "engines": { "node": ">=18" }
+}

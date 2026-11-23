@@ -2255,3 +2255,15 @@ body.mobile-mode #hud-combo-meter {
     border-radius: 6px;
   }
 }
+
+/* Online Arena: name + room inputs under the mode pills */
+.online-arena-fields { display: flex; gap: 8px; margin: 4px 0 2px; }
+.online-arena-fields.hidden { display: none; }
+.online-arena-fields input {
+  flex: 1; min-width: 0; min-height: 40px; padding: 8px 10px;
+  background: rgba(15, 23, 42, 0.85); color: #f8fafc;
+  border: 1px solid rgba(251, 191, 36, 0.55); border-radius: 6px;
+  font: 700 13px/1.2 inherit; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.online-arena-fields input:focus-visible { outline: 2px solid #fbbf24; outline-offset: 1px; }
+.mode-selector-row { flex-wrap: wrap; }

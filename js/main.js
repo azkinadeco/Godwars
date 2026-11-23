@@ -329,6 +329,10 @@ class GodWarsGame {
         document.querySelectorAll('.mode-pill-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.gameMode = btn.dataset.mode;
+        const onlineFields = document.getElementById('online-arena-fields');
+        if (onlineFields) onlineFields.classList.toggle('hidden', this.gameMode !== 'online');
+        const nameEl = document.getElementById('online-name');
+        if (nameEl && !nameEl.value) { try { nameEl.value = localStorage.getItem('godwars_online_name') || ''; } catch (e) {} }
         window.SFX.playReload();
         this.updateLobby3DSquad();
       });
@@ -423,7 +427,13 @@ class GodWarsGame {
       startBtn.addEventListener('click', () => {
         window.SFX.init();
         window.SFX.playAbility('ultimate');
-        if (this.gameMode === 'firing_range') {
+        if (this.gameMode === 'online' && window.NET) {
+          const nameEl = document.getElementById('online-name');
+          const roomEl = document.getElementById('online-room');
+          const name = (nameEl && nameEl.value.trim()) || `GOD${Math.floor(Math.random() * 900 + 100)}`;
+          try { localStorage.setItem('godwars_online_name', name); } catch (e) {}
+          window.NET.startArena(name, (roomEl && roomEl.value.trim()) || 'ASGARD');
+        } else if (this.gameMode === 'firing_range') {
           this.startBattleRoyaleMatch(true, true);
         } else {
           this.openLegendSelectSequence();
@@ -1332,6 +1342,8 @@ class GodWarsGame {
   // START 16-PLAYER ASGARD BATTLE ROYALE (TRIOS / SOLOS / FIRING RANGE)
   // =========================================================================
   startBattleRoyaleMatch(instantGroundDrop = false, isFiringRange = false) {
+    // Any non-arena start tears the online session down (NET.startArena sets isOnline first).
+    if (!this.isOnline && window.NET && window.NET.connected) window.NET.leave();
     const loadOverlay = document.getElementById('asgard-loading-overlay');
     const loadFill = document.getElementById('loading-bar-fill');
     if (loadOverlay) {
@@ -1687,6 +1699,8 @@ class GodWarsGame {
     });
 
     window.addEventListener('keydown', (e) => {
+      const tag = e.target && e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return; // typing a name/room must not fire game binds
       const code = e.code;
       this.keys[code] = true;
       if (!this.matchActive || !this.player || !this.player.alive) return;
@@ -3009,6 +3023,8 @@ class GodWarsGame {
   }
 
   returnToLobby() {
+    if (this.isOnline && window.NET) { window.NET.leave(); }
+    this.isOnline = false;
     this.matchActive = false;
     this.isSpectating = false;
     if (document.exitPointerLock) document.exitPointerLock();
@@ -3910,7 +3926,7 @@ class GodWarsGame {
     };
 
     setTxt('hud-squads-count', this.isFiringRange ? '1' : `${livingTeams.size}`);
-    setTxt('hud-alive-count', this.isFiringRange ? 'TRAINING' : `${totalAlive}/16`);
+    setTxt('hud-alive-count', this.isOnline && window.NET ? `${window.NET.remotes.size + 1} ONLINE` : this.isFiringRange ? 'TRAINING' : `${totalAlive}/16`);
     setTxt('hud-kills-count', p.kills);
     setTxt('hud-damage-count', Math.round(p.damageDealt));
 
@@ -3924,7 +3940,7 @@ class GodWarsGame {
     setTxt(
       'hud-ring-timer',
       this.isFiringRange
-        ? '🎯 FIRING RANGE • UNLIMITED PRACTICE'
+        ? (this.isOnline && window.NET ? `🌐 ARENA ${window.NET.room} • K ${this.player.kills || 0}` : '🎯 FIRING RANGE • UNLIMITED PRACTICE')
         : `RING ${this.ringPhaseIndex + 1} ${this.ringState === 'shrinking' ? 'CLOSING' : ''} ${mins}:${secs}`
     );
 
@@ -4604,6 +4620,7 @@ class GodWarsGame {
   }
 
   checkMatchState() {
+    if (this.isOnline) return; // arena is endless free-for-all with respawns
     if (!this.matchActive || this.isFiringRange) return;
     const aliveEnemies = this.bots.filter(b => b.alive && !b.isAlly).length;
 

@@ -397,6 +397,7 @@ class CombatManager {
       }
     }
 
+    if (shooter && shooter.isPlayer && this.game.isOnline && window.NET) window.NET.reportShot();
     const startTracer = origin.clone().addScaledVector(dir, 0.7);
     startTracer.y -= 0.08;
     this.spawnTracer(startTracer, hitPoint, isMythicGold ? 0xfde047 : weaponData.hexColor);
@@ -494,6 +495,11 @@ class CombatManager {
   applyDamage(attacker, victim, amount, sourceName, isHeadshot = false, hitWorldPos = null, bypassKnockShield = false) {
     if (!victim || !victim.alive) return;
     if (attacker && !this.isEnemy(attacker, victim)) return;
+    // Online arena: damage to a human is reported to the server; the victim's client applies it.
+    // We still run the local path below for hitmarkers / damage numbers, but never kill them locally.
+    if (victim.isRemote && window.NET && this.game.isOnline && attacker && attacker.isPlayer) {
+      window.NET.reportHit(victim, Math.round(amount), isHeadshot, sourceName);
+    }
 
     let remaining = Math.round(amount);
     let hitShield = false;
@@ -613,6 +619,8 @@ class CombatManager {
       this.game.triggerDamageIndicator(attacker.position);
     }
 
+    if (victim.isRemote) { victim.hp = Math.max(1, victim.hp); return; } // server/victim decides deaths
+
     if (victim.hp <= 0 && victim.alive) {
       const hasTeammate = this.hasLivingSquadmate(victim);
       const hasSelfRevive = victim.shieldTier >= 4 && !victim.usedSelfRevive;
@@ -652,6 +660,15 @@ class CombatManager {
   }
 
   handleElimination(killer, victim, weaponName) {
+    if (this.game.isOnline) {
+      if (victim.isRemote) return;
+      if (victim.isPlayer && victim.alive) {
+        victim.alive = false;
+        victim.knocked = false;
+        if (window.NET) window.NET.reportDeath(killer, weaponName);
+      }
+      return;
+    }
     if (victim.isDummy) {
       if (killer && killer.isPlayer) {
         window.SFX.playKillSound();
