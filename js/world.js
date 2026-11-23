@@ -66,19 +66,21 @@ class AsgardWorld {
     const detailTex = window.ModelFactory.getDetailTexture();
     const marbleWallTex = window.ModelFactory.getSurfaceTexture('marble_wall', 3, 2);
     const marbleFloorTex = window.ModelFactory.getSurfaceTexture('marble_floor', 5, 5);
-    const stoneTex = window.ModelFactory.getSurfaceTexture('asgard_stone', 4, 3);
+    const stoneTex = window.ModelFactory.getSurfaceTexture('rock', 3, 3);
+    const metalPanelTex = window.ModelFactory.getSurfaceTexture('metal_panel', 3, 2);
+    const basaltTex = window.ModelFactory.getSurfaceTexture('basalt', 3, 3);
     const woodGoldTex = window.ModelFactory.getSurfaceTexture('wood_gold', 3, 3);
     const grassTex = window.ModelFactory.getSurfaceTexture('lush_grass', 18, 18);
     const lavaTex = window.ModelFactory.getSurfaceTexture('molten_lava', 6, 6);
 
     this.mats = {
-      gold: new THREE.MeshStandardMaterial({ color: 0xc8892a, metalness: 0.8, roughness: 0.34 }),
-      brightGold: new THREE.MeshStandardMaterial({ color: 0xe0b24a, metalness: 0.88, roughness: 0.26 }),
+      gold: new THREE.MeshStandardMaterial({ color: 0xb08a4a, map: stoneTex, metalness: 0.5, roughness: 0.55 }),
+      brightGold: new THREE.MeshStandardMaterial({ color: 0xd2a54a, metalness: 0.75, roughness: 0.38 }),
       marbleWall: new THREE.MeshStandardMaterial({ color: 0xd8d0c2, map: marbleWallTex, roughness: 0.62, metalness: 0.04 }),
       marbleFloor: new THREE.MeshStandardMaterial({ color: 0xb0a898, map: marbleFloorTex, roughness: 0.55, metalness: 0.06 }),
-      darkSteel: new THREE.MeshStandardMaterial({ color: 0x334155, map: goldRuneTex, metalness: 0.72, roughness: 0.32 }),
-      obsidian: new THREE.MeshStandardMaterial({ color: 0x1e293b, map: cyanRuneTex, metalness: 0.76, roughness: 0.26 }),
-      stone: new THREE.MeshStandardMaterial({ color: 0xd0ccc4, map: stoneTex, roughness: 0.68, metalness: 0.12 }),
+      darkSteel: new THREE.MeshStandardMaterial({ color: 0x9aa0a8, map: metalPanelTex, metalness: 0.45, roughness: 0.55 }),
+      obsidian: new THREE.MeshStandardMaterial({ color: 0xb4b6bc, map: basaltTex, metalness: 0.08, roughness: 0.82 }),
+      stone: new THREE.MeshStandardMaterial({ color: 0xe0dbd2, map: stoneTex, metalness: 0.0, roughness: 0.9 }),
       woodGold: new THREE.MeshStandardMaterial({ color: 0xd97706, map: woodGoldTex, roughness: 0.58, metalness: 0.25 }),
       grass: new THREE.MeshStandardMaterial({ color: 0x4ade80, map: grassTex, roughness: 0.78, metalness: 0.05 }),
       lava: new THREE.MeshBasicMaterial({ color: 0xffedd5, map: lavaTex }),
@@ -97,6 +99,11 @@ class AsgardWorld {
         opacity: 0.78
       }),
       necroGlow: new THREE.MeshBasicMaterial({ color: 0x14b8a6 }),
+      // Structural trims: big slabs/roofs/crates need lit, textured surfaces. Unlit glow or mirror-water
+      // on 30m roofs read as flat neon blocks; keep glow for small accents (crystals, strips) only.
+      cornice: new THREE.MeshStandardMaterial({ color: 0x8a8276, map: stoneTex, roughness: 0.8, metalness: 0.05 }),
+      helTrim: new THREE.MeshStandardMaterial({ color: 0x6f8f8a, map: basaltTex, emissive: 0x0b3b36, emissiveIntensity: 0.35, roughness: 0.78, metalness: 0.08 }),
+      frostTrim: new THREE.MeshStandardMaterial({ color: 0xc9d6e2, map: stoneTex, roughness: 0.6, metalness: 0.1 }),
       amberGlow: new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
     };
   }
@@ -132,6 +139,28 @@ class AsgardWorld {
       });
     }
     return mesh;
+  }
+
+  /**
+   * GLB architecture used to be pure visuals: players, bots and the camera walked straight
+   * through gates, columns and towers. Once a GLB is attached, derive one AABB per ground-touching
+   * mesh part (overhead lintels/arches are skipped so passages stay open).
+   */
+  addGLBColliders(group, glb) {
+    if (glb.parent !== group) group.add(glb);
+    group.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    glb.traverse(m => {
+      if (!m.isMesh || !m.geometry) return;
+      box.setFromObject(m);
+      if (box.isEmpty()) return;
+      const w = box.max.x - box.min.x, d = box.max.z - box.min.z, h = box.max.y - box.min.y;
+      if (box.min.y > group.position.y + 2.2) return;   // overhead piece: leave the walkway open
+      if (h < 0.35 || w < 0.25 || d < 0.25) return;      // trim, decals, flat plates
+      if (w * d > 900) return;                           // giant shells would trap players
+      this.colliders.push({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, minY: box.min.y, maxY: box.max.y, isClimbable: h < 3.2, fromGLB: true });
+      if (h < 3.2) this.walkableSurfaces.push({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, y: box.max.y, thickness: h });
+    });
   }
 
   addWalkableFloor(x, topY, z, w, d, thickness = 0.4, material = null) {
@@ -339,6 +368,17 @@ class AsgardWorld {
       // Walkable Floor / Roof Deck Slab
       this.addWalkableFloor(cx, slabY, cz, width + 1.4, depth + 1.4, 0.42, lvl === floorCount ? trimMat : this.mats.marbleFloor);
 
+      // Visual-only cornice band wrapping each slab edge: gives every storey a readable silhouette line
+      // (previously each level was a bare slab and buildings read like parking decks).
+      const cw = width + 1.9, cd = depth + 1.9, ch = 0.55, ct = 0.32;
+      const corniceMat = this.mats.cornice;
+      [[0, cd / 2, cw, ct], [0, -cd / 2, cw, ct], [cw / 2, 0, ct, cd], [-cw / 2, 0, ct, cd]].forEach(([ox, oz, bw, bd]) => {
+        const band = new THREE.Mesh(new THREE.BoxGeometry(bw, ch, bd), corniceMat);
+        band.position.set(cx + ox, slabY - 0.2, cz + oz);
+        band.castShadow = true; band.receiveShadow = true;
+        this.scene.add(band);
+      });
+
       // Alternating East / West Wide Exterior Staircase Ramp connecting prevY -> slabY!
       const rampOnEast = (lvl % 2 === 1);
       const rx = rampOnEast ? (cx + width / 2 + 2.1) : (cx - width / 2 - 2.1);
@@ -451,7 +491,7 @@ class AsgardWorld {
       archGroup.rotation.y = angle;
       this.scene.add(archGroup);
       if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
-        window.ModelFactory.attachBlenderGLB('prop_asgard_archway', archGroup);
+        window.ModelFactory.attachBlenderGLB('prop_asgard_archway', archGroup, (glb) => this.addGLBColliders(archGroup, glb));
       }
     });
   }
@@ -690,7 +730,7 @@ class AsgardWorld {
       posAttr.setY(i, vy);
 
       // Euphoria Multi-Biome Vertex Paint + Elevation Cliff Tint
-      col.setRGB(0.40, 0.56, 0.27); // Sunlit Meadow Green (sRGB)
+      col.setRGB(0.42, 0.51, 0.29); // Sunlit Meadow Green (sRGB, slightly desaturated)
       // Large-scale macro variation: dry-grass patches and worn dirt so the meadow never reads flat.
       const n1 = Math.sin(vx * 0.031 + Math.sin(vz * 0.023) * 2.1) * Math.cos(vz * 0.027 - Math.sin(vx * 0.019) * 1.7);
       const n2 = Math.sin(vx * 0.083 + vz * 0.061) * Math.sin(vz * 0.097 - vx * 0.043);
@@ -822,7 +862,7 @@ class AsgardWorld {
     }
 
     // EXPANDED 3-Story Enterable Heimdall Observatory Main Building (26m x 18m)
-    this.buildApexCompoundBuilding(cx, cz, 26, 18, this.mats.darkSteel, this.mats.bifrostWater, 3);
+    this.buildApexCompoundBuilding(cx, cz, 26, 18, this.mats.darkSteel, this.mats.frostTrim, 3);
 
     // COLOSSAL BLENDER GUARDIAN STATUE OF HEIMDALL guarding the Rainbow Bridge entrance!
     this.placeBlenderStatue('statue_heimdall', 18, 0, 120, -Math.PI * 0.25, 1.0);
@@ -840,7 +880,7 @@ class AsgardWorld {
     portalGroup.add(outerGate, innerPortal);
     this.scene.add(portalGroup);
     if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
-      window.ModelFactory.attachBlenderGLB('prop_bifrost_gate', portalGroup, null, outerGate);
+      window.ModelFactory.attachBlenderGLB('prop_bifrost_gate', portalGroup, (glb) => this.addGLBColliders(portalGroup, glb), outerGate);
     }
     this.animatedProps.push({ mesh: innerPortal, rotZ: 0.9 });
   }
@@ -878,7 +918,7 @@ class AsgardWorld {
     anvilGroup.position.set(cx - 26, 0, cz + 4.5);
     this.scene.add(anvilGroup);
     if (window.ModelFactory && window.ModelFactory.attachBlenderGLB) {
-      window.ModelFactory.attachBlenderGLB('prop_forge_anvil', anvilGroup);
+      window.ModelFactory.attachBlenderGLB('prop_forge_anvil', anvilGroup, (glb) => this.addGLBColliders(anvilGroup, glb));
     }
     const hammerGroup = new THREE.Group();
     hammerGroup.position.set(cx - 26, 6, cz + 1.5);
@@ -942,7 +982,7 @@ class AsgardWorld {
     const cx = -85, cz = -105;
 
     // EXPANDED 3-Story Obsidian Citadel of Hel (28m x 18m)
-    this.buildApexCompoundBuilding(cx, cz, 28, 18, this.mats.obsidian, this.mats.necroGlow, 3);
+    this.buildApexCompoundBuilding(cx, cz, 28, 18, this.mats.obsidian, this.mats.helTrim, 3);
 
     // Flanking 2-Story Crypt Towers connected via Elevated Battlement Walkways
     this.buildApexCompoundBuilding(cx - 26, cz + 6, 14, 14, this.mats.obsidian, this.mats.stone, 2);
@@ -1845,6 +1885,7 @@ class AsgardWorld {
               if (m.roughness !== undefined) m.roughness = Math.max(m.roughness, 0.7);
             }
           });
+          this.addGLBColliders(grp, glb);
         });
       }
       return grp;

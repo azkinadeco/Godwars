@@ -245,7 +245,7 @@ window.ModelFactory = {
       }
     };
 
-    if (type === 'marble_wall' || type === 'marble_floor' || type === 'asgard_stone') {
+    if (['marble_wall', 'marble_floor', 'asgard_stone', 'metal_panel', 'basalt', 'rock'].includes(type)) {
       canvas.width = 512; canvas.height = 512;
     }
 
@@ -333,6 +333,72 @@ window.ModelFactory = {
       crack(16);
       speckle(8000, 0.18, false);
       speckle(4000, 0.10, true);
+    } else if (type === 'metal_panel') {
+      // Painted industrial plating: riveted panels, seams, chipped edges, oil grime. Matte, not a mirror.
+      ctx.fillStyle = '#2a2d31';
+      ctx.fillRect(0, 0, 512, 512);
+      const pw = 128, ph = 256;
+      for (let y = 0; y < 512; y += ph) for (let x = 0; x < 512; x += pw) {
+        const t = 0.85 + rnd() * 0.15;
+        ctx.fillStyle = `rgb(${(170 * t) | 0},${(174 * t) | 0},${(178 * t) | 0})`;
+        ctx.fillRect(x + 2, y + 2, pw - 4, ph - 4);
+        ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.fillRect(x + 2, y + 2, pw - 4, 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x + 2, y + ph - 5, pw - 4, 3);
+        ctx.fillStyle = 'rgba(30,30,32,0.75)';
+        for (const [rx, ry] of [[8, 8], [pw - 12, 8], [8, ph - 12], [pw - 12, ph - 12], [8, ph / 2], [pw - 12, ph / 2]]) {
+          ctx.beginPath(); ctx.arc(x + rx + 2, y + ry + 2, 2.6, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      // hazard stripe band, like a working foundry
+      ctx.save(); ctx.beginPath(); ctx.rect(0, 470, 512, 34); ctx.clip();
+      for (let i = -2; i < 20; i++) { ctx.fillStyle = i % 2 ? '#c9a227' : '#24262a'; ctx.beginPath(); ctx.moveTo(i * 32, 504); ctx.lineTo(i * 32 + 32, 470); ctx.lineTo(i * 32 + 64, 470); ctx.lineTo(i * 32 + 32, 504); ctx.fill(); }
+      ctx.restore();
+      grime(0.22);
+      speckle(6000, 0.16, false);
+      speckle(2500, 0.12, true);
+    } else if (type === 'basalt') {
+      // Dark volcanic basalt blocks with faint teal mineral veins (Helheim / obsidian surfaces).
+      ctx.fillStyle = '#121416';
+      ctx.fillRect(0, 0, 512, 512);
+      for (let r = 0; r < 6; r++) for (let c = 0; c < 4; c++) {
+        const t = 0.75 + rnd() * 0.25;
+        ctx.fillStyle = `rgb(${(78 * t) | 0},${(80 * t) | 0},${(86 * t) | 0})`;
+        const off = (r % 2) * 64;
+        ctx.fillRect(c * 128 + off - 64 + 3, r * 85 + 3, 122, 79);
+        ctx.fillRect(c * 128 + off + 64 + 3, r * 85 + 3, 122, 79);
+      }
+      ctx.strokeStyle = 'rgba(45,212,191,0.28)'; ctx.lineWidth = 1.4;
+      for (let i = 0; i < 9; i++) { let x = rnd() * 512, y = rnd() * 512; ctx.beginPath(); ctx.moveTo(x, y); for (let k = 0; k < 8; k++) { x += (rnd() - 0.5) * 50; y += rnd() * 30; ctx.lineTo(x, y); } ctx.stroke(); }
+      speckle(9000, 0.22, false);
+      speckle(3000, 0.10, true);
+    } else if (type === 'rock') {
+      // Natural cliff rock: layered strata + noise blotches, no bricks (boulders used to look tiled).
+      const g0 = ctx.createLinearGradient(0, 0, 0, 512);
+      g0.addColorStop(0, '#8f8a80'); g0.addColorStop(1, '#77736b');
+      ctx.fillStyle = g0; ctx.fillRect(0, 0, 512, 512);
+      for (let i = 0; i < 22; i++) {
+        const y = rnd() * 512, h = 6 + rnd() * 26, t = rnd();
+        ctx.fillStyle = t > 0.5 ? `rgba(60,56,50,${0.10 + rnd() * 0.15})` : `rgba(200,192,176,${0.08 + rnd() * 0.12})`;
+        ctx.beginPath(); ctx.moveTo(0, y);
+        for (let x = 0; x <= 512; x += 32) ctx.lineTo(x, y + Math.sin(x * 0.02 + i) * 6 + (rnd() - 0.5) * 4);
+        ctx.lineTo(512, y + h); ctx.lineTo(0, y + h); ctx.fill();
+      }
+      for (let i = 0; i < 60; i++) {
+        const x = rnd() * 512, y = rnd() * 512, rr = 8 + rnd() * 40;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, rr);
+        const dark = rnd() > 0.45;
+        g.addColorStop(0, dark ? 'rgba(45,42,38,0.30)' : 'rgba(215,208,192,0.22)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g; ctx.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+      }
+      for (let i = 0; i < 18; i++) {
+        const x = rnd() * 512, y = rnd() * 512, rr = 10 + rnd() * 26;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, rr);
+        g.addColorStop(0, 'rgba(84,110,56,0.35)'); g.addColorStop(1, 'rgba(84,110,56,0)');
+        ctx.fillStyle = g; ctx.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+      }
+      crack(22);
+      speckle(10000, 0.18, false);
+      speckle(5000, 0.12, true);
     } else if (type === 'lush_grass') {
       // Euphoria-Style Sunlit Emerald-Olive Fantasy Meadow Texture
       // Neutral light-olive mottled meadow; hue comes from terrain vertex paint (multiplied).

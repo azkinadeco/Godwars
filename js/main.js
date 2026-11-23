@@ -904,7 +904,7 @@ class GodWarsGame {
       const pmrem = new THREE.PMREMGenerator(this.renderer);
       pmrem.compileEquirectangularShader();
       const envScene = new THREE.Scene();
-      envScene.background = new THREE.Color(0x1e3a8a);
+      envScene.background = new THREE.Color(0x8b98aa); // muted daylight sky, not saturated navy
 
       // Warm Golden Sun Panel + Cool Azure Sky Panel + Emerald Ground Bounce
       const sunPanel = new THREE.Mesh(
@@ -917,7 +917,7 @@ class GodWarsGame {
 
       const skyPanel = new THREE.Mesh(
         new THREE.PlaneGeometry(45, 45),
-        new THREE.MeshBasicMaterial({ color: 0x60a5fa, side: THREE.DoubleSide })
+        new THREE.MeshBasicMaterial({ color: 0xa9bfd8, side: THREE.DoubleSide })
       );
       skyPanel.position.set(-20, 26, -15);
       skyPanel.lookAt(0, 0, 0);
@@ -925,7 +925,7 @@ class GodWarsGame {
 
       const rimPanel = new THREE.Mesh(
         new THREE.PlaneGeometry(28, 16),
-        new THREE.MeshBasicMaterial({ color: 0xfbbf24, side: THREE.DoubleSide })
+        new THREE.MeshBasicMaterial({ color: 0xd8b77a, side: THREE.DoubleSide })
       );
       rimPanel.position.set(0, 8, -24);
       rimPanel.lookAt(0, 0, 0);
@@ -933,7 +933,7 @@ class GodWarsGame {
 
       const groundBounce = new THREE.Mesh(
         new THREE.PlaneGeometry(50, 50),
-        new THREE.MeshBasicMaterial({ color: 0x3f6212, side: THREE.DoubleSide })
+        new THREE.MeshBasicMaterial({ color: 0x5a4f3e, side: THREE.DoubleSide })
       );
       groundBounce.position.set(0, -16, 0);
       groundBounce.rotation.x = -Math.PI / 2;
