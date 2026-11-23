@@ -11,6 +11,17 @@
  * - 6 Golden Bifrost Ziplines + Valhalla Jump Tower + 8 Bifrost Jump Pads + 28 Supply Bins + Odin Care Packages
  */
 
+// Deterministic 2D value-noise FBM (terrain, mountains). Same output every session and on every client.
+const _gwHash = (x, z) => { const h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return h - Math.floor(h); };
+const _gwNoise = (x, z) => {
+  const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz;
+  const ux = fx * fx * (3 - 2 * fx), uz = fz * fz * (3 - 2 * fz);
+  const a = _gwHash(ix, iz), b = _gwHash(ix + 1, iz), c = _gwHash(ix, iz + 1), d = _gwHash(ix + 1, iz + 1);
+  return a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz;
+};
+const _gwFbm = (x, z, oct = 4) => { let v = 0, amp = 0.5, f = 1; for (let i = 0; i < oct; i++) { v += _gwNoise(x * f, z * f) * amp; f *= 2.03; amp *= 0.5; } return v / (1 - Math.pow(0.5, oct)); };
+const _gwRidge = (x, z, oct = 5) => { let v = 0, amp = 0.5, f = 1; for (let i = 0; i < oct; i++) { v += (1 - Math.abs(_gwNoise(x * f, z * f) * 2 - 1)) * amp; f *= 2.1; amp *= 0.5; } return v / (1 - Math.pow(0.5, oct)); };
+
 class AsgardWorld {
   constructor(scene) {
     this.scene = scene;
@@ -32,6 +43,18 @@ class AsgardWorld {
     this.jumpTower = null;
     this.ringMesh = null;
     this.islandRadius = window.GODWARS_DATA.MATCH_CONFIG.islandRadius;
+    // Spots that are authored at y = 0 outside the POI flats (outposts, trees + crates, jump pads,
+    // zipline pylons, bins). terrainHeightAt levels a pad around each so hills never swallow them.
+    const D = window.GODWARS_DATA;
+    this.flatZones = [
+      [-52, 72, 20], [52, 72, 20], [-52, -48, 20], [52, -48, 20],
+      [0, 38, 7], [0, -38, 7], [-38, 0, 7], [38, 0, 7], [-86, 35, 7], [86, 30, 7], [-58, -82, 7], [62, -78, 7],
+      [-45, 72, 5], [45, 72, 5],
+      ...[[-32, 35], [32, 35], [-35, -22], [35, -22], [68, -15], [-68, -15], [75, 58], [-75, 58], [28, 95], [-28, 95],
+          [82, -42], [-82, -42], [145, 5], [142, 55], [92, 65], [150, -35], [-148, -32], [-145, 68], [0, -68], [22, -78],
+          [-22, -78], [45, 118], [-45, 118], [0, -145]].map(([x, z]) => [x + 2, z + 1, 8]),
+      ...((D.ZIPLINES || []).flatMap(zl => [[zl.start[0], zl.start[2], 4], [zl.end[0], zl.end[2], 4]]))
+    ];
   }
 
   build() {
@@ -73,16 +96,24 @@ class AsgardWorld {
     const grassTex = window.ModelFactory.getSurfaceTexture('lush_grass', 18, 18);
     const lavaTex = window.ModelFactory.getSurfaceTexture('molten_lava', 6, 6);
 
+    // Blender-baked seamless PBR sets (albedo + tangent normal). One coherent "Asgard divine-tech" palette:
+    // pale marble ashlar + flagstone for temples, cast concrete for civic blocks, painted steel cladding,
+    // weathered bronze trim, basalt for Helheim/forge, layered rock for terrain features.
+    const P = (n) => window.ModelFactory.getPBR(n);
+    const pbr = (n, opts) => { const t = P(n); return new THREE.MeshStandardMaterial(Object.assign({ map: t.map, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.9, 0.9) }, opts)); };
     this.mats = {
-      gold: new THREE.MeshStandardMaterial({ color: 0xb08a4a, map: stoneTex, metalness: 0.5, roughness: 0.55 }),
-      brightGold: new THREE.MeshStandardMaterial({ color: 0xd2a54a, metalness: 0.75, roughness: 0.38 }),
-      marbleWall: new THREE.MeshStandardMaterial({ color: 0xd8d0c2, map: marbleWallTex, roughness: 0.62, metalness: 0.04 }),
-      marbleFloor: new THREE.MeshStandardMaterial({ color: 0xb0a898, map: marbleFloorTex, roughness: 0.55, metalness: 0.06 }),
-      darkSteel: new THREE.MeshStandardMaterial({ color: 0x9aa0a8, map: metalPanelTex, metalness: 0.45, roughness: 0.55 }),
-      obsidian: new THREE.MeshStandardMaterial({ color: 0xb4b6bc, map: basaltTex, metalness: 0.08, roughness: 0.82 }),
-      stone: new THREE.MeshStandardMaterial({ color: 0xe0dbd2, map: stoneTex, metalness: 0.0, roughness: 0.9 }),
-      woodGold: new THREE.MeshStandardMaterial({ color: 0xd97706, map: woodGoldTex, roughness: 0.58, metalness: 0.25 }),
-      grass: new THREE.MeshStandardMaterial({ color: 0x4ade80, map: grassTex, roughness: 0.78, metalness: 0.05 }),
+      gold: new THREE.MeshStandardMaterial({ color: 0x9a7740, metalness: 0.78, roughness: 0.4, normalMap: P('metal_panel').normalMap, normalScale: new THREE.Vector2(0.35, 0.35) }),
+      brightGold: new THREE.MeshStandardMaterial({ color: 0xc49a4c, metalness: 0.85, roughness: 0.32 }),
+      marbleWall: pbr('marble', { color: 0xd6d1c8, roughness: 0.6, metalness: 0.0 }),
+      marbleFloor: pbr('stone_tiles', { color: 0xa8a196, roughness: 0.72, metalness: 0.0 }),
+      concrete: pbr('concrete', { color: 0xb4b0a8, roughness: 0.85, metalness: 0.0 }),
+      darkSteel: pbr('metal_panel', { color: 0xc8ced6, metalness: 0.35, roughness: 0.5 }),
+      obsidian: pbr('basalt', { color: 0xd8d8dc, metalness: 0.0, roughness: 0.78 }),
+      stone: pbr('rock', { color: 0xd8d2c8, metalness: 0.0, roughness: 0.92 }),
+      roof: pbr('roof', { color: 0xd0d8dc, metalness: 0.45, roughness: 0.55 }),
+      dirt: pbr('dirt', { color: 0xffffff, metalness: 0.0, roughness: 0.95 }),
+      woodGold: new THREE.MeshStandardMaterial({ color: 0x6e6256, map: woodGoldTex, roughness: 0.82, metalness: 0.0 }),
+      grass: pbr('grass', { color: 0x6f9a48, roughness: 0.92, metalness: 0.0 }),
       lava: new THREE.MeshBasicMaterial({ color: 0xffedd5, map: lavaTex }),
       bifrostWater: new THREE.MeshStandardMaterial({
         color: 0x38bdf8,
@@ -101,9 +132,9 @@ class AsgardWorld {
       necroGlow: new THREE.MeshBasicMaterial({ color: 0x14b8a6 }),
       // Structural trims: big slabs/roofs/crates need lit, textured surfaces. Unlit glow or mirror-water
       // on 30m roofs read as flat neon blocks; keep glow for small accents (crystals, strips) only.
-      cornice: new THREE.MeshStandardMaterial({ color: 0x8a8276, map: stoneTex, roughness: 0.8, metalness: 0.05 }),
-      helTrim: new THREE.MeshStandardMaterial({ color: 0x6f8f8a, map: basaltTex, emissive: 0x0b3b36, emissiveIntensity: 0.35, roughness: 0.78, metalness: 0.08 }),
-      frostTrim: new THREE.MeshStandardMaterial({ color: 0xc9d6e2, map: stoneTex, roughness: 0.6, metalness: 0.1 }),
+      cornice: pbr('concrete', { color: 0x8e8a82, roughness: 0.85, metalness: 0.0 }),
+      helTrim: pbr('basalt', { color: 0x9fc4be, emissive: 0x0b3b36, emissiveIntensity: 0.35, roughness: 0.78, metalness: 0.05 }),
+      frostTrim: pbr('marble', { color: 0xd4e2f0, roughness: 0.5, metalness: 0.0 }),
       amberGlow: new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
     };
   }
@@ -111,8 +142,29 @@ class AsgardWorld {
   // =========================================================================
   // ARCHITECTURAL PRIMITIVES: WALLS, WALKABLE FLOORS, RAMPS/STAIRS & DOORS
   // =========================================================================
+  /**
+   * Re-map a BoxGeometry's per-face 0..1 UVs to metres / tile so every wall, slab and step shares
+   * the same texel density (a 30 m wall used to stretch one texture tile across its whole face).
+   * BoxGeometry face order: +x,-x (depth x height), +y,-y (width x depth), +z,-z (width x height).
+   */
+  _worldUV(geo, w, h, d, ox = 0, oz = 0, tile = 4) {
+    const uv = geo.attributes.uv;
+    if (!uv) return geo;
+    const dims = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+    const off = ((ox * 0.37 + oz * 0.61) / tile) % 1;
+    for (let f = 0; f < 6; f++) {
+      const [su, sv] = dims[f];
+      for (let k = 0; k < 4; k++) {
+        const i = f * 4 + k;
+        uv.setXY(i, uv.getX(i) * su / tile + off, uv.getY(i) * sv / tile);
+      }
+    }
+    uv.needsUpdate = true;
+    return geo;
+  }
+
   addSolidWall(x, y, z, w, h, d, material, isClimbable = true) {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material || this.mats.marbleWall);
+    const mesh = new THREE.Mesh(this._worldUV(new THREE.BoxGeometry(w, h, d), w, h, d, x, z), material || this.mats.marbleWall);
     mesh.position.set(x, y + h / 2, z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -165,7 +217,7 @@ class AsgardWorld {
 
   addWalkableFloor(x, topY, z, w, d, thickness = 0.4, material = null) {
     const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(w, thickness, d),
+      this._worldUV(new THREE.BoxGeometry(w, thickness, d), w, thickness, d, x, z, 6),
       material || this.mats.marbleFloor
     );
     mesh.position.set(x, topY - thickness / 2, z);
@@ -201,7 +253,7 @@ class AsgardWorld {
    * Builds a walkable visual staircase / ramp from lowY to highY.
    * dir: 'N' (goes -Z), 'S' (goes +Z), 'E' (goes +X), 'W' (goes -X)
    */
-  addStairRamp(x, z, w, d, lowY, highY, dir = 'N', material = null) {
+  addStairRamp(x, z, w, d, lowY, highY, dir = 'N', material = null, rails = false) {
     const steps = 10;
     const group = new THREE.Group();
     group.userData.staticBatch = true;
@@ -227,9 +279,35 @@ class AsgardWorld {
         sx = (x + w / 2) - t * w;
       }
 
-      const stepMesh = new THREE.Mesh(new THREE.BoxGeometry(sw, dh + 0.15, sd + 0.08), mat);
+      const stepMesh = new THREE.Mesh(this._worldUV(new THREE.BoxGeometry(sw, dh + 0.15, sd + 0.08), sw, dh + 0.15, sd + 0.08, sx, sz), mat);
       stepMesh.position.set(sx, stepY - (dh + 0.15) / 2, sz);
       group.add(stepMesh);
+    }
+    if (rails) {
+      // steel handrails on both long sides: sloped tube + end posts
+      const railMat = this.mats.gold;
+      const along = (dir === 'N' || dir === 'S');
+      const len = along ? d : w;
+      const rise = highY - lowY;
+      const slopeLen = Math.hypot(len, rise);
+      const ang = Math.atan2(rise, len);
+      for (const side of [-1, 1]) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, slopeLen), railMat);
+        const px = along ? x + side * (w / 2 - 0.05) : x, pz = along ? z : z + side * (d / 2 - 0.05);
+        rail.position.set(px, (lowY + highY) / 2 + 1.0, pz);
+        if (along) rail.rotation.x = (dir === 'N' ? 1 : -1) * ang;
+        else { rail.rotation.order = 'YXZ'; rail.rotation.y = Math.PI / 2; rail.rotation.x = (dir === 'E' ? -1 : 1) * ang; }
+        group.add(rail);
+        for (const t of [0.04, 0.5, 0.96]) {
+          const yy = lowY + rise * t;
+          let qx = px, qz = pz;
+          if (dir === 'N') qz = z + d / 2 - t * d; else if (dir === 'S') qz = z - d / 2 + t * d;
+          else if (dir === 'E') qx = x - w / 2 + t * w; else qx = x + w / 2 - t * w;
+          const post = new THREE.Mesh(new THREE.BoxGeometry(0.07, 1.0, 0.07), railMat);
+          post.position.set(qx, yy + 0.5, qz);
+          group.add(post);
+        }
+      }
     }
     this.scene.add(group);
 
@@ -325,8 +403,10 @@ class AsgardWorld {
     this.addWalkableFloor(cx, 0.06, cz, width, depth, 0.12, this.mats.marbleFloor);
 
     // Interior Tactical Cover Crates on Ground Floor (Real Apex indoor CQC cover!)
-    this.addSolidWall(cx - width * 0.22, 0.06, cz, 2.2, 1.35, 2.2, trimMat, true);
-    this.addSolidWall(cx + width * 0.22, 0.06, cz, 2.2, 1.35, 2.2, trimMat, true);
+    const M = this.mats;
+    const crateMat = M.darkSteel, stairMat = M.darkSteel, roofMat = M.cornice;
+    this.addSolidWall(cx - width * 0.22, 0.06, cz, 2.2, 1.35, 2.2, crateMat, true);
+    this.addSolidWall(cx + width * 0.22, 0.06, cz, 2.2, 1.35, 2.2, crateMat, true);
 
     // 2. Ground Floor North & South Walls with Interactive Apex Energy Doors!
     const segW = Math.max(1.5, (width - doorW) / 2);
@@ -343,19 +423,27 @@ class AsgardWorld {
       const wx = cx + side * (width / 2);
       this.addSolidWall(wx, 0, cz, wallT, 1.25, depth, wallMat);
       this.addSolidWall(wx, 2.9, cz, wallT, fh - 2.9, depth, wallMat);
-      this.addSolidWall(wx, 1.25, cz - depth * 0.36, wallT, 1.65, depth * 0.26, trimMat);
-      this.addSolidWall(wx, 1.25, cz + depth * 0.36, wallT, 1.65, depth * 0.26, trimMat);
+      this.addSolidWall(wx, 1.25, cz - depth * 0.36, wallT, 1.65, depth * 0.26, wallMat);
+      this.addSolidWall(wx, 1.25, cz + depth * 0.36, wallT, 1.65, depth * 0.26, wallMat);
+      // window frames: bronze sill + lintel so the openings read as windows, not missing blocks
+      for (const wz of [cz - depth * 0.115, cz + depth * 0.115]) {
+        const span = depth * 0.23 - 0.2;
+        [1.22, 2.93].forEach(fy => {
+          const fr = new THREE.Mesh(new THREE.BoxGeometry(wallT + 0.16, 0.14, span), trimMat);
+          fr.position.set(wx, fy, wz); fr.castShadow = true; this.scene.add(fr);
+        });
+      }
     }
 
     // Ornate Asgardian Corner Fluted Columns & Gilded Door Pediments (Euphoria Architectural Detail!)
     const totalH = floorCount * fh;
     [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => {
-      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.54, totalH + 0.6, 10), trimMat);
+      const col = new THREE.Mesh(this._worldUV(new THREE.BoxGeometry(0.9, totalH + 0.6, 0.9), 0.9, totalH + 0.6, 0.9), wallMat === M.marbleWall ? M.cornice : M.concrete);
       col.position.set(cx + sx * (width / 2 + 0.15), (totalH + 0.6) / 2, cz + sz * (depth / 2 + 0.15));
       this.scene.add(col);
     });
     for (let dSide of [-1, 1]) {
-      const pediment = new THREE.Mesh(new THREE.BoxGeometry(doorW + 1.4, 0.48, 0.95), this.mats.brightGold);
+      const pediment = new THREE.Mesh(new THREE.BoxGeometry(doorW + 1.4, 0.48, 0.95), trimMat);
       pediment.position.set(cx, 3.45, cz + dSide * (depth / 2 + 0.1));
       this.scene.add(pediment);
     }
@@ -366,7 +454,7 @@ class AsgardWorld {
       const prevY = (lvl - 1) * fh;
 
       // Walkable Floor / Roof Deck Slab
-      this.addWalkableFloor(cx, slabY, cz, width + 1.4, depth + 1.4, 0.42, lvl === floorCount ? trimMat : this.mats.marbleFloor);
+      this.addWalkableFloor(cx, slabY, cz, width + 1.4, depth + 1.4, 0.42, lvl === floorCount ? roofMat : this.mats.marbleFloor);
 
       // Visual-only cornice band wrapping each slab edge: gives every storey a readable silhouette line
       // (previously each level was a bare slab and buildings read like parking decks).
@@ -383,7 +471,7 @@ class AsgardWorld {
       const rampOnEast = (lvl % 2 === 1);
       const rx = rampOnEast ? (cx + width / 2 + 2.1) : (cx - width / 2 - 2.1);
       const rDir = rampOnEast ? 'N' : 'S';
-      this.addStairRamp(rx, cz, 3.2, depth * 0.82, prevY, slabY, rDir, trimMat);
+      this.addStairRamp(rx, cz, 3.2, depth * 0.82, prevY, slabY, rDir, stairMat, true);
 
       if (lvl < floorCount) {
         // Upper Interior Floor Walls with Wide Balcony Doors, Windows & Interior Cover!
@@ -393,22 +481,27 @@ class AsgardWorld {
         this.addSolidWall(cx + width * 0.33, slabY, cz - depth / 2, width * 0.30, fh, wallT, wallMat);
 
         // Chest-high peek walls on East/West balconies
-        this.addSolidWall(cx - width / 2, slabY, cz, wallT, 1.3, depth * 0.72, trimMat);
-        this.addSolidWall(cx + width / 2, slabY, cz, wallT, 1.3, depth * 0.72, trimMat);
+        this.addSolidWall(cx - width / 2, slabY, cz, wallT, 1.3, depth * 0.72, wallMat);
+        this.addSolidWall(cx + width / 2, slabY, cz, wallT, 1.3, depth * 0.72, wallMat);
 
         // Interior Cover Box on Upper Floor
-        this.addSolidWall(cx, slabY, cz, 2.4, 1.25, 2.0, trimMat, true);
+        this.addSolidWall(cx, slabY, cz, 2.4, 1.25, 2.0, crateMat, true);
       } else {
         // Topmost Rooftop High-Ground Battlement Cover Parapets + Corner Spires!
-        this.addSolidWall(cx, slabY, cz + depth / 2, width * 0.72, 1.25, 0.48, trimMat);
-        this.addSolidWall(cx, slabY, cz - depth / 2, width * 0.72, 1.25, 0.48, trimMat);
-        this.addSolidWall(cx - width / 2, slabY, cz, 0.48, 1.25, depth * 0.55, trimMat);
-        this.addSolidWall(cx + width / 2, slabY, cz, 0.48, 1.25, depth * 0.55, trimMat);
+        this.addSolidWall(cx, slabY, cz + depth / 2, width * 0.72, 1.25, 0.48, wallMat);
+        this.addSolidWall(cx, slabY, cz - depth / 2, width * 0.72, 1.25, 0.48, wallMat);
+        this.addSolidWall(cx - width / 2, slabY, cz, 0.48, 1.25, depth * 0.55, wallMat);
+        this.addSolidWall(cx + width / 2, slabY, cz, 0.48, 1.25, depth * 0.55, wallMat);
+        // parapet coping caps in trim colour
+        [[0, depth / 2, width * 0.72 + 0.1, 0.62], [0, -depth / 2, width * 0.72 + 0.1, 0.62], [-width / 2, 0, 0.62, depth * 0.55 + 0.1], [width / 2, 0, 0.62, depth * 0.55 + 0.1]].forEach(([ox, oz, bw, bd]) => {
+          const cap = new THREE.Mesh(new THREE.BoxGeometry(bw, 0.12, bd), trimMat);
+          cap.position.set(cx + ox, slabY + 1.31, cz + oz); this.scene.add(cap);
+        });
 
         // Decorative Golden Corner Finials on Rooftop
         [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => {
-          const finial = new THREE.Mesh(new THREE.ConeGeometry(0.65, 2.2, 4), this.mats.brightGold);
-          finial.position.set(cx + sx * (width / 2), slabY + 1.8, cz + sz * (depth / 2));
+          const finial = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.5, 1.1), trimMat);
+          finial.position.set(cx + sx * (width / 2 + 0.15), slabY + 0.25, cz + sz * (depth / 2 + 0.15));
           this.scene.add(finial);
         });
       }
@@ -515,6 +608,44 @@ class AsgardWorld {
     this.addSolidWall(cx + width * 0.3, height, cz, 2.6, 1.6, 4.2, hillMat, true);
   }
 
+  /** Cluster of noise-displaced boulders (shared geometries) with AABB colliders sized to the core. */
+  addRockOutcrop(cx, cz, scale = 1, seed = 0) {
+    if (!this._boulderGeos) {
+      this._boulderGeos = [0, 1, 2].map(k => {
+        const g = new THREE.IcosahedronGeometry(1, 2);
+        const p = g.attributes.position, v = new THREE.Vector3();
+        for (let i = 0; i < p.count; i++) {
+          v.fromBufferAttribute(p, i);
+          const n = _gwFbm(v.x * 1.3 + k * 9, v.z * 1.3 + v.y * 1.1 - k * 4, 3);
+          const flat = v.y < -0.2 ? 0.55 : 1;                    // flat-ish base so it sits on the ground
+          v.multiplyScalar(0.72 + n * 0.55);
+          v.y *= flat * 0.8;
+          p.setXYZ(i, v.x, v.y, v.z);
+        }
+        g.computeVertexNormals();
+        // planar world-ish UVs so the rock texture keeps scale
+        const uv = g.attributes.uv;
+        for (let i = 0; i < p.count; i++) uv.setXY(i, (p.getX(i) + p.getZ(i)) * 0.35, p.getY(i) * 0.35);
+        return g;
+      });
+    }
+    const pieces = [[0, 0, 4.2, 0], [3.6, 1.8, 2.6, 1], [-3.2, 2.4, 2.2, 2], [1.2, -3.4, 1.8, 1], [-2.4, -2.2, 1.4, 0]];
+    pieces.forEach(([ox, oz, r, gi], k) => {
+      const rr = r * scale;
+      const x = cx + ox * scale, z = cz + oz * scale;
+      const gy = this.terrainHeightAt(x, z);
+      const m = new THREE.Mesh(this._boulderGeos[(gi + seed) % 3], this.mats.stone);
+      m.position.set(x, gy + rr * 0.32, z);
+      m.scale.set(rr * (1 + 0.15 * ((k + seed) % 2)), rr * 0.95, rr);
+      m.rotation.y = seed * 1.7 + k * 2.3;
+      m.castShadow = true; m.receiveShadow = true;
+      this.scene.add(m);
+      const core = rr * 0.62, top = gy + rr * 0.32 + rr * 0.62;
+      this.colliders.push({ minX: x - core, maxX: x + core, minZ: z - core, maxZ: z + core, minY: gy - 1, maxY: top, isClimbable: true });
+      this.walkableSurfaces.push({ minX: x - core * 0.7, maxX: x + core * 0.7, minZ: z - core * 0.7, maxZ: z + core * 0.7, y: top, thickness: top - gy });
+    });
+  }
+
   placeBlenderStatue(glbName, x, y, z, rotY = 0, scale = 1.0) {
     const group = new THREE.Group();
     group.position.set(x, y, z);
@@ -533,26 +664,12 @@ class AsgardWorld {
   // CONTORED ASGARDIAN HILLS, TERRACED PLATEAUS, CANYON RIDGES & HIGHWAY ARCHES
   // =========================================================================
   buildAsgardHillsAndRidges() {
-    // 6 Large Playable Hills & Plateaus framing the valleys between POIs (Apex High-Ground!)
-    this.addPlayableHill(-62, -25, 22, 18, 6.4, this.mats.stone);        // West-Central Ridge Hill
-    this.addPlayableHill(62, -25, 22, 18, 6.4, this.mats.stone);         // East-Central Ridge Hill
-    this.addPlayableHill(-58, 92, 20, 16, 5.6, this.mats.stone);         // South-West Cliff Hill
-    this.addPlayableHill(58, 92, 20, 16, 5.6, this.mats.stone);          // South-East Cliff Hill
-    this.addPlayableHill(0, -88, 26, 18, 7.2, this.mats.obsidian);       // North Overlook Ridge Hill
-    this.addPlayableHill(-148, -28, 22, 22, 7.6, this.mats.darkSteel);   // Far-West Forge Mountain Plateau
-
-    // Natural Mountain Cliff Ridges at Island Edges for Scenic Apex Horizon & Choke-Points
-    const ridgeSpots = [
-      [-172, 65, 26, 18, 16], [172, 65, 26, 18, 16],
-      [-155, -110, 24, 22, 18], [155, -110, 24, 22, 18],
-      [-75, 168, 28, 16, 15], [75, 168, 28, 16, 15]
-    ];
-    ridgeSpots.forEach(([rx, rz, rw, rh, rd]) => {
-      this.addSolidWall(rx, 0, rz, rw, rh, rd, this.mats.stone, false);
-      const peak = new THREE.Mesh(new THREE.ConeGeometry(rw * 0.55, rh * 0.9, 6), this.mats.stone);
-      peak.position.set(rx, rh + rh * 0.4, rz);
-      this.scene.add(peak);
-    });
+    // High ground now lives in the terrain heightfield (terrainHeightAt). The old box plateaus with
+    // staircases and pyramid "mountains" are gone; instead, rock outcrops give cover on the ridges.
+    [[-62, -25, 1.2], [62, -25, 1.1], [-58, 92, 1.0], [58, 92, 1.15], [0, -88, 1.3], [-148, -28, 1.25],
+     [-30, 60, 0.8], [40, 52, 0.75], [-150, 110, 1.0], [150, -40, 1.05], [-110, -150, 0.9], [120, 150, 0.95],
+     [170, 60, 1.1], [-175, 40, 1.0], [30, -160, 0.9], [-40, -130, 0.8]
+    ].forEach(([x, z, sc], i) => this.addRockOutcrop(x, z, sc, i));
 
     // Place Ornate Golden Blender Triumphal Archways along the 5 Major Asgardian Highways!
     window.GODWARS_DATA.POIS.forEach(poi => {
@@ -575,13 +692,13 @@ class AsgardWorld {
   // =========================================================================
   buildLightingAndSky() {
     this.scene.background = new THREE.Color(0x185ac2);
-    this.scene.fog = new THREE.Fog(0xc9d8e6, 70, 440);
+    this.scene.fog = new THREE.Fog(0xc6d6e6, 110, 680);
 
     // Euphoria Adventure Multi-Stop Celestial Sky Dome Shader (Sun Disc, Golden Corona & 2-Octave FBM Clouds!)
     this.skyUniforms = {
-      zenith:  { value: new THREE.Color(0x1447a6) },
-      midSky:  { value: new THREE.Color(0x4ea8f5) },
-      horizon: { value: new THREE.Color(0xfde68a) },
+      zenith:  { value: new THREE.Color(0x2a63b8) },
+      midSky:  { value: new THREE.Color(0x76aee6) },
+      horizon: { value: new THREE.Color(0xcbd9e6) },   // == fog colour: mountains melt into haze
       sunDir:  { value: new THREE.Vector3(0.52, 0.62, 0.45).normalize() },
       sunCol:  { value: new THREE.Color(0xfff4c8) },
       time:    { value: 0 },
@@ -657,7 +774,9 @@ class AsgardWorld {
     const sunLight = new THREE.DirectionalLight(0xffe2b8, 1.55);
     sunLight.position.set(60, 95, 50);
     sunLight.castShadow = true;
-    sunLight.shadow.mapSize.set(1024, 1024);
+    const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    sunLight.shadow.mapSize.set(coarse ? 1024 : 2048, coarse ? 1024 : 2048);
+    sunLight.shadow.normalBias = 0.04;
     const sc = sunLight.shadow.camera;
     sc.left = -46;
     sc.right = 46;
@@ -688,47 +807,7 @@ class AsgardWorld {
     // (Removed: dodecahedron 'balloon' clouds, daytime star points and a 320m sky torus —
     //  the sky shader already paints FBM clouds, and those meshes read as clutter from the ground.)
 
-    // Floating Asgard Mountains & Golden Waterfalls around Island Perimeter
-    const isleRockMat = new THREE.MeshStandardMaterial({ color: 0x5b5148, roughness: 0.92, metalness: 0.0, flatShading: true });
-    const isleGrassMat = new THREE.MeshStandardMaterial({ color: 0x5f8a3a, roughness: 0.95, metalness: 0.0, flatShading: true });
-    const islePineMat = new THREE.MeshStandardMaterial({ color: 0x2f5a2a, roughness: 0.9, metalness: 0.0, flatShading: true });
-    const fallMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.45 });
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      // Distant floating sky-islands: jagged rock underside + grassy cap + a few pines.
-      const isle = new THREE.Group();
-      const R = 16 + (i % 3) * 7;
-      const rockGeo = new THREE.ConeGeometry(R, R * 2.6, 9, 5);
-      const rp = rockGeo.attributes.position;
-      for (let k = 0; k < rp.count; k++) {
-        const y = rp.getY(k);
-        if (y > R * 1.29) continue; // keep the top rim flat
-        const j = 1 + Math.sin(k * 12.9898 + i * 4.1) * 0.18;
-        rp.setX(k, rp.getX(k) * j); rp.setZ(k, rp.getZ(k) * j);
-      }
-      rockGeo.computeVertexNormals();
-      const rock = new THREE.Mesh(rockGeo, isleRockMat);
-      rock.rotation.x = Math.PI;
-      rock.position.y = -R * 1.3;
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(R * 1.02, R * 1.02, 2.2, 9), isleGrassMat);
-      isle.add(rock, cap);
-      for (let t = 0; t < 4; t++) {
-        const ta = t * 1.7 + i;
-        const pine = new THREE.Mesh(new THREE.ConeGeometry(2.4, 9, 6), islePineMat);
-        pine.position.set(Math.cos(ta) * R * 0.5, 5.4, Math.sin(ta) * R * 0.5);
-        isle.add(pine);
-      }
-      isle.position.set(Math.cos(a) * 330, 18 + (i % 3) * 16, Math.sin(a) * 330);
-      isle.rotation.y = i * 0.9;
-      this.scene.add(isle);
-
-      const wx = Math.cos(a + 0.3) * (this.islandRadius - 1);
-      const wz = Math.sin(a + 0.3) * (this.islandRadius - 1);
-      const waterfall = new THREE.Mesh(new THREE.BoxGeometry(9, 48, 1.2), fallMat);
-      waterfall.position.set(wx, -24, wz);
-      waterfall.rotation.y = -a;
-      this.scene.add(waterfall);
-    }
+    // (Removed: flat-shaded floating isles + box waterfalls — the mountain ring now owns the horizon.)
   }
 
   // P0-2 FIXED: Real Sculpted 3D FBM Rolling Terrain Height Function (Euphoria-Style FLATS at POIs & Roads!)
@@ -758,123 +837,198 @@ class AsgardWorld {
       }
     }
 
-    // Organic Multi-Octave Rolling Asgardian Hills & Valleys (0m to +6.5m)
-    const h1 = Math.sin(x * 0.022 + 0.5) * Math.cos(z * 0.024 - 0.3) * 3.4;
-    const h2 = Math.sin(x * 0.048 - z * 0.036) * 1.65;
-    const h3 = Math.cos(x * 0.015 + z * 0.019) * 1.8;
-    const rawH = Math.max(0, 2.2 + h1 + h2 + h3);
+    for (const [fx, fz, fr] of this.flatZones) {
+      const d = Math.hypot(x - fx, z - fz);
+      if (d < fr) return 0;
+      if (d < fr + 14) flatMask = Math.min(flatMask, (d - fr) / 14);
+    }
+
+    // Organic FBM rolling hills + a few broad ridges between POIs (0 .. ~11 m). Replaces the old
+    // box "playable hills" — high ground is now real terrain you can slide down.
+    const base = _gwFbm(x * 0.011 + 3.1, z * 0.011 - 1.7, 4);
+    const ridge = _gwRidge(x * 0.006 - 2.3, z * 0.006 + 4.4, 3);
+    const rawH = Math.max(0, (base - 0.38) * 14 + Math.max(0, ridge - 0.55) * 22);
     const edgeFade = Math.max(0, Math.min(1, (this.islandRadius - 8 - rDist) / 22));
     return rawH * flatMask * edgeFade;
   }
 
-  buildBiomesRoadsAndRivers() {
-    const stoneCliffTex = window.ModelFactory.getSurfaceTexture('asgard_stone', 18, 4);
-    const lushGrassTex = window.ModelFactory.getSurfaceTexture('lush_grass', 28, 28);
-    const detailTex = window.ModelFactory.getDetailTexture();
+  /**
+   * Terrain material: grass / dirt / rock / snow blended per-vertex in the fragment shader
+   * (attribute blendW = rock, dirt, snow). Vertex colour stays a gentle biome tint.
+   */
+  _makeTerrainMaterial() {
+    const P = (n) => window.ModelFactory.getPBR(n);
+    const grass = P('grass'), rock = P('rock'), dirt = P('dirt');
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: grass.map, normalMap: rock.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.93, metalness: 0.0 });
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.rockMap = { value: rock.map };
+      sh.uniforms.dirtMap = { value: dirt.map };
+      sh.vertexShader = 'attribute vec3 blendW;\nvarying vec3 vBlendW;\n' + sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n  vBlendW = blendW;');
+      sh.fragmentShader = 'uniform sampler2D rockMap;\nuniform sampler2D dirtMap;\nvarying vec3 vBlendW;\n' + sh.fragmentShader.replace('#include <map_fragment>', `
+        vec4 gC = mapTexelToLinear(texture2D(map, vUv));
+        vec4 gF = mapTexelToLinear(texture2D(map, vUv * 0.173));
+        gC.rgb *= 0.75 + 0.5 * gF.g;                                  // break up tiling with a low-frequency pass
+        vec4 rC = mapTexelToLinear(texture2D(rockMap, vUv * 0.55));
+        vec4 dC = mapTexelToLinear(texture2D(dirtMap, vUv * 0.8));
+        vec4 texelColor = mix(gC, dC, clamp(vBlendW.y, 0.0, 1.0));
+        texelColor = mix(texelColor, rC, clamp(vBlendW.x, 0.0, 1.0));
+        texelColor = mix(texelColor, vec4(vec3(0.86, 0.89, 0.93) * (0.82 + 0.18 * rC.r * 2.0), 1.0), clamp(vBlendW.z, 0.0, 1.0));
+        diffuseColor *= texelColor;`);
+    };
+    return mat;
+  }
 
-    // 1. Floating Asgard Island Cliff Skirt (Rich Chiseled Cliff Masonry)
-    const islandGeo = new THREE.CylinderGeometry(this.islandRadius, this.islandRadius * 0.74, 28, 64);
-    const islandMat = new THREE.MeshStandardMaterial({
-      color: 0x64748b,
-      map: stoneCliffTex,
-      roughness: 0.78,
-      metalness: 0.14
-    });
-    const island = new THREE.Mesh(islandGeo, islandMat);
-    island.position.set(0, -14.25, 0);
+  buildBiomesRoadsAndRivers() {
+    const R = this.islandRadius;
+    const lowSpec = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    const terrainMat = this._makeTerrainMaterial();
+    this.terrainMat = terrainMat;
+
+    // Island underside (only visible from the dropship): rock skirt.
+    const island = new THREE.Mesh(new THREE.CylinderGeometry(R + 4, R * 0.7, 40, 64, 1, true), this.mats.stone);
+    island.position.set(0, -20.5, 0);
     this.scene.add(island);
 
-    // 2. P0-2 FIXED: Single Sculpted 3D Multi-Biome Terrain Mesh (ZERO overlapping Z-fighting discs!)
-    const terrainSize = this.islandRadius * 1.98;
-    const terrainGeo = new THREE.PlaneGeometry(terrainSize, terrainSize, 84, 84);
+    // ---- playable terrain
+    const terrainSize = R * 2.04;
+    const seg = lowSpec ? 100 : 150;
+    const terrainGeo = new THREE.PlaneGeometry(terrainSize, terrainSize, seg, seg);
     terrainGeo.rotateX(-Math.PI / 2);
     const posAttr = terrainGeo.attributes.position;
-    const cols = new Float32Array(posAttr.count * 3);
-    const col = new THREE.Color();
     for (let i = 0; i < posAttr.count; i++) {
-      const vx = posAttr.getX(i);
-      const vz = posAttr.getZ(i);
-      const rDist = Math.hypot(vx, vz);
-      let vy = 0;
-      if (rDist > this.islandRadius - 2.2) {
-        vy = -5.5;
-      } else {
-        vy = this.terrainHeightAt(vx, vz);
+      const vx = posAttr.getX(i), vz = posAttr.getZ(i);
+      posAttr.setY(i, Math.hypot(vx, vz) > R - 6 ? 0 : this.terrainHeightAt(vx, vz));
+    }
+    terrainGeo.computeVertexNormals();
+    const nrm = terrainGeo.attributes.normal;
+    const cols = new Float32Array(posAttr.count * 3);
+    const blend = new Float32Array(posAttr.count * 3);
+    const col = new THREE.Color();
+    const tint = (hex, amt) => col.lerp(new THREE.Color(hex), Math.max(0, Math.min(1, amt)));
+    const POI = window.GODWARS_DATA.POIS;
+    for (let i = 0; i < posAttr.count; i++) {
+      const vx = posAttr.getX(i), vy = posAttr.getY(i), vz = posAttr.getZ(i);
+      const slope = 1 - nrm.getY(i);
+      let rockW = Math.max(0, Math.min(1, (slope - 0.07) / 0.1)) + Math.max(0, (vy - 8.5) / 3);
+      const pn = _gwFbm(vx * 0.035 + 11, vz * 0.035 - 7, 3);
+      let dirtW = Math.max(0, (pn - 0.62) * 4);
+      // worn dirt ring around every POI + road shoulders
+      for (const poi of POI) {
+        const d = Math.hypot(vx - poi.x, vz - poi.z);
+        const ring = poi.id === 'valhalla' ? 60 : 50;
+        dirtW = Math.max(dirtW, Math.max(0, 1 - Math.abs(d - ring) / 9) * (0.55 + pn * 0.6));
+        if (poi.id !== 'valhalla') {
+          const len = Math.hypot(poi.x, poi.z), ux = poi.x / len, uz = poi.z / len;
+          const proj = vx * ux + vz * uz;
+          if (proj > 0 && proj < len) {
+            const perp = Math.abs(vx * (-uz) + vz * ux);
+            dirtW = Math.max(dirtW, Math.max(0, 1 - Math.abs(perp - 5.5) / 3.2) * 0.85);
+          }
+        }
       }
-      posAttr.setY(i, vy);
-
-      // Euphoria Multi-Biome Vertex Paint + Elevation Cliff Tint
-      col.setRGB(0.42, 0.51, 0.29); // Sunlit Meadow Green (sRGB, slightly desaturated)
-      // Large-scale macro variation: dry-grass patches and worn dirt so the meadow never reads flat.
-      const n1 = Math.sin(vx * 0.031 + Math.sin(vz * 0.023) * 2.1) * Math.cos(vz * 0.027 - Math.sin(vx * 0.019) * 1.7);
-      const n2 = Math.sin(vx * 0.083 + vz * 0.061) * Math.sin(vz * 0.097 - vx * 0.043);
-      if (n1 > 0.15) col.lerp(new THREE.Color(0x9a9a52), Math.min(0.55, (n1 - 0.15) * 1.1));
-      if (n2 > 0.55) col.lerp(new THREE.Color(0x7d6b4e), Math.min(0.45, (n2 - 0.55) * 1.6));
-      if (n1 < -0.4) col.lerp(new THREE.Color(0x3f6b2c), Math.min(0.5, (-n1 - 0.4) * 1.2));
-      if (vy > 3.2) {
-        col.lerp(new THREE.Color(0x64748b), Math.min(0.65, (vy - 3.2) / 4.0)); // Rocky Highland Peaks
-      }
-      const dValhalla = Math.hypot(vx, vz);
-      if (dValhalla < 58) {
-        col.lerp(new THREE.Color(0xb89a6a), Math.max(0, 1 - dValhalla / 58) * 0.78); // Golden Citadel Sandstone
-      }
+      // biome tint (sRGB authored)
+      col.setRGB(0.36, 0.47, 0.22);
+      tint(0x8c8a48, (_gwFbm(vx * 0.018, vz * 0.018, 3) - 0.5) * 2.2);       // sun-dried meadow
+      tint(0x2f4f22, (0.45 - _gwFbm(vx * 0.02 + 5, vz * 0.02 + 9, 3)) * 2.5); // lush hollows
       const dForge = Math.hypot(vx + 115, vz - 35);
-      if (dForge < 62) {
-        col.lerp(new THREE.Color(0x292524), Math.max(0, 1 - dForge / 62) * 0.88); // Volcanic Basalt
-      }
-      const dBifrost = Math.hypot(vx, vz - 135);
-      if (dBifrost < 54) {
-        col.lerp(new THREE.Color(0x38bdf8), Math.max(0, 1 - dBifrost / 54) * 0.68); // Crystalline Bifrost
-      }
-      const dHelheim = Math.hypot(vx + 85, vz + 105);
-      if (dHelheim < 56) {
-        col.lerp(new THREE.Color(0x0f766e), Math.max(0, 1 - dHelheim / 56) * 0.82); // Helheim Obsidian-Teal
-      }
-      col.convertSRGBToLinear(); // r128 treats vertex colors as linear; author in sRGB
-      cols[i * 3] = col.r;
-      cols[i * 3 + 1] = col.g;
-      cols[i * 3 + 2] = col.b;
+      if (dForge < 70) { tint(0x5a4c44, (1 - dForge / 70) * 0.9); dirtW = Math.max(dirtW, (1 - dForge / 70) * 0.8); }
+      const dHel = Math.hypot(vx + 85, vz + 105);
+      if (dHel < 64) tint(0x6f9c90, (1 - dHel / 64) * 0.75);
+      const dBif = Math.hypot(vx, vz - 135);
+      if (dBif < 60) tint(0xc8e0e8, (1 - dBif / 60) * 0.6);
+      col.lerp(new THREE.Color(0.82, 0.8, 0.78), Math.min(1, Math.max(rockW, dirtW * 0.75)));
+      col.convertSRGBToLinear();
+      cols.set([col.r, col.g, col.b], i * 3);
+      blend.set([Math.min(1, rockW), Math.min(1, dirtW), 0], i * 3);
     }
     terrainGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-    terrainGeo.computeVertexNormals();
-
-    const terrainMat = new THREE.MeshStandardMaterial({
-      vertexColors: true,
-      map: lushGrassTex,
-      roughness: 0.80,
-      metalness: 0.05
-    });
+    terrainGeo.setAttribute('blendW', new THREE.BufferAttribute(blend, 3));
+    const uv = terrainGeo.attributes.uv;
+    for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * terrainSize / 7, uv.getY(i) * terrainSize / 7);
     const terrainMesh = new THREE.Mesh(terrainGeo, terrainMat);
     terrainMesh.receiveShadow = true;
     this.scene.add(terrainMesh);
 
-    // Outer Golden Island Rim Wall
-    const rim = new THREE.Mesh(
-      new THREE.TorusGeometry(this.islandRadius - 1.5, 2.2, 10, 64),
-      this.mats.gold
-    );
-    rim.rotation.x = Math.PI / 2;
-    rim.position.set(0, 0.3, 0);
-    this.scene.add(rim);
+    this.buildMountainRing(terrainMat, lowSpec);
 
-    // Paved Golden Asgardian Highways connecting Valhalla Citadel to all 6 POIs (Raised cleanly to y = 0.08!)
-    const roadMat = new THREE.MeshStandardMaterial({ color: 0x334155, map: window.ModelFactory.getSurfaceTexture('marble_floor', 2, 14), roughness: 0.52, metalness: 0.22 });
-    window.GODWARS_DATA.POIS.forEach(poi => {
+    // ---- highways: flagstone paving with low concrete curbs (world-UV'd so slabs keep real size)
+    const roadMat = this.mats.marbleFloor;
+    POI.forEach(poi => {
       if (poi.id === 'valhalla') return;
       const len = Math.hypot(poi.x, poi.z);
       const angle = Math.atan2(poi.x, poi.z);
-      const road = new THREE.Mesh(new THREE.BoxGeometry(7.5, 0.14, len), roadMat);
+      const road = new THREE.Mesh(this._worldUV(new THREE.BoxGeometry(7.5, 0.14, len), 7.5, 0.14, len, 0, 0, 6), roadMat);
       road.position.set(poi.x / 2, 0.04, poi.z / 2);
       road.rotation.y = angle;
       road.receiveShadow = true;
       this.scene.add(road);
-
-      // Golden Road Edge Borders
-      const borderL = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.18, len), this.mats.gold);
-      borderL.position.set(poi.x / 2 + Math.cos(angle) * 3.8, 0.06, poi.z / 2 - Math.sin(angle) * 3.8);
-      borderL.rotation.y = angle;
-      this.scene.add(borderL);
+      for (const side of [-1, 1]) {
+        const curb = new THREE.Mesh(this._worldUV(new THREE.BoxGeometry(0.5, 0.26, len), 0.5, 0.26, len), this.mats.cornice);
+        curb.position.set(poi.x / 2 + Math.cos(angle) * 3.95 * side, 0.1, poi.z / 2 - Math.sin(angle) * 3.95 * side);
+        curb.rotation.y = angle;
+        curb.receiveShadow = true;
+        this.scene.add(curb);
+      }
     });
+  }
+
+  /**
+   * Ring of ridged mountains just outside the playable radius: gives every horizon a silhouette
+   * (the island used to end in a flat yellow void) and frames the ring like a real valley.
+   */
+  buildMountainRing(mat, lowSpec) {
+    const R = this.islandRadius;
+    const radii = [R - 10, R - 2, R + 3, R + 8, R + 14, R + 22, R + 32, R + 45, R + 62, R + 85, R + 115, R + 150, R + 190, R + 230, R + 270];
+    const segA = lowSpec ? 160 : 240;
+    const verts = [], cols = [], blend = [], uvs = [], idx = [];
+    const heightAt = this._mountainHeightAt = (x, z, r) => {
+      const t = Math.max(0, Math.min(1, (r - R + 2) / 34));
+      const rise = t * t * (3 - 2 * t);
+      const far = Math.max(0, Math.min(1, (R + 270 - r) / 90));
+      const rg = _gwRidge(x * 0.0085 + 7.3, z * 0.0085 - 2.1, 5);
+      const big = _gwFbm(x * 0.0032 - 4, z * 0.0032 + 6, 3);
+      return -0.6 + rise * (26 + Math.pow(rg, 1.4) * 105 * (0.55 + big * 0.9)) * (0.45 + 0.55 * far);
+    };
+    for (let ri = 0; ri < radii.length; ri++) {
+      for (let ai = 0; ai <= segA; ai++) {
+        const a = (ai / segA) * Math.PI * 2;
+        const jitter = ri > 1 ? (_gwNoise(ai * 0.37, ri * 1.7) - 0.5) * 8 : 0;
+        const r = radii[ri] + jitter;
+        const x = Math.cos(a) * r, z = Math.sin(a) * r;
+        const y = heightAt(x, z, r);
+        verts.push(x, y, z);
+        uvs.push(a * R / 7, r / 7);
+      }
+    }
+    const row = segA + 1;
+    for (let ri = 0; ri < radii.length - 1; ri++) {
+      for (let ai = 0; ai < segA; ai++) {
+        const a = ri * row + ai, b = a + 1, c = a + row, d = c + 1;
+        idx.push(a, c, b, b, c, d);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    const n = geo.attributes.normal;
+    const col = new THREE.Color();
+    for (let i = 0; i < n.count; i++) {
+      const y = verts[i * 3 + 1];
+      const slope = 1 - n.getY(i);
+      const rock = Math.min(1, Math.max(0, (slope - 0.05) / 0.12) + Math.max(0, (y - 14) / 10));
+      const snow = Math.min(1, Math.max(0, (y - 62) / 14) * (1 - Math.max(0, (slope - 0.35) / 0.25)));
+      col.setRGB(0.34, 0.44, 0.22).lerp(new THREE.Color(0.85, 0.83, 0.8), rock).convertSRGBToLinear();
+      cols.push(col.r, col.g, col.b);
+      blend.push(rock, 0.15 * (1 - rock), snow);
+    }
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+    geo.setAttribute('blendW', new THREE.Float32BufferAttribute(blend, 3));
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.receiveShadow = true;
+    this.scene.add(mesh);
+    this.mountainRing = mesh;
   }
 
   // =========================================================================
@@ -882,7 +1036,9 @@ class AsgardWorld {
   // Expanded 3-Story Grand Palace Complex + Dual Skybridges + Colossal Odin Statue!
   // =========================================================================
   buildValhallaCitadel() {
-    const plaza = new THREE.Mesh(new THREE.CircleGeometry(52, 40), this.mats.marbleFloor);
+    const plazaGeo = new THREE.CircleGeometry(52, 40);
+    const puv = plazaGeo.attributes.uv; for (let i = 0; i < puv.count; i++) puv.setXY(i, puv.getX(i) * 104 / 6, puv.getY(i) * 104 / 6);
+    const plaza = new THREE.Mesh(plazaGeo, this.mats.marbleFloor);
     plaza.rotation.x = -Math.PI / 2;
     plaza.position.set(0, 0.03, 0);
     this.scene.add(plaza);
@@ -896,18 +1052,36 @@ class AsgardWorld {
     this.buildApexCompoundBuilding(26, 0, 12, 20, this.mats.marbleWall, this.mats.gold, 2);
 
     // Multi-Tiered Elevated Sky-Bridges connecting North & South Palaces on 2nd Floor (4.6m) & 3rd Floor (9.2m)!
-    this.addWalkableFloor(-14, 4.6, 0, 4.5, 34, 0.4, this.mats.gold);
-    this.addWalkableFloor(14, 4.6, 0, 4.5, 34, 0.4, this.mats.gold);
-    this.addWalkableFloor(-14, 9.2, 0, 3.8, 34, 0.4, this.mats.brightGold);
-    this.addWalkableFloor(14, 9.2, 0, 3.8, 34, 0.4, this.mats.brightGold);
+    this.addWalkableFloor(-14, 4.6, 0, 4.5, 34, 0.4, this.mats.cornice);
+    this.addWalkableFloor(14, 4.6, 0, 4.5, 34, 0.4, this.mats.cornice);
+    this.addWalkableFloor(-14, 9.2, 0, 3.8, 34, 0.4, this.mats.cornice);
+    this.addWalkableFloor(14, 9.2, 0, 3.8, 34, 0.4, this.mats.cornice);
+    // skybridges were 34 m slabs floating on nothing: give them piers + bronze guard rails
+    for (const bx of [-14, 14]) {
+      for (const bz of [-6, 6]) {
+        const pier = new THREE.Mesh(this._worldUV(new THREE.BoxGeometry(1.0, 9.0, 1.0), 1, 9, 1), this.mats.marbleWall);
+        pier.position.set(bx, 4.5, bz); pier.castShadow = true; pier.receiveShadow = true; this.scene.add(pier);
+        this.colliders.push({ minX: bx - 0.5, maxX: bx + 0.5, minZ: bz - 0.5, maxZ: bz + 0.5, minY: 0, maxY: 9.0, isClimbable: false });
+      }
+      for (const [ry, hw] of [[4.6, 2.25], [9.2, 1.9]]) {
+        for (const sd of [-1, 1]) {
+          const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 20), this.mats.gold);
+          rail.position.set(bx + sd * (hw - 0.05), ry + 1.0, 0); this.scene.add(rail);
+          for (let pz = -9; pz <= 9; pz += 3) {
+            const post = new THREE.Mesh(new THREE.BoxGeometry(0.07, 1.0, 0.07), this.mats.gold);
+            post.position.set(bx + sd * (hw - 0.05), ry + 0.5, pz); this.scene.add(post);
+          }
+        }
+      }
+    }
 
     // Central Elevated Odin Allfather Altar (with 4 wide walkable royal staircases!)
     this.buildValhallaShowcaseArchitecture();
-    this.addWalkableFloor(0, 1.8, 0, 12, 12, 1.8, this.mats.gold);
-    this.addStairRamp(0, 7.8, 5.0, 4.0, 0, 1.8, 'N', this.mats.brightGold);
-    this.addStairRamp(0, -7.8, 5.0, 4.0, 0, 1.8, 'S', this.mats.brightGold);
-    this.addStairRamp(7.8, 0, 4.0, 5.0, 0, 1.8, 'W', this.mats.brightGold);
-    this.addStairRamp(-7.8, 0, 4.0, 5.0, 0, 1.8, 'E', this.mats.brightGold);
+    this.addWalkableFloor(0, 1.8, 0, 12, 12, 1.8, this.mats.marbleWall);
+    this.addStairRamp(0, 7.8, 5.0, 4.0, 0, 1.8, 'N', this.mats.marbleFloor);
+    this.addStairRamp(0, -7.8, 5.0, 4.0, 0, 1.8, 'S', this.mats.marbleFloor);
+    this.addStairRamp(7.8, 0, 4.0, 5.0, 0, 1.8, 'W', this.mats.marbleFloor);
+    this.addStairRamp(-7.8, 0, 4.0, 5.0, 0, 1.8, 'E', this.mats.marbleFloor);
 
     // COLOSSAL 25-METER BLENDER STATUE OF ODIN ALLFATHER crowning Valhalla Citadel!
     this.placeBlenderStatue('statue_odin', 0, 1.8, 0, 0, 1.05);
@@ -920,16 +1094,21 @@ class AsgardWorld {
     const cx = 0, cz = 135;
 
     // Widened Elevated Walkable Rainbow Bridge Deck (y = 1.6m) with Approach Ramps & Cover Railings
-    this.addWalkableFloor(0, 1.6, 82, 14, 58, 0.6, this.mats.bifrostWater);
-    this.addStairRamp(0, 49, 14, 8, 0, 1.6, 'S', this.mats.bifrostWater);
-    this.addStairRamp(0, 115, 14, 8, 1.6, 0, 'N', this.mats.bifrostWater);
+    this.addWalkableFloor(0, 1.6, 82, 14, 58, 0.6, this.mats.marbleFloor);
+    this.addStairRamp(0, 49, 14, 8, 0, 1.6, 'S', this.mats.marbleFloor);
+    this.addStairRamp(0, 115, 14, 8, 1.6, 0, 'N', this.mats.marbleFloor);
+    // glowing bifrost light-strips inlaid along both deck edges (the deck itself is stone you can read)
+    for (const sx of [-6.2, 6.2]) {
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.06, 58), this.mats.bifrostWater);
+      strip.position.set(sx, 1.62, 82); this.scene.add(strip);
+    }
 
     for (let z = 62; z <= 102; z += 13) {
-      this.addSolidWall(-6.6, 1.6, z, 0.8, 1.35, 4.5, this.mats.gold);
-      this.addSolidWall(6.6, 1.6, z, 0.8, 1.35, 4.5, this.mats.gold);
+      this.addSolidWall(-6.6, 1.6, z, 0.8, 1.35, 4.5, this.mats.frostTrim);
+      this.addSolidWall(6.6, 1.6, z, 0.8, 1.35, 4.5, this.mats.frostTrim);
       const arch = new THREE.Mesh(
         new THREE.TorusGeometry(7.2, 0.38, 8, 22, Math.PI),
-        this.mats.bifrostWater
+        this.mats.gold
       );
       arch.position.set(0, 1.6, z);
       this.scene.add(arch);
@@ -982,7 +1161,7 @@ class AsgardWorld {
     this.buildApexCompoundBuilding(cx, cz + 21, 26, 14, this.mats.darkSteel, this.mats.gold, 3);
 
     // Dual Elevated Overhead Catwalk Skybridges (2nd Floor y=4.6m & 3rd Floor y=9.2m)
-    this.addWalkableFloor(cx, 4.6, cz, 5.5, 28, 0.4, this.mats.gold);
+    this.addWalkableFloor(cx, 4.6, cz, 5.5, 28, 0.4, this.mats.darkSteel);
     this.addWalkableFloor(cx, 9.2, cz, 4.5, 28, 0.4, this.mats.darkSteel);
 
     // COLOSSAL BLENDER STATUE OF THOR raising Mjölnir overlooking the Forge!
@@ -1035,14 +1214,20 @@ class AsgardWorld {
 
     // TIER 1 Treehouse Deck (y = 4.6m) + TIER 2 Upper Canopy Deck (y = 9.2m)!
     this.addWalkableFloor(cx, 4.6, cz, 26, 26, 0.5, this.mats.woodGold);
-    this.addStairRamp(cx - 16.5, cz, 7, 4.6, 0, 4.6, 'E', this.mats.gold);
-    this.addStairRamp(cx + 16.5, cz, 7, 4.6, 0, 4.6, 'W', this.mats.gold);
+    this.addStairRamp(cx - 16.5, cz, 7, 4.6, 0, 4.6, 'E', this.mats.woodGold, true);
+    this.addStairRamp(cx + 16.5, cz, 7, 4.6, 0, 4.6, 'W', this.mats.woodGold, true);
 
-    this.addWalkableFloor(cx, 9.2, cz, 20, 20, 0.5, this.mats.gold);
-    this.addStairRamp(cx, cz - 11.5, 4.6, 7, 4.6, 9.2, 'S', this.mats.brightGold);
+    this.addWalkableFloor(cx, 9.2, cz, 20, 20, 0.5, this.mats.woodGold);
+    this.addStairRamp(cx, cz - 11.5, 4.6, 7, 4.6, 9.2, 'S', this.mats.woodGold, true);
 
-    this.addSolidWall(cx, 4.6, cz + 12.7, 18, 1.25, 0.5, this.mats.gold);
-    this.addSolidWall(cx, 4.6, cz - 12.7, 18, 1.25, 0.5, this.mats.gold);
+    this.addSolidWall(cx, 4.6, cz + 12.7, 18, 1.25, 0.5, this.mats.woodGold);
+    this.addSolidWall(cx, 4.6, cz - 12.7, 18, 1.25, 0.5, this.mats.woodGold);
+    // timber posts holding the treehouse decks up
+    [[-12, -12], [12, -12], [-12, 12], [12, 12], [-9, -9], [9, 9], [-9, 9], [9, -9]].forEach(([px, pz], i) => {
+      const top = i < 4 ? 4.6 : 9.2;
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.45, top, 8), this.mats.woodGold);
+      post.position.set(cx + px, top / 2, cz + pz); post.castShadow = true; this.scene.add(post);
+    });
 
     // 2 Expanded 2-Story Sanctuary Shrine Buildings North & South of Yggdrasil
     this.buildApexCompoundBuilding(cx, cz - 28, 22, 12, this.mats.marbleWall, this.mats.gold, 2);
@@ -1088,8 +1273,8 @@ class AsgardWorld {
     this.buildApexCompoundBuilding(cx + 20, cz, 20, 22, this.mats.darkSteel, this.mats.brightGold, 3);
 
     // Wide Elevated Helipad Flight Deck connecting both Hangars at y = 4.6m + Boarding Ramp
-    this.addWalkableFloor(cx, 4.6, cz, 20, 20, 0.5, this.mats.brightGold);
-    this.addStairRamp(cx, cz + 15, 9, 10, 0, 4.6, 'N', this.mats.gold);
+    this.addWalkableFloor(cx, 4.6, cz, 20, 20, 0.5, this.mats.concrete);
+    this.addStairRamp(cx, cz + 15, 9, 10, 0, 4.6, 'N', this.mats.darkSteel, true);
 
     // COLOSSAL WINGED BLENDER STATUE OF VALKYRIE crowning the Sky Docks!
     this.placeBlenderStatue('statue_valkyrie', cx, 0, cz - 22, 0, 1.1);
@@ -1553,14 +1738,29 @@ class AsgardWorld {
 
     botRoutes.forEach((r, idx) => {
       const group = new THREE.Group();
+      // Loot drone: armoured hull + glowing tier band/eye (ballMat drives the tier colour) + 4 rotor pods.
       const sphereMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-      const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(1.15, 1), sphereMat);
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(1.55, 0.1, 8, 20),
-        this.mats.gold
-      );
-      ring.rotation.x = Math.PI / 2;
-      group.add(ball, ring);
+      const hullMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(0x30343c).convertSRGBToLinear(), metalness: 0.7, roughness: 0.35 });
+      const hull = new THREE.Mesh(new THREE.SphereGeometry(1.0, 20, 14), hullMat);
+      hull.scale.set(1, 0.72, 1);
+      const band = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.07, 6, 32), sphereMat);
+      band.rotation.x = Math.PI / 2;
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 8), sphereMat);
+      eye.position.set(0, -0.15, 0.9);
+      const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.8, 0.35, 16), hullMat);
+      skirt.position.y = -0.7;
+      group.add(hull, band, eye, skirt);
+      const rotorMat = new THREE.MeshBasicMaterial({ color: 0xcfd8e3, transparent: true, opacity: 0.25, depthWrite: false });
+      for (let k = 0; k < 4; k++) {
+        const a = k * Math.PI / 2 + Math.PI / 4;
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.12, 0.18), hullMat);
+        arm.position.set(Math.cos(a) * 1.2, 0.25, Math.sin(a) * 1.2); arm.rotation.y = -a;
+        const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.3, 10), hullMat);
+        pod.position.set(Math.cos(a) * 1.85, 0.3, Math.sin(a) * 1.85);
+        const rotor = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.02, 20), rotorMat);
+        rotor.position.set(Math.cos(a) * 1.85, 0.48, Math.sin(a) * 1.85);
+        group.add(arm, pod, rotor);
+      }
       group.position.set(r.cx + r.radius, r.height, r.cz);
       this.scene.add(group);
 
@@ -1712,6 +1912,25 @@ class AsgardWorld {
   // - ZERO pyramid cones! Uses crossed painted grass blade & leaf cards!
   // - ZERO overlap with buildings, interiors, or roads!
   // =========================================================================
+  /** Instance every mesh of a Blender GLB at the given world matrices (one draw call per material). */
+  _instanceGLB(name, matrices, shadows = true) {
+    if (!matrices.length || !window.ModelFactory || !window.ModelFactory.attachBlenderGLB) return;
+    const holder = new THREE.Group();
+    window.ModelFactory.attachBlenderGLB(name, holder, (glb) => {
+      glb.updateMatrixWorld(true);
+      const tmp = new THREE.Matrix4();
+      glb.traverse(m => {
+        if (!m.isMesh) return;
+        const inst = new THREE.InstancedMesh(m.geometry, m.material, matrices.length);
+        matrices.forEach((mx, i) => { tmp.multiplyMatrices(mx, m.matrixWorld); inst.setMatrixAt(i, tmp); });
+        inst.instanceMatrix.needsUpdate = true;
+        inst.castShadow = shadows; inst.receiveShadow = true;
+        inst.frustumCulled = false; // r128 culls instanced meshes by the base geometry's bounds
+        this.scene.add(inst);
+      });
+    });
+  }
+
   buildEuphoriaInstancedNature() {
     const dummy = new THREE.Object3D();
     let seed = 1337;
@@ -1724,6 +1943,8 @@ class AsgardWorld {
     const grassTex = window.ModelFactory.getFoliageTexture('grass_blades');
     const grassMat = new THREE.MeshLambertMaterial({
       map: grassTex,
+      color: 0x9fb07a, // the painted blades were neon next to the baked meadow
+      emissive: 0x1c2a10, // back faces of the crossed cards read as black specks from above
       alphaTest: 0.42,
       side: THREE.DoubleSide
     });
@@ -1763,8 +1984,8 @@ class AsgardWorld {
 
     // 2. 110 Sculpted Geological Cliff Boulders (Never inside buildings or roads!)
     const rockCount = 110;
-    const rockGeo = new THREE.DodecahedronGeometry(1.45, 1);
-    rockGeo.translate(0, 0.65, 0);
+    const rockGeo = this._boulderGeos ? this._boulderGeos[1].clone().scale(1.45, 1.45, 1.45) : new THREE.DodecahedronGeometry(1.45, 1);
+    rockGeo.translate(0, 0.45, 0);
     const rockInst = new THREE.InstancedMesh(rockGeo, this.mats.stone, rockCount);
     rockInst.castShadow = true;
     rockInst.receiveShadow = true;
@@ -1788,55 +2009,43 @@ class AsgardWorld {
     rockInst.instanceMatrix.needsUpdate = true;
     this.scene.add(rockInst);
 
-    // 3. 65 Layered Painted-Leaf Asgard Trees (Crossed Alpha-Cutout Leaf Canopies + Textured Trunks!)
-    const leafTex = window.ModelFactory.getFoliageTexture('leaf_cluster');
-    const leafMat = new THREE.MeshLambertMaterial({
-      map: leafTex,
-      alphaTest: 0.4,
-      side: THREE.DoubleSide
-    });
-    const treeCount = 65;
-    const trunkGeo = new THREE.CylinderGeometry(0.28, 0.52, 4.4, 7);
-    trunkGeo.translate(0, 2.2, 0);
-    const leafGeoA = new THREE.PlaneGeometry(5.6, 5.2);
-    leafGeoA.translate(0, 5.2, 0);
-    const leafGeoB = leafGeoA.clone();
-    leafGeoB.rotateY(Math.PI / 2);
-
-    const trunkInst = new THREE.InstancedMesh(trunkGeo, this.mats.woodGold, treeCount);
-    const leafInstA = new THREE.InstancedMesh(leafGeoA, leafMat, treeCount);
-    const leafInstB = new THREE.InstancedMesh(leafGeoB, leafMat, treeCount);
-    trunkInst.castShadow = true;
-    leafInstA.castShadow = true;
-
-    let tIdx = 0;
-    for (let i = 0; i < treeCount * 3 && tIdx < treeCount; i++) {
+    // 3. Instanced Blender forests: broadleaf (lite) in the meadows, pines on cooler / higher ground and
+    //    a dense pine belt along the mountain foot so the valley edge reads as forest, not a wall.
+    const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+    const broad = [], pines = [], mtx = () => new THREE.Matrix4();
+    const want = coarse ? 30 : 85;
+    for (let i = 0; i < want * 4 && broad.length + pines.length < want; i++) {
       const a = rand() * Math.PI * 2;
-      const r = 52 + Math.sqrt(rand()) * (this.islandRadius - 60);
-      const tx = Math.cos(a) * r;
-      const tz = Math.sin(a) * r;
+      const r = 52 + Math.sqrt(rand()) * (this.islandRadius - 62);
+      const tx = Math.cos(a) * r, tz = Math.sin(a) * r;
       if (this.isBlockedForNature(tx, tz, 5.0)) continue;
-      const nearPoi = window.GODWARS_DATA.POIS.some(p => Math.hypot(tx - p.x, tz - p.z) < 34);
-      if (nearPoi) continue;
+      if (window.GODWARS_DATA.POIS.some(p => Math.hypot(tx - p.x, tz - p.z) < 36)) continue;
       const ty = this.terrainHeightAt(tx, tz);
-
-      dummy.position.set(tx, ty, tz);
+      const isPine = ty > 4.5 || Math.hypot(tx + 85, tz + 105) < 90 || _gwNoise(tx * 0.02, tz * 0.02) > 0.62;
+      const ts = (isPine ? 0.8 : 0.85) + rand() * 0.6;
+      dummy.position.set(tx, ty - 0.15, tz);
       dummy.rotation.set(0, rand() * Math.PI * 2, 0);
-      const ts = 0.85 + rand() * 0.7;
-      dummy.scale.set(ts, ts * (0.9 + rand() * 0.35), ts);
+      dummy.scale.set(ts, ts * (0.9 + rand() * 0.3), ts);
       dummy.updateMatrix();
-      trunkInst.setMatrixAt(tIdx, dummy.matrix);
-      leafInstA.setMatrixAt(tIdx, dummy.matrix);
-      leafInstB.setMatrixAt(tIdx, dummy.matrix);
-      tIdx++;
+      (isPine ? pines : broad).push(mtx().copy(dummy.matrix));
+      this.colliders.push({ minX: tx - 0.5, maxX: tx + 0.5, minZ: tz - 0.5, maxZ: tz + 0.5, minY: ty, maxY: ty + 5, isClimbable: false });
     }
-    trunkInst.count = tIdx;
-    leafInstA.count = tIdx;
-    leafInstB.count = tIdx;
-    trunkInst.instanceMatrix.needsUpdate = true;
-    leafInstA.instanceMatrix.needsUpdate = true;
-    leafInstB.instanceMatrix.needsUpdate = true;
-    this.scene.add(trunkInst, leafInstA, leafInstB);
+    // mountain-foot pine belt (outside the playable radius: visual only)
+    const belt = coarse ? 70 : 220;
+    for (let i = 0; i < belt; i++) {
+      const a = rand() * Math.PI * 2;
+      const r = this.islandRadius + 1 + rand() * 34;
+      const tx = Math.cos(a) * r, tz = Math.sin(a) * r;
+      const ty = this._mountainHeightAt ? this._mountainHeightAt(tx, tz, r) : 0;
+      const ts = 0.9 + rand() * 0.9;
+      dummy.position.set(tx, ty - 0.3, tz);
+      dummy.rotation.set(0, rand() * Math.PI * 2, 0);
+      dummy.scale.set(ts, ts * (0.95 + rand() * 0.4), ts);
+      dummy.updateMatrix();
+      pines.push(mtx().copy(dummy.matrix));
+    }
+    this._instanceGLB('prop_tree_lite', broad);
+    this._instanceGLB('prop_pine_tree', pines, !coarse);
   }
 
   // =========================================================================
@@ -1957,6 +2166,25 @@ class AsgardWorld {
               m.userData.gwTinted = true;
               if (m.color.getHex() === 0xffffff) m.color.setHex(0xe6dccb);
               if (m.roughness !== undefined) m.roughness = Math.max(m.roughness, 0.7);
+            }
+            // Candy-red toon roofs / maroon walls clashed with the marble+bronze palette:
+            // remap red vertex paint to slate roofing and weathered stone (geometry is shared -> once).
+            const g = c.geometry, ca = g && g.attributes.color;
+            if (ca && !g.userData.gwRepaint) {
+              g.userData.gwRepaint = true;
+              const cc = new THREE.Color(), hsl = {};
+              // r128 getX() returns raw ints for normalized (Uint8/Uint16) glTF colours
+              const q = ca.normalized ? (ca.array instanceof Uint8Array ? 255 : ca.array instanceof Uint16Array ? 65535 : 1) : 1;
+              for (let i = 0; i < ca.count; i++) {
+                cc.setRGB(ca.getX(i) / q, ca.getY(i) / q, ca.getZ(i) / q);
+                cc.getHSL(hsl);
+                if ((hsl.h < 0.06 || hsl.h > 0.93) && hsl.s > 0.3) {
+                  if (hsl.l > 0.28) cc.setHex(0x34424e).convertSRGBToLinear();            // roof -> slate
+                  else cc.setRGB(hsl.l * 1.9, hsl.l * 1.8, hsl.l * 1.65);              // wall -> stone
+                  ca.setXYZ(i, cc.r * q, cc.g * q, cc.b * q);
+                }
+              }
+              ca.needsUpdate = true;
             }
           });
           this.addGLBColliders(grp, glb);

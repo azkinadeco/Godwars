@@ -1,3 +1,9 @@
+"""SUPERSEDED by tools/blender_heroes_v2.py (sculpted bodies, 1 mesh per hero).
+Running this would overwrite the v2 hero GLBs, so it refuses unless called with `-- --force`."""
+import sys
+if '--force' not in sys.argv:
+    print("blender_rig_animate_heroes.py is superseded by blender_heroes_v2.py; pass -- --force to run anyway")
+    sys.exit(0)
 import bpy
 import os
 import math

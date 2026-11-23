@@ -25,7 +25,7 @@ window.ModelFactory = {
     if (!this._loader || this._glbCache[assetName] || this._glbLoading[assetName]) return;
     this._glbLoading[assetName] = [];
     this._loader.load(
-      `assets/models/${assetName}.glb?v=20261123g`,
+      `assets/models/${assetName}.glb?v=20261124a`,
       (gltf) => {
         this._glbCache[assetName] = { scene: gltf.scene, animations: gltf.animations || [] };
         const callbacks = this._glbLoading[assetName] || [];
@@ -53,7 +53,15 @@ window.ModelFactory = {
       if (!src || !src.skeleton) return;
       const bones = src.skeleton.bones.map(b => bonesByName[b.name] || b);
       mesh.bind(new THREE.Skeleton(bones, src.skeleton.boneInverses.map(m => m.clone())), src.bindMatrix.clone());
-      mesh.frustumCulled = false; // skinned bounds don't follow animation in r128
+      // r128 culls skinned meshes by their bind-pose bounds. Hero clips are in-place, so a padded
+      // bind-pose sphere is safe and lets off-screen heroes (~15k tris each) skip rendering entirely.
+      const g = mesh.geometry;
+      if (!g.userData.gwPaddedBounds) {
+        g.computeBoundingSphere();
+        g.boundingSphere.radius = Math.max(g.boundingSphere.radius * 1.6, 1.4);
+        g.userData.gwPaddedBounds = true;
+      }
+      mesh.frustumCulled = true;
     });
     return clone;
   },
@@ -108,6 +116,29 @@ window.ModelFactory = {
       return false;
     }
     return false;
+  },
+
+  getMuzzleFlashTexture() {
+    if (this._texCache._muzzle) return this._texCache._muzzle;
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d');
+    const core = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    core.addColorStop(0, 'rgba(255,255,240,1)'); core.addColorStop(0.18, 'rgba(255,220,150,0.95)');
+    core.addColorStop(0.45, 'rgba(255,140,40,0.35)'); core.addColorStop(1, 'rgba(255,80,0,0)');
+    g.fillStyle = core; g.fillRect(0, 0, 128, 128);
+    g.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 7; i++) {
+      const a = i / 7 * Math.PI * 2 + (i % 2) * 0.2, len = 48 + (i % 3) * 10;
+      g.save(); g.translate(64, 64); g.rotate(a);
+      const sp = g.createLinearGradient(0, 0, len, 0);
+      sp.addColorStop(0, 'rgba(255,235,190,0.9)'); sp.addColorStop(1, 'rgba(255,120,30,0)');
+      g.fillStyle = sp; g.beginPath(); g.moveTo(0, -5); g.lineTo(len, 0); g.lineTo(0, 5); g.closePath(); g.fill();
+      g.restore();
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.encoding = THREE.sRGBEncoding;
+    this._texCache._muzzle = t;
+    return t;
   },
 
   getRuneTexture(hexColor = '#fbbf24', bgHex = '#111827') {
@@ -224,6 +255,32 @@ window.ModelFactory = {
     tex.needsUpdate = true;
     this._texCache._euphoriaDetail = tex;
     return tex;
+  },
+
+  /**
+   * Blender-baked seamless PBR set (tools/blender_bake_textures.py): {map, normalMap}.
+   * Repeat stays 1 — world-space UVs (AsgardWorld._worldUV) give constant texel density.
+   * Phones get the 512² copies to keep GPU memory sane.
+   */
+  getPBR(name) {
+    const key = `pbr_${name}`;
+    if (this._texCache[key]) return this._texCache[key];
+    const low = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || /lowtex/.test(location.search);
+    const dir = low ? 'assets/textures/512/' : 'assets/textures/';
+    const loader = new THREE.TextureLoader();
+    if (location.protocol === 'file:') loader.crossOrigin = undefined; // anonymous CORS blocks file:// images
+    const prep = (t, srgb) => {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = low ? 4 : 8;
+      if (srgb) t.encoding = THREE.sRGBEncoding;
+      return t;
+    };
+    const set = {
+      map: prep(loader.load(`${dir}${name}_albedo.jpg`), true),
+      normalMap: prep(loader.load(`${dir}${name}_normal.jpg`), false)
+    };
+    this._texCache[key] = set;
+    return set;
   },
 
   getSurfaceTexture(type = 'marble_wall', repeatX = 4, repeatY = 4) {
@@ -788,8 +845,9 @@ window.ModelFactory = {
         if (m && !m.userData.gwGunmetal && m.color) {
           m.userData.gwGunmetal = true;
           const n = (m.name || '').toLowerCase();
-          if (n.includes('metal')) { m.color.setHex(0x2c3038); m.roughness = 0.42; m.metalness = 0.75; }
-          else if (n.includes('silver')) { m.color.setHex(0x6b717a); m.roughness = 0.3; m.metalness = 0.85; }
+          // sRGB-authored -> linear (r128 hex is linear; 0x2c3038 raw read as pale lavender-grey)
+          if (n.includes('metal')) { m.color.setHex(0x34383f).convertSRGBToLinear(); m.roughness = 0.38; m.metalness = 0.8; }
+          else if (n.includes('silver')) { m.color.setHex(0x7a8089).convertSRGBToLinear(); m.roughness = 0.3; m.metalness = 0.85; }
         }
       });
     }, weaponFallbackMeshes);
@@ -812,60 +870,87 @@ window.ModelFactory = {
         magnum: { r: [0, -0.09, 0.08], l: [-0.02, -0.12, 0.09] }
       };
       const grip = GRIPS[weaponId] || GRIPS.m4a1;
-      const sleeveMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(hData.hexColor).multiplyScalar(0.32), metalness: 0.2, roughness: 0.75 });
-      const plateMat = new THREE.MeshStandardMaterial({ color: hData.hexAccent, metalness: 0.7, roughness: 0.35 });
-      const leatherMat = new THREE.MeshStandardMaterial({ color: 0x1c1d21, metalness: 0.05, roughness: 0.78 });
+      // NOTE: r128 treats hex colours as linear; author these in sRGB and convert, or dark cloth renders pastel.
+      const sleeveMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(0x2a2d34).lerp(new THREE.Color(hData.hexColor), 0.2).convertSRGBToLinear(), metalness: 0.05, roughness: 0.85 });
+      const plateMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(hData.hexColor).convertSRGBToLinear().multiplyScalar(0.85), metalness: 0.6, roughness: 0.38, side: THREE.DoubleSide });
+      // tan tactical leather: reads against the dark gunmetal (black gloves vanished into the gun)
+      const leatherMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(0x6a5644).convertSRGBToLinear(), metalness: 0.0, roughness: 0.72 });
+
+      // Shared smooth primitives for the hands (built once per session).
+      if (!this._fpGeo) {
+        const sleeveProfile = [[0.0, 0.0], [0.036, 0.0], [0.04, 0.04], [0.052, 0.14], [0.06, 0.26], [0.066, 0.4], [0.074, 0.58], [0.078, 0.8], [0.0, 0.8]].map(([r, y]) => new THREE.Vector2(r, y));
+        const bracerProfile = [[0.043, 0.0], [0.05, 0.012], [0.058, 0.13], [0.054, 0.15]].map(([r, y]) => new THREE.Vector2(r, y));
+        this._fpGeo = {
+          sleeve: new THREE.LatheGeometry(sleeveProfile, 16),
+          bracer: new THREE.LatheGeometry(bracerProfile, 16, -Math.PI * 0.15, Math.PI * 1.3),
+          palm: new THREE.SphereGeometry(1, 14, 10),
+          seg: new THREE.CylinderGeometry(0.0088, 0.0098, 1, 8),
+          knuckle: new THREE.SphereGeometry(0.0098, 8, 6),
+          strip: new THREE.BoxGeometry(0.006, 0.1, 0.004)
+        };
+      }
+      const FG = this._fpGeo;
+      const glowMat = new THREE.MeshBasicMaterial({ color: hData.hexAccent });
 
       const buildHand = (side, anchor, forearmDir) => {
         const g = new THREE.Group();
         const hand = new THREE.Group();
-        hand.position.set(anchor[0] + side * 0.042, anchor[1], anchor[2]);
-        // palm wraps the side of the grip
-        const palm = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.085, 0.075), leatherMat);
+        hand.position.set(anchor[0] + side * 0.04, anchor[1], anchor[2]);
+        // palm: rounded ellipsoid wrapping the side of the grip
+        const palm = new THREE.Mesh(FG.palm, leatherMat);
+        palm.scale.set(0.02, 0.046, 0.04);
         hand.add(palm);
-        // four curled fingers crossing in front of the grip toward the other side
+        // knuckle plate in hero accent colour
+        const plate = new THREE.Mesh(FG.palm, plateMat);
+        plate.scale.set(0.008, 0.04, 0.03);
+        plate.position.set(side * 0.017, 0.004, -0.012);
+        hand.add(plate);
+        // four fingers: proximal + distal phalanx with rounded knuckles, curled around the grip
         for (let f = 0; f < 4; f++) {
           const finger = new THREE.Group();
-          finger.position.set(-side * 0.006, 0.03 - f * 0.021, -0.034);
-          const prox = new THREE.Mesh(new THREE.CylinderGeometry(0.0095, 0.0105, 0.05, 8), leatherMat);
-          prox.rotation.z = Math.PI / 2;
-          prox.position.x = -side * 0.024;
-          const tip = new THREE.Mesh(new THREE.SphereGeometry(0.0105, 8, 6), leatherMat);
-          tip.position.x = -side * 0.05;
-          finger.add(prox, tip);
+          finger.position.set(-side * 0.004, 0.03 - f * 0.02, -0.03);
+          const k1 = new THREE.Mesh(FG.knuckle, leatherMat);
+          const p1 = new THREE.Mesh(FG.seg, leatherMat);
+          p1.scale.set(1, 0.03, 1); p1.rotation.z = Math.PI / 2; p1.position.x = -side * 0.016;
+          const k2 = new THREE.Mesh(FG.knuckle, leatherMat); k2.position.x = -side * 0.032;
+          const p2 = new THREE.Mesh(FG.seg, leatherMat);
+          p2.scale.set(0.9, 0.024, 0.9); p2.rotation.set(Math.PI / 2, 0, 0); p2.position.set(-side * 0.034, 0, 0.013);
+          const tip = new THREE.Mesh(FG.knuckle, leatherMat); tip.scale.setScalar(0.9); tip.position.set(-side * 0.034, 0, 0.026);
+          finger.add(k1, p1, k2, p2, tip);
           hand.add(finger);
         }
-        // thumb hooked over the top
-        const thumb = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.0115, 0.055, 8), leatherMat);
-        thumb.rotation.set(0.5, 0, side * 1.0);
-        thumb.position.set(-side * 0.02, 0.05, -0.01);
+        // thumb hooked over the top of the grip
+        const thumb = new THREE.Group();
+        thumb.position.set(-side * 0.012, 0.045, 0.0);
+        thumb.rotation.set(0.35, 0, side * 0.9);
+        const t1 = new THREE.Mesh(FG.seg, leatherMat); t1.scale.set(1.1, 0.034, 1.1); t1.position.y = 0.017;
+        const t2 = new THREE.Mesh(FG.knuckle, leatherMat); t2.position.y = 0.036;
+        thumb.add(t1, t2);
         hand.add(thumb);
-        // knuckle guard (hero accent colour)
-        const knuckle = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.08, 0.03), plateMat);
-        knuckle.position.set(side * 0.018, -0.002, -0.03);
-        hand.add(knuckle);
         g.add(hand);
 
-        // forearm: cuff at the wrist, tapered sleeve running off-screen
-        const wrist = new THREE.Vector3(hand.position.x + side * 0.01, hand.position.y - 0.035, hand.position.z + 0.045);
+        // forearm: smooth tapered sleeve (lathe), armoured bracer shell + glowing rune strip
+        const wrist = new THREE.Vector3(hand.position.x + side * 0.006, hand.position.y - 0.03, hand.position.z + 0.04);
         const dir = new THREE.Vector3(...forearmDir).normalize();
-        const len = 0.3;
-        const mid = wrist.clone().addScaledVector(dir, len / 2);
         const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.04, 0.06, 12), plateMat);
-        cuff.position.copy(wrist.clone().addScaledVector(dir, 0.035)); cuff.quaternion.copy(q);
-        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.058, len, 12), sleeveMat);
-        sleeve.position.copy(mid); sleeve.quaternion.copy(q);
-        const strap = new THREE.Mesh(new THREE.CylinderGeometry(0.0425, 0.0445, 0.018, 12), leatherMat);
-        strap.position.copy(wrist.clone().addScaledVector(dir, 0.14)); strap.quaternion.copy(q);
-        g.add(cuff, sleeve, strap);
+        const sleeve = new THREE.Mesh(FG.sleeve, sleeveMat);
+        sleeve.position.copy(wrist); sleeve.quaternion.copy(q);
+        const bracer = new THREE.Mesh(FG.bracer, plateMat);
+        bracer.position.copy(wrist.clone().addScaledVector(dir, 0.03)); bracer.quaternion.copy(q);
+        bracer.rotateY(side > 0 ? 0.4 : Math.PI - 0.4);
+        const strip = new THREE.Mesh(FG.strip, glowMat);
+        strip.position.copy(wrist.clone().addScaledVector(dir, 0.09)); strip.quaternion.copy(q);
+        strip.translateX(side * 0.056);
+        const cuffRing = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.006, 6, 16), leatherMat);
+        cuffRing.position.copy(wrist.clone().addScaledVector(dir, 0.012)); cuffRing.quaternion.copy(q); cuffRing.rotateX(Math.PI / 2);
+        g.add(sleeve, bracer, strip, cuffRing);
         g.traverse(m => { if (m.isMesh) { m.castShadow = false; m.receiveShadow = false; } });
         return g;
       };
 
       const rightArmGroup = buildHand(1, grip.r, [0.35, -0.55, 0.75]);
       group.add(rightArmGroup);
-      const leftArmGroup = buildHand(-1, grip.l, [-0.45, -0.6, 0.65]);
+      const leftArmGroup = buildHand(-1, grip.l, [-0.72, -0.52, 0.46]);
       group.add(leftArmGroup);
 
       // NOTE: the 'viewmodel_god_arms' GLB rendered as a box-on-a-pole dead centre of the screen,
@@ -900,14 +985,27 @@ window.ModelFactory = {
       group.userData.healCore = batCore;
       group.userData.healRing = batRing;
 
-      // Muzzle Flash mesh
+      // Muzzle flash: front star card + two crossed side-blast cards sharing one additive material,
+      // so the existing fade code (material.opacity / rotation.z) drives the whole thing.
       const flashMat = new THREE.MeshBasicMaterial({
-        color: isMythicGold ? 0xfde047 : wData.hexColor,
+        map: this.getMuzzleFlashTexture(),
+        color: isMythicGold ? 0xffe680 : 0xffd2a0,
         transparent: true,
-        opacity: 0.0
+        opacity: 0.0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide
       });
-      const flash = new THREE.Mesh(new THREE.OctahedronGeometry(0.095, 0), flashMat);
-      flash.position.set(0, 0.02, weaponId === 'm4a1' || weaponId === 'ak47' ? -0.68 : -0.44);
+      const flash = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.26), flashMat);
+      const sideGeo = new THREE.PlaneGeometry(0.12, 0.34);
+      sideGeo.rotateX(-Math.PI / 2); sideGeo.translate(0, 0, -0.13);
+      const sideA = new THREE.Mesh(sideGeo, flashMat);
+      const sideB = new THREE.Mesh(sideGeo, flashMat);
+      sideB.rotation.z = Math.PI / 2;
+      flash.add(sideA, sideB);
+      flash.renderOrder = 5;
+      const MUZZLE_Z = { m4a1: -0.665, ak47: -0.69, p90: -0.425, kriss: -0.42, uzi: -0.34, magnum: -0.465 };
+      flash.position.set(0, 0.012, MUZZLE_Z[weaponId] || -0.5);
       group.add(flash);
       group.userData.muzzleFlash = flash;
 
@@ -1112,6 +1210,34 @@ window.ModelFactory = {
     });
     this.attachBlenderGLB(`hero_${heroId}`, root, (glbScene) => {
       glbScene.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+      // Put the carried gun in the right hand: barrel forward (+Z, the hero's facing), grip at the
+      // HandR bone in rest pose, then re-parent to the bone (attach keeps the world transform) so
+      // run/idle arm motion carries the weapon instead of it floating beside the hip.
+      let hand = null;
+      glbScene.traverse(c => { if (!hand && c.isBone && /^HandR$/i.test(c.name)) hand = c; });
+      if (hand) {
+        // Measure the hand in the IDLE pose (rest pose is an A-pose; measuring there left the gun vertical).
+        // The mixer is created right after this callback, so defer one frame and pose it explicitly.
+        const seat = () => {
+          const ud = root.userData, mixer = ud && ud.mixer;
+          if (mixer) {
+            const idle = ud.actions && (ud.actions.Idle || Object.values(ud.actions)[0]);
+            if (idle) { mixer.stopAllAction(); idle.reset().setEffectiveWeight(1).play(); ud.currentAnim = idle; }
+            mixer.update(0.0001);
+          }
+          const parentNow = gun.parent;
+          if (parentNow && parentNow !== root) root.attach(gun);
+          root.updateMatrixWorld(true);
+          const hp = root.worldToLocal(hand.getWorldPosition(new THREE.Vector3()));
+          const k = 1.15 * 1.02;
+          gun.rotation.set(0.08, Math.PI, 0);
+          gun.position.set(hp.x, hp.y + 0.11 * k, hp.z - 0.11 * k);
+          gun.scale.setScalar(1.15);
+          root.updateMatrixWorld(true);
+          hand.attach(gun);
+        };
+        (window.requestAnimationFrame || setTimeout)(seat);
+      }
     }, heroFallbackMeshes);
 
     return root;

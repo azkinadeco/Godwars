@@ -163,80 +163,116 @@ class GodWarsGame {
   // FULL-SCREEN 3D APEX LEGENDS TRIO SQUAD LOBBY STAGE
   // =========================================================================
   initLobby3DStage() {
+    // Warm the Blender PBR texture cache while the player sits in the lobby (match start is instant).
+    if (window.ModelFactory && window.ModelFactory.getPBR) ['grass', 'rock', 'dirt', 'concrete', 'marble', 'stone_tiles', 'metal_panel', 'basalt', 'roof'].forEach(n => window.ModelFactory.getPBR(n));
+    // Showcase stage: dusk vista over Asgard's peaks, stone dais, warm key + cool rim lights.
     this.lobbyScene = new THREE.Scene();
-    this.lobbyScene.background = new THREE.Color(0x070d1f);
-    this.lobbyScene.fog = new THREE.FogExp2(0x070d1f, 0.035);
-    if (this.pmremEnvTexture) {
-      this.lobbyScene.environment = this.pmremEnvTexture;
-    }
+    const HORIZON = 0xd9a777;
+    this.lobbyScene.background = new THREE.Color(0x1b2a44);
+    this.lobbyScene.fog = new THREE.Fog(0x3a4660, 9, 60);
+    if (this.pmremEnvTexture) this.lobbyScene.environment = this.pmremEnvTexture;
 
-    this.lobbyCamera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+    this.lobbyCamera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 200);
     this.lobbyCamera.position.set(0, 1.55, 5.4);
     this.lobbyCamera.lookAt(0, 1.15, 0);
 
-    const hemi = new THREE.HemisphereLight(0xfef08a, 0x0f172a, 1.05);
-    const keyLight = new THREE.DirectionalLight(0xfffbeb, 1.45);
-    keyLight.position.set(4, 8, 6);
-    const rimLight = new THREE.PointLight(0x38bdf8, 1.4, 18);
-    rimLight.position.set(0, 3.5, -3.5);
-    this.lobbyScene.add(hemi, keyLight, rimLight);
-    hemi.intensity = 0.55; keyLight.intensity = 0.9;
+    // sky dome: deep blue zenith -> amber horizon with a soft sun glow behind the squad
+    const sky = new THREE.Mesh(new THREE.SphereGeometry(150, 32, 16), new THREE.ShaderMaterial({
+      side: THREE.BackSide, depthWrite: false, fog: false,
+      uniforms: { top: { value: new THREE.Color(0x14223d) }, mid: { value: new THREE.Color(0x4a5a7a) }, hor: { value: new THREE.Color(HORIZON) } },
+      vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader: `uniform vec3 top; uniform vec3 mid; uniform vec3 hor; varying vec3 vD;
+        void main(){ float y = clamp(vD.y, -0.2, 1.0);
+          vec3 c = mix(hor, mid, smoothstep(0.0, 0.18, y)); c = mix(c, top, smoothstep(0.18, 0.7, y));
+          vec3 sd = normalize(vec3(0.15, 0.08, -1.0)); float g = max(dot(normalize(vD), sd), 0.0);
+          c += vec3(1.0, 0.72, 0.42) * (pow(g, 48.0) * 0.9 + pow(g, 6.0) * 0.25);
+          gl_FragColor = vec4(c, 1.0); }`
+    }));
+    sky.renderOrder = -10;
+    this.lobbyScene.add(sky);
 
-    // --- Showcase stage pass: per-pedestal spotlights w/ soft shadows, light shafts, back colonnade, dust motes
+    // three layers of jagged mountain silhouettes (fog does the aerial perspective)
+    const ridgeLayer = (dist, height, color, seed) => {
+      const pts = [], W = dist * 2.4, N = 48;
+      for (let i = 0; i <= N; i++) {
+        const t = i / N, x = -W / 2 + t * W;
+        const n = Math.sin(t * 13.1 + seed) * 0.35 + Math.sin(t * 31.7 + seed * 2.3) * 0.18 + Math.sin(t * 5.3 + seed * 0.7) * 0.47;
+        pts.push(x, height * (0.55 + n * 0.45));
+      }
+      const shape = new THREE.Shape();
+      shape.moveTo(-W / 2, -20);
+      for (let i = 0; i < pts.length; i += 2) shape.lineTo(pts[i], pts[i + 1]);
+      shape.lineTo(W / 2, -20);
+      const m = new THREE.Mesh(new THREE.ShapeGeometry(shape), new THREE.MeshBasicMaterial({ color, fog: true }));
+      m.position.set(0, -1, -dist);
+      this.lobbyScene.add(m);
+    };
+    ridgeLayer(85, 26, 0x5a5f78, 1.3);
+    ridgeLayer(55, 17, 0x353b52, 4.1);
+    ridgeLayer(34, 9, 0x1d2234, 7.7);
+
+    const hemi = new THREE.HemisphereLight(0xb9c8e6, 0x2a2018, 0.5);
+    const keyLight = new THREE.DirectionalLight(0xffe2c0, 1.25);
+    keyLight.position.set(3.5, 6, 6);
+    const rimL = new THREE.DirectionalLight(0x9ec9ff, 1.6);
+    rimL.position.set(-5, 4, -6);
+    const rimR = new THREE.DirectionalLight(0xffb27a, 1.2);
+    rimR.position.set(5, 3, -6);
+    this.lobbyScene.add(hemi, keyLight, rimL, rimR);
+
+    // per-pedestal spotlights with soft shadows + faint shafts, and drifting embers
     const stageFx = new THREE.Group();
-    [[-2.6, 0.82, 0x7dd3fc], [0, 1.0, 0xfff1c9], [2.6, 0.82, 0xfdba74]].forEach(([sx, k, col]) => {
-      const spot = new THREE.SpotLight(col, 2.4 * k, 14, 0.42, 0.55, 1.4);
+    [[-1.95, 0.7, 0xcfe6ff], [0, 1.0, 0xfff1d6], [1.95, 0.7, 0xffd9b0]].forEach(([sx, k, col]) => {
+      const spot = new THREE.SpotLight(col, 2.2 * k, 14, 0.38, 0.6, 1.4);
       spot.position.set(sx * 0.9, 7.2, 2.6);
-      spot.target.position.set(sx, 0.4, 0);
+      spot.target.position.set(sx, 0.4, sx === 0 ? 0 : -0.85);
       spot.castShadow = true;
-      spot.shadow.mapSize.set(512, 512);
-      spot.shadow.bias = -0.0008;
+      spot.shadow.mapSize.set(1024, 1024);
+      spot.shadow.bias = -0.0006;
       stageFx.add(spot, spot.target);
-      // visible additive light shaft
       const shaft = new THREE.Mesh(
-        new THREE.ConeGeometry(1.35, 7.2, 24, 1, true),
-        new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+        new THREE.ConeGeometry(1.2, 7.2, 24, 1, true),
+        new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.035, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
       );
       shaft.position.set(sx * 0.95, 3.6, 1.3);
       shaft.lookAt(sx, 7.2 + 3.6, 2.6 + 1.3);
       shaft.rotateX(Math.PI / 2);
       stageFx.add(shaft);
     });
-    // colonnade backdrop
-    const colMat = new THREE.MeshStandardMaterial({ color: 0x2b3446, roughness: 0.7, metalness: 0.2 });
-    const capMat = new THREE.MeshStandardMaterial({ color: 0xb08a4a, roughness: 0.45, metalness: 0.6 });
-    for (let i = -4; i <= 4; i++) {
-      if (Math.abs(i) < 2) continue;
-      const x = i * 1.55, z = -5.2 - Math.abs(i) * 0.35;
-      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.33, 6.5, 16), colMat);
-      col.position.set(x, 3.25, z);
-      const cap = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.3, 0.85), capMat);
-      cap.position.set(x, 6.55, z);
-      const base = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.3, 0.85), capMat);
-      base.position.set(x, 0.15, z);
-      stageFx.add(col, cap, base);
-    }
-    // dust motes
+    // broken marble colonnade framing the stage left and right
+    const P = window.ModelFactory.getPBR ? (n) => window.ModelFactory.getPBR(n) : null;
+    const marble = new THREE.MeshStandardMaterial(Object.assign({ color: 0x9a9690, roughness: 0.55 }, P ? { map: P('marble').map, normalMap: P('marble').normalMap } : {}));
+    const bronze = new THREE.MeshStandardMaterial({ color: 0x8a6a3a, roughness: 0.38, metalness: 0.85 });
+    [[-5.2, -3.2, 6.8], [-6.6, -5.6, 4.2], [5.2, -3.2, 5.4], [6.8, -6, 7.4]].forEach(([x, z, h]) => {
+      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.48, h, 20), marble);
+      col.position.set(x, h / 2, z);
+      const base = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.35, 1.25), marble);
+      base.position.set(x, 0.17, z);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.12, 20), bronze);
+      band.position.set(x, 0.42, z);
+      stageFx.add(col, base, band);
+    });
     const moteGeo = new THREE.BufferGeometry();
-    const moteN = 260, motePos = new Float32Array(moteN * 3);
-    for (let i = 0; i < moteN; i++) { motePos[i * 3] = (Math.random() - 0.5) * 10; motePos[i * 3 + 1] = Math.random() * 6; motePos[i * 3 + 2] = (Math.random() - 0.5) * 6; }
+    const moteN = 220, motePos = new Float32Array(moteN * 3);
+    for (let i = 0; i < moteN; i++) { motePos[i * 3] = (Math.random() - 0.5) * 12; motePos[i * 3 + 1] = Math.random() * 6; motePos[i * 3 + 2] = (Math.random() - 0.5) * 7 - 1; }
     moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
-    this.lobbyMotes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ color: 0xffe7a3, size: 0.035, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.lobbyMotes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ color: 0xffc98a, size: 0.03, transparent: true, opacity: 0.65, blending: THREE.AdditiveBlending, depthWrite: false }));
     stageFx.add(this.lobbyMotes);
     this.lobbyScene.add(stageFx);
 
-    // Reflective Golden Valhalla Stage Floor
-    const floor = new THREE.Mesh(
-      new THREE.CylinderGeometry(9, 9, 0.2, 48),
-      new THREE.MeshStandardMaterial({ color: 0x0f172a, metalness: 0.85, roughness: 0.2 })
-    );
-    floor.position.y = -0.1;
+    // stone stage: flagstone disc with a bronze lip, fading into the dusk
+    const floorMat = new THREE.MeshStandardMaterial(Object.assign({ color: 0x6d6a66, roughness: 0.42, metalness: 0.1 }, P ? { map: P('stone_tiles').map, normalMap: P('stone_tiles').normalMap } : {}));
+    const floor = new THREE.Mesh(new THREE.CylinderGeometry(9, 9.4, 0.3, 64), floorMat);
+    floor.position.y = -0.15;
+    const fuv = floor.geometry.attributes.uv; for (let i = 0; i < fuv.count; i++) fuv.setXY(i, fuv.getX(i) * 4, fuv.getY(i) * 4);
     this.lobbyScene.add(floor);
+    const lip = new THREE.Mesh(new THREE.TorusGeometry(9.05, 0.06, 6, 96), bronze);
+    lip.rotation.x = Math.PI / 2; lip.position.y = 0.0;
+    this.lobbyScene.add(lip);
 
-    // 3 Trio Squad Pedestals (Center Player, Left Squadmate 1, Right Squadmate 2)
-    const pedMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.92, roughness: 0.18 });
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
-
+    // squad pedestals: hex stone dais + bronze band + thin emissive team ring
+    const pedMat = new THREE.MeshStandardMaterial(Object.assign({ color: 0x8c8780, roughness: 0.5 }, P ? { map: P('marble').map, normalMap: P('marble').normalMap } : {}));
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x7dd3fc });
     this.lobbyPedestals = [];
     [
       [0, 0, 0, 1.05],
@@ -245,34 +281,28 @@ class GodWarsGame {
     ].forEach(([px, py, pz, scale]) => {
       const pedGroup = new THREE.Group();
       pedGroup.position.set(px, py, pz);
-      const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.95 * scale, 1.15 * scale, 0.16, 32), pedMat);
+      const cyl = new THREE.Mesh(new THREE.CylinderGeometry(0.95 * scale, 1.1 * scale, 0.16, 6), pedMat);
       cyl.position.y = 0.08;
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(1.02 * scale, 0.03, 8, 32), ringMat);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(1.0 * scale, 1.0 * scale, 0.04, 6), bronze);
+      band.position.y = 0.165;
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.86 * scale, 0.012, 6, 48), ringMat);
       ring.rotation.x = Math.PI / 2;
-      ring.position.y = 0.16;
-      pedGroup.add(cyl, ring);
+      ring.position.y = 0.19;
+      pedGroup.add(cyl, band, ring);
       this.lobbyScene.add(pedGroup);
 
       const charMount = new THREE.Group();
-      charMount.position.set(px, 0.16, pz);
+      charMount.position.set(px, 0.18, pz);
       this.lobbyScene.add(charMount);
       this.lobbyPedestals.push({ pedGroup, charMount, ring });
     });
 
-    // Background Glowing Bifrost Stargate Ring behind the Trio Squad
-    this.lobbyStargate = new THREE.Mesh(
-      new THREE.TorusGeometry(3.6, 0.14, 12, 48),
-      new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
-    );
-    this.lobbyStargate.position.set(0, 2.2, -3.2);
-    this.lobbyScene.add(this.lobbyStargate);
-
-    const innerGate = new THREE.Mesh(
-      new THREE.CircleGeometry(3.45, 36),
-      new THREE.MeshBasicMaterial({ color: 0x0284c7, transparent: true, opacity: 0.22 })
-    );
-    innerGate.position.set(0, 2.2, -3.25);
-    this.lobbyScene.add(innerGate);
+    // distant bifrost beam on the horizon (replaces the flat gold ring behind the squad)
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 120, 12, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x9fdcff, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    beam.position.set(-14, 50, -70);
+    this.lobbyScene.add(beam);
+    this.lobbyStargate = null;
 
     this.updateLobby3DSquad();
   }
@@ -900,12 +930,18 @@ class GodWarsGame {
   initGameRenderer() {
     const canvas = document.getElementById('game-canvas');
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(this.fov, window.innerWidth / window.innerHeight, 0.08, 650);
+    this.camera = new THREE.PerspectiveCamera(this.fov, window.innerWidth / window.innerHeight, 0.08, 900);
     this.camera.rotation.order = 'YXZ';
 
     this.viewmodelHolder = new THREE.Group();
     this.camera.add(this.viewmodelHolder);
     this.scene.add(this.camera);
+    if (!this.forceMobileUI) {
+      // muzzle light lives on the camera for the whole session (created once -> no per-shot shader recompiles)
+      this.muzzleLight = new THREE.PointLight(0xffb060, 0, 7, 2);
+      this.muzzleLight.position.set(0.12, -0.08, -0.9);
+      this.camera.add(this.muzzleLight);
+    }
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -3593,8 +3629,7 @@ class GodWarsGame {
 
       const flash = this.activeViewmodel.userData.muzzleFlash;
       if (flash && flash.material.opacity > 0) {
-        flash.material.opacity = Math.max(0, flash.material.opacity - dt * 18);
-        flash.rotation.z += dt * 25;
+        flash.material.opacity = Math.max(0, flash.material.opacity - dt * 22);
       }
 
       if (this.activeViewmodel.userData.meleeMesh) {
@@ -3731,8 +3766,12 @@ class GodWarsGame {
         window.SFX.playGunshot(wep.id, 0, wep.isMythicGold);
         if (this.activeViewmodel) {
           this.activeViewmodel.position.z += 0.042;
-          if (this.activeViewmodel.userData.muzzleFlash) {
-            this.activeViewmodel.userData.muzzleFlash.material.opacity = 0.95;
+          const mf = this.activeViewmodel.userData.muzzleFlash;
+          if (mf) {
+            mf.material.opacity = 1.0;
+            mf.rotation.z = Math.random() * Math.PI * 2;
+            const sc = 0.8 + Math.random() * 0.55;
+            mf.scale.set(sc, sc, 0.8 + Math.random() * 0.6);
           }
           if (this.activeViewmodel.userData.isRevolver && this.activeViewmodel.userData.magMesh) {
             this.activeViewmodel.userData.magMesh.rotation.z += Math.PI / 3;

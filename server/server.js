@@ -186,7 +186,9 @@ setInterval(() => {
   rooms.forEach((room) => {
     const snap = [];
     room.players.forEach(p => {
-      if (now - p.lastSeen > 15000) { p.conn._close(); return; }
+      // 60 s: first-frame shader compilation on slow phones can block the client for many seconds;
+      // real disconnects are caught immediately by the socket close event anyway.
+      if (now - p.lastSeen > 60000) { p.conn._close(); return; }
       if (p.s) snap.push({ id: p.id, ...p.s });
     });
     if (snap.length) room.players.forEach(p => p.conn.send({ t: 'snap', ts: now, s: snap.filter(x => x.id !== p.id) }));

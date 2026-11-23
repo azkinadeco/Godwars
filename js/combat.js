@@ -91,15 +91,40 @@ class CombatManager {
   }
 
   // BATCH 6: Molten Bullet Impact Scorch Ring on Wall/Floor Hits!
-  spawnImpactScorch(pos, colorHex = 0xf97316) {
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(0.06, 0.22, 12),
-      new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false })
-    );
-    ring.position.copy(pos);
-    ring.rotation.x = -Math.PI / 2;
-    this.scene.add(ring);
-    this.vfxList.push({ type: 'scorch', mesh: ring, age: 0, maxAge: 0.9 });
+  // Bullet impact: dark hole decal facing the shooter + brief hot ember rim (was a flat neon ring).
+  spawnImpactScorch(pos, colorHex = 0xf97316, dir = null) {
+    if (!this._holeGeo) {
+      this._holeGeo = new THREE.CircleGeometry(0.07, 10);
+      this._emberGeo = new THREE.RingGeometry(0.05, 0.12, 12);
+    }
+    const hole = new THREE.Mesh(this._holeGeo, new THREE.MeshBasicMaterial({ color: 0x15110e, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+    const ember = new THREE.Mesh(this._emberGeo, new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 }));
+    const back = dir ? pos.clone().addScaledVector(dir, -0.02) : pos.clone().add(new THREE.Vector3(0, 0.02, 0));
+    [hole, ember].forEach(m => {
+      m.position.copy(back);
+      if (dir) m.lookAt(back.clone().sub(dir)); else m.rotation.x = -Math.PI / 2;
+      this.scene.add(m);
+    });
+    this.vfxList.push({ type: 'scorch', mesh: ember, age: 0, maxAge: 0.35 });
+    this.vfxList.push({ type: 'scorch', mesh: hole, age: 0, maxAge: 6.0 });
+  }
+
+  // Soft dust/debris puff at the impact point (camera-facing sprite, grows and fades).
+  spawnImpactDust(pos, dir = null) {
+    if (!this._dustTex) {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const g = c.getContext('2d');
+      const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+      gr.addColorStop(0, 'rgba(255,255,255,0.85)'); gr.addColorStop(0.5, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+      this._dustTex = new THREE.CanvasTexture(c);
+    }
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: this._dustTex, color: 0xb8ab98, transparent: true, opacity: 0.6, depthWrite: false }));
+    sp.position.copy(pos);
+    if (dir) sp.position.addScaledVector(dir, -0.15);
+    sp.scale.setScalar(0.25);
+    this.scene.add(sp);
+    this.vfxList.push({ type: 'dust', mesh: sp, age: 0, maxAge: 0.6 });
   }
 
   // Euphoria-Style Homing Divine Energy Orbs (Pop out on Shield Break / Kill and fly into Player!)
@@ -442,16 +467,18 @@ class CombatManager {
       );
     } else if (bestDist < weaponData.range - 1) {
       // BATCH 4 & 6: Metallic 3D Impact Sparks + Molten Scorch Ring on Asgard surfaces
-      this.spawnImpactSparks(hitPoint, isMythicGold ? 0xfde047 : 0xfbbf24, 5);
-      this.spawnImpactScorch(hitPoint, isMythicGold ? 0xfde047 : weaponData.hexColor);
+      this.spawnImpactSparks(hitPoint, isMythicGold ? 0xfde047 : 0xffc070, 5);
+      this.spawnImpactScorch(hitPoint, isMythicGold ? 0xfde047 : 0xff9a40, dir);
+      this.spawnImpactDust(hitPoint, dir);
     }
   }
 
   spawnImpactSparks(pos, colorHex = 0xfbbf24, count = 6) {
     for (let i = 0; i < count; i++) {
+      if (!this._sparkGeo) this._sparkGeo = new THREE.BoxGeometry(0.025, 0.025, 0.16);
       const m = new THREE.Mesh(
-        new THREE.BoxGeometry(0.08, 0.08, 0.22),
-        new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.95 })
+        this._sparkGeo,
+        new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false })
       );
       m.position.copy(pos);
       const vel = new THREE.Vector3(
@@ -1191,6 +1218,7 @@ class CombatManager {
       } else if (v.type === 'spark') {
         v.vel.y -= 18 * dt;
         v.mesh.position.addScaledVector(v.vel, dt);
+        v.mesh.lookAt(v.mesh.position.x + v.vel.x, v.mesh.position.y + v.vel.y, v.mesh.position.z + v.vel.z); // streak along motion
         v.mesh.material.opacity = Math.max(0, 1 - t);
         if (v.age >= v.maxAge) {
           this.scene.remove(v.mesh);
@@ -1219,9 +1247,19 @@ class CombatManager {
           this.vfxList.splice(i, 1);
         }
       } else if (v.type === 'scorch') {
-        v.mesh.material.opacity = Math.max(0, 0.85 * (1 - t));
+        v.mesh.material.opacity = Math.max(0, 0.85 * Math.min(1, (1 - t) * 3));
         if (v.age >= v.maxAge) {
           this.scene.remove(v.mesh);
+          v.mesh.material.dispose();
+          this.vfxList.splice(i, 1);
+        }
+      } else if (v.type === 'dust') {
+        v.mesh.scale.setScalar(0.25 + t * 0.9);
+        v.mesh.position.y += dt * 0.35;
+        v.mesh.material.opacity = Math.max(0, 0.6 * (1 - t));
+        if (v.age >= v.maxAge) {
+          this.scene.remove(v.mesh);
+          v.mesh.material.dispose();
           this.vfxList.splice(i, 1);
         }
       }
