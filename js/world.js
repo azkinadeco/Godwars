@@ -2035,6 +2035,7 @@ class AsgardWorld {
   }
 
   buildPropKit() {
+    const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); // phones: lighter dressing
     let seed = 4242;
     const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
     const POIS = window.GODWARS_DATA.POIS;
@@ -2043,7 +2044,7 @@ class AsgardWorld {
     POIS.forEach(poi => {
       if (poi.id === 'valhalla') return;
       const len = Math.hypot(poi.x, poi.z), ux = poi.x / len, uz = poi.z / len, px = -uz, pz = ux, ang = Math.atan2(ux, uz);
-      for (let t = 62; t < len - 48; t += 28) {
+      for (let t = 62; t < len - 48; t += coarse ? 56 : 28) {
         const side = (Math.round(t / 28) % 2) ? 1 : -1;
         this.placeKit('kit_lamppost', ux * t + px * 5.1 * side, uz * t + pz * 5.1 * side, ang + (side > 0 ? Math.PI / 2 : -Math.PI / 2), { radius: 0.4, thin: true });
       }
@@ -2065,7 +2066,7 @@ class AsgardWorld {
         else this.placeKit('kit_spool', x, z, ry, { radius: 0.8 });
       });
       this.placeKit('kit_ac_unit', b.cx + b.width * 0.3, b.cz - b.depth * 0.05, 0, { y: b.roofY, radius: 0.8 });
-      if (i % 3 === 0) this.placeKit('kit_antenna', b.cx + b.width * 0.38, b.cz + b.depth * 0.36, 0, { y: b.roofY, radius: 0.4, thin: true });
+      if (!coarse && i % 3 === 0) this.placeKit('kit_antenna', b.cx + b.width * 0.38, b.cz + b.depth * 0.36, 0, { y: b.roofY, radius: 0.4, thin: true });
     });
     // 3. POI perimeters: sandbag nests facing outward + rune banners at the approaches
     POIS.forEach((poi, pi) => {
@@ -2083,7 +2084,7 @@ class AsgardWorld {
     // 4. Valhalla plaza market: a ring of stalls between the palaces
     [[-36, 26, 0.3], [36, 26, -0.3], [-36, -26, Math.PI - 0.3], [36, -26, Math.PI + 0.3], [-44, 6, Math.PI / 2], [44, -6, -Math.PI / 2]].forEach(([x, z, ry]) => this.placeKit('kit_market_stall', x, z, ry, { radius: 1.8 }));
     // 5. open-field cover scatter: crates & barriers in the meadows between POIs
-    for (let i = 0, placed = 0; i < 160 && placed < 34; i++) {
+    for (let i = 0, placed = 0; i < 160 && placed < (coarse ? 16 : 34); i++) {
       const a = rnd() * Math.PI * 2, r = 50 + rnd() * (R - 75);
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
       if (POIS.some(p => Math.hypot(x - p.x, z - p.z) < 40)) continue;

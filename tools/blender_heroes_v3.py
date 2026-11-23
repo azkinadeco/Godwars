@@ -64,7 +64,7 @@ HEROES = {
     "thor": dict(
         body=dict(hs=1.0, shw=0.222, chest=1.10, waist=1.05, hip=1.02, arm=1.12, leg=1.08, fem=False, legw=0.100),
         pal=dict(suit=0x2a2d33, legs=0x2e2925, leather=0x3d2b1f, plate=0x2f5079, steel=0x5f6672, gold=0xb98c3e,
-                 cloth=0x6b1c1f, fur=0x55432f, hair=0x8f4a24, skin=0xcf9d7e, glow=0x9ad6ff, lips=0xa86a5a,
+                 cloth=0x6b1c1f, fur=0x55432f, hair=0x8f4a24, skin=0xbf8a6a, glow=0x9ad6ff, lips=0xa86a5a,
                  iris=0x3f6f9e, brow=0x6f3519, wrap=0x4a3a2c),
         face=dict(jaw=1.14, chin=1.12, brow=1.2, cheek=1.0, nose=1.08, lips=0.85, gaunt=0.0, bw=0.0045),
         zones=dict(torso="suit", upper_arm="skin", forearm="leather", thigh="legs", shin="legs", neck="skin"),
@@ -73,7 +73,7 @@ HEROES = {
     "loki": dict(
         body=dict(hs=1.0, shw=0.196, chest=0.95, waist=0.90, hip=0.95, arm=0.92, leg=0.94, fem=False, legw=0.094),
         pal=dict(suit=0x1b2a23, legs=0x211c19, leather=0x241e1a, plate=0x235a44, steel=0x2b302d, gold=0xc4a052,
-                 cloth=0x183126, fur=0x183126, hair=0x141112, skin=0xd8b096, glow=0x6cffc8, lips=0xa8786c,
+                 cloth=0x183126, fur=0x183126, hair=0x141112, skin=0xc99f84, glow=0x6cffc8, lips=0xa8786c,
                  iris=0x3f8a5c, brow=0x161214, wrap=0x46524a),
         face=dict(jaw=0.92, chin=0.95, brow=0.9, cheek=1.25, nose=1.0, lips=0.8, gaunt=0.35, bw=0.0032, smirk=1.0),
         zones=dict(torso="suit", upper_arm="suit", forearm="leather", thigh="legs", shin="legs", neck="skin"),
@@ -91,7 +91,7 @@ HEROES = {
     "zeus": dict(
         body=dict(hs=1.01, shw=0.214, chest=1.05, waist=1.02, hip=1.0, arm=1.04, leg=1.03, fem=False, legw=0.098),
         pal=dict(suit=0x222839, legs=0x222839, leather=0x4a3526, plate=0xb08a42, steel=0x37405a, gold=0xd8b560,
-                 cloth=0xcfc7b4, fur=0xcfc7b4, hair=0xe8e4dc, skin=0xcf9c7c, glow=0xa6dcff, lips=0xa06e60,
+                 cloth=0xcfc7b4, fur=0xcfc7b4, hair=0xe8e4dc, skin=0xbd8c6c, glow=0xa6dcff, lips=0xa06e60,
                  iris=0x7fb8e6, brow=0xd8d4cc, wrap=0x4a3526),
         face=dict(jaw=1.05, chin=1.0, brow=1.25, cheek=0.95, nose=1.12, lips=0.8, gaunt=0.2, bw=0.006),
         zones=dict(torso="suit", upper_arm="cloth", forearm="skin", thigh="legs", shin="skin", neck="skin"),
@@ -100,7 +100,7 @@ HEROES = {
     "hela": dict(
         body=dict(hs=0.985, shw=0.182, chest=0.92, waist=0.84, hip=1.06, arm=0.86, leg=0.96, fem=True, legw=0.092),
         pal=dict(suit=0x141918, legs=0x161515, leather=0x171516, plate=0x1d4a40, steel=0x1e2523, gold=0xa3aca8,
-                 cloth=0x101c1a, fur=0x101c1a, hair=0x0e0d10, skin=0xd4c8c2, glow=0x55ffa4, lips=0x3e2a30,
+                 cloth=0x101c1a, fur=0x101c1a, hair=0x0e0d10, skin=0xc9b6ac, glow=0x55ffa4, lips=0x6a3a44,
                  iris=0x3fbf7a, brow=0x141216, wrap=0x2a302e, liner=0x0c1210),
         face=dict(jaw=0.86, chin=0.9, brow=0.7, cheek=1.25, nose=0.82, lips=1.1, gaunt=0.25, bw=0.0026),
         zones=dict(torso="suit", upper_arm="suit", forearm="leather", thigh="legs", shin="legs", neck="skin"),
@@ -109,7 +109,7 @@ HEROES = {
     "valkyrie": dict(
         body=dict(hs=0.99, shw=0.188, chest=0.94, waist=0.86, hip=1.05, arm=0.9, leg=1.0, fem=True, legw=0.094),
         pal=dict(suit=0x2a2730, legs=0x2a2730, leather=0x553826, plate=0xa4532a, steel=0x9298a3, gold=0xc89c46,
-                 cloth=0x4a3d36, fur=0xd9d2c4, hair=0xd8b36c, skin=0xd6a585, glow=0xffc878, lips=0xb0705f,
+                 cloth=0x4a3d36, fur=0xd9d2c4, hair=0xd8b36c, skin=0xc99878, glow=0xffc878, lips=0xb0705f,
                  iris=0x4f86b8, brow=0xa07a40, wrap=0x6b5038, liner=0x5a3d2a),
         face=dict(jaw=0.9, chin=0.92, brow=0.75, cheek=1.1, nose=0.86, lips=1.05, gaunt=0.0, bw=0.0028),
         zones=dict(torso="suit", upper_arm="suit", forearm="leather", thigh="legs", shin="leather", neck="skin"),
@@ -439,17 +439,14 @@ def shell(name, grid, mat, weights, thick=0.012, bevel=None, closed=False, outwa
                 t -= n * t.dot(n)
                 t = t.normalized() if t.length > 1e-9 else Vector()
                 touts.append(t)
-                verts.append(p + t * thick * 0.42 - n * thick * 0.42)
-                mids.append(len(verts) - 1)
-                verts.append(p + t * thick * 0.25 - n * thick * 1.1)
+                verts.append(p + t * thick * 0.35 - n * thick * 1.0)
                 lows.append(len(verts) - 1)
             m = len(loop)
             for k in range(m if cyc else m - 1):
                 k2 = (k + 1) % m
                 a, b = idx(*loop[k]), idx(*loop[k2])
                 want = touts[k] + touts[k2]
-                add_face((a, b, mids[k2], mids[k]), want)
-                add_face((mids[k], mids[k2], lows[k2], lows[k]), want)
+                add_face((a, b, lows[k2], lows[k]), want)
     ob = new_obj(name, verts, faces, mat)
     if subsurf:
         sm = ob.modifiers.new("sub", 'SUBSURF')
@@ -651,7 +648,8 @@ def body_acc(B, J):
         ellipsoid(acc, V(sx * .10 * cw, .048, sc(1.33)), (.07 * cw, .055, .12), seg=12, rings=8)
         ellipsoid(acc, V(sx * .07 * hw, .058, sc(0.925)), (.075 * hw, .062 * hw, .08), seg=12, rings=8)
     # neck
-    limb(acc, V(0, .016, sc(1.48)), V(0, .006, sc(1.665)), [(0, .056, .058, 0), (0.6, .048, .050, 0), (1, .046, .048, 0)], n=14)
+    nk = 0.88 if fem else 1.0
+    limb(acc, V(0, .016, sc(1.48)), V(0, .010, sc(1.705)), [(0, .056 * nk, .058 * nk, 0), (0.5, .047 * nk, .049 * nk, 0), (1, .044 * nk, .046 * nk, 0)], n=14)
     am, lm = B["arm"] * 1.12, B["leg"] * 1.10
     for side, sx in (("L", -1), ("R", 1)):
         sh, el, wr = J["sh" + side], J["el" + side], J["wr" + side]
@@ -716,7 +714,7 @@ def body_zone(co, J, Z_):
     if co.z < 0.15:
         return "foot"
     best, bz = 9.0, "torso"
-    if co.z > J["neck"].z - 0.03 and abs(co.x) < 0.075:
+    if co.z > J["neck"].z - 0.004 and abs(co.x) < 0.075:
         return "neck"
     for side in ("L", "R"):
         for a, b, z, r in (("sh", "el", "upper_arm", 0.058), ("el", "wr", "forearm", 0.045),
@@ -739,7 +737,7 @@ def body_zone(co, J, Z_):
 def build_body(hid, B, J, H, arm, mats):
     acc = body_acc(B, J)
     ob = new_obj(f"{hid}_body", acc.v, acc.f, mats["fab"])
-    hi = voxelize(ob, 0.0065, smooth_iter=6, smooth_fac=0.55, faces=2250)
+    hi = voxelize(ob, 0.0065, smooth_iter=6, smooth_fac=0.55, faces=2100)
     bvh = BVHTree.FromPolygons([v.co.copy() for v in hi.vertices], [tuple(p.vertices) for p in hi.polygons])
     me = ob.data
     for p in me.polygons:
@@ -844,12 +842,12 @@ def build_hand(hid, B, J, side, palm_slot, tip_slot, grip, plate_slot=None):
         rads[-1] = rads[-1] * 0.95
         rads.append(rad * k * 0.45)
         # split: proximal phalanx on palm slot, the rest on tip slot (fingerless gloves)
-        rings = tube_rings(pts, rads, 7, nin)
+        rings = tube_rings(pts, rads, 6, nin)
         if tip_slot == palm_slot:
-            loft(base_acc, rings, 7, cap0=True, cap1=True)
+            loft(base_acc, rings, 6, cap0=True, cap1=True)
         else:
-            loft(base_acc, rings[:3], 7, cap0=True, cap1=False)
-            loft(tips, rings[2:], 7, cap0=False, cap1=True)
+            loft(base_acc, rings[:3], 6, cap0=True, cap1=False)
+            loft(tips, rings[2:], 6, cap0=False, cap1=True)
     # thumb: from the heel of the palm, pointing forward/down, curling toward the palm
     tb = wr + hd * (0.022 * k) + fw * (0.030 * k) + nin * (0.010 * k)
     td = (hd * 0.55 + fw * 0.62 + nin * 0.55).normalized()
@@ -864,12 +862,12 @@ def build_hand(hid, B, J, side, palm_slot, tip_slot, grip, plate_slot=None):
         rads.append((0.0125 - 0.0015 * j) * k)
     pts.append(p + cur * 0.006 * k)
     rads.append(0.005 * k)
-    rings = tube_rings(pts, rads, 7, nin)
+    rings = tube_rings(pts, rads, 6, nin)
     if tip_slot == palm_slot:
-        loft(base_acc, rings, 7, cap0=True, cap1=True)
+        loft(base_acc, rings, 6, cap0=True, cap1=True)
     else:
-        loft(base_acc, rings[:3], 7, cap0=True, cap1=False)
-        loft(tips, rings[2:], 7, cap0=False, cap1=True)
+        loft(base_acc, rings[:3], 6, cap0=True, cap1=False)
+        loft(tips, rings[2:], 6, cap0=False, cap1=True)
     solid(f"fingers{side}", base_acc, palm_slot, W, tag="hands", smooth=70)
     if tips.v:
         solid(f"fingertips{side}", tips, tip_slot, W, tag="hands", smooth=70)
@@ -913,14 +911,68 @@ class HeadInfo:
 def head_shapes(fem, F):
     jaw, chin = F["jaw"], F["chin"]
     if not fem:
-        return [((0, -0.010, 0.030), (0.080, 0.101, 0.097)),
-                ((0, 0.014, -0.022), (0.067, 0.083, 0.072)),
-                ((0, 0.018, -0.068), (0.057 * jaw, 0.072, 0.052)),
-                ((0, 0.071, -0.098), (0.024 * chin, 0.021, 0.022))]
-    return [((0, -0.010, 0.030), (0.077, 0.098, 0.095)),
-            ((0, 0.012, -0.022), (0.063, 0.080, 0.068)),
-            ((0, 0.016, -0.064), (0.052 * jaw, 0.068, 0.048)),
-            ((0, 0.066, -0.092), (0.019 * chin, 0.018, 0.019))]
+        return [((0, -0.012, 0.028), (0.080, 0.100, 0.096)),
+                ((0, 0.012, -0.020), (0.073, 0.084, 0.070)),
+                ((0, 0.006, -0.060), (0.061 * jaw, 0.086, 0.050)),
+                ((0, 0.066, -0.092), (0.027 * chin, 0.022, 0.019))]
+    return [((0, -0.012, 0.028), (0.077, 0.097, 0.094)),
+            ((0, 0.010, -0.020), (0.069, 0.081, 0.067)),
+            ((0, 0.004, -0.056), (0.058 * jaw, 0.082, 0.046)),
+            ((0, 0.062, -0.087), (0.021 * chin, 0.019, 0.017))]
+
+
+def interp(z, zs, ys):
+    if z <= zs[0]:
+        return ys[0]
+    for i in range(len(zs) - 1):
+        if z <= zs[i + 1]:
+            t = (z - zs[i]) / (zs[i + 1] - zs[i])
+            t = t * t * (3 - 2 * t) * 0.5 + t * 0.5
+            return lerp(ys[i], ys[i + 1], t)
+    return ys[-1]
+
+
+def head_profile(fem, F):
+    """Cross-section tables (local, eye level = 0): half-width W, front depth Fd, back depth Bd, front exponent."""
+    Zs = [-0.122, -0.115, -0.105, -0.09, -0.07, -0.045, -0.02, 0.0, 0.03]
+    if not fem:
+        W = [0.004, 0.024, 0.037, 0.052, 0.063, 0.070, 0.076, 0.079, 0.080]
+        Fd = [0.03, 0.066, 0.080, 0.088, 0.092, 0.095, 0.094, 0.091, 0.093]
+        Bd = [0.01, 0.022, 0.030, 0.040, 0.058, 0.082, 0.097, 0.105, 0.108]
+    else:
+        W = [0.004, 0.019, 0.031, 0.046, 0.058, 0.066, 0.072, 0.075, 0.077]
+        Fd = [0.03, 0.060, 0.074, 0.082, 0.088, 0.091, 0.090, 0.088, 0.090]
+        Bd = [0.01, 0.021, 0.029, 0.039, 0.056, 0.080, 0.094, 0.102, 0.105]
+    jaw, chin = F["jaw"], F["chin"]
+    W = [w * (1 + (jaw - 1) * math.exp(-((z + 0.075) / 0.03) ** 2) + (chin - 1) * math.exp(-((z + 0.108) / 0.012) ** 2))
+         for w, z in zip(W, Zs)]
+    return Zs, W, Fd, Bd, (2.5 if not fem else 2.3)
+
+
+def ray_profile(d, prof):
+    Zs, W, Fd, Bd, nf = prof
+    top = 0.128
+
+    def inside(t):
+        x, f, z = d[0] * t, d[1] * t, d[2] * t
+        if z > top or z < Zs[0]:
+            return False
+        if z > 0.03:
+            q = math.sqrt(max(0.0, 1 - ((z - 0.03) / (top - 0.03)) ** 2))
+            w, fd, bd = W[-1] * q, Fd[-1] * q, Bd[-1] * q
+        else:
+            w, fd, bd = interp(z, Zs, W), interp(z, Zs, Fd), interp(z, Zs, Bd)
+        w, fd, bd = max(w, 1e-4), max(fd, 1e-4), max(bd, 1e-4)
+        n = nf if f > 0 else 2.0
+        return (abs(x) / w) ** n + (abs(f) / (fd if f > 0 else bd)) ** n < 1.0
+    lo, hi = 0.0, 0.2
+    for _ in range(22):
+        m = (lo + hi) * 0.5
+        if inside(m):
+            lo = m
+        else:
+            hi = m
+    return lo
 
 
 def build_head(hid, B, J, H, mats):
@@ -930,16 +982,17 @@ def build_head(hid, B, J, H, mats):
     hb = J["head"]
     k = 0.95 if fem else 1.0
     c = hb + V(0, -0.004, 0.122 * k)
-    shapes = head_shapes(fem, F)
+    shapes = head_profile(fem, F)
     smirk = F.get("smirk", 0.0)
+    tilt = F.get("tilt", 0.0016 if fem else 0.0006)
     nose, brow, cheek, lips, gaunt = F["nose"], F["brow"], F["cheek"], F["lips"], F["gaunt"]
 
     def mouth_z(x):
-        z = -0.0625 + (0.0015 if fem else 0.0)
+        z = -0.057 + (0.0015 if fem else 0.0)
         z += 0.0035 * smirk * smooth01(x / 0.022)
-        return z + 0.0018 * (abs(x) / 0.021) ** 2 * (0.0 if smirk else 1.0) * -1.0
+        return z - 0.0016 * (abs(x) / 0.021) ** 2 * (0.0 if smirk else 1.0)
 
-    def disp(x, f, z):
+    def disp(x, f, z, pit=True):
         """Feature displacement (m, along the radial direction) at base-surface point (x, f, z)."""
         g = smooth01((f - 0.02) / 0.045)
         if g <= 0:
@@ -947,35 +1000,41 @@ def build_head(hid, B, J, H, mats):
         ax = abs(x)
         dd = 0.0
         # brow ridge + glabella
-        dd += 0.0062 * brow * G2(ax, z, 0.034, 0.025, 0.026, 0.0085)
-        dd += 0.0022 * brow * G2(x, z, 0.0, 0.020, 0.011, 0.010)
-        # eye sockets (wide, shallow almond)
-        dd -= 0.0125 * G2(ax, z, 0.034, 0.002, 0.0205, 0.0098)
-        dd -= 0.003 * G2(ax, z, 0.040, -0.012, 0.02, 0.008)            # under-eye
+        dd += 0.0062 * brow * G2(ax, z, 0.036, 0.027, 0.027, 0.0085)
+        dd += 0.0020 * brow * G2(x, z, 0.0, 0.022, 0.011, 0.010)
+        # eye sockets (wide almond)
+        dd -= 0.0145 * G2(ax, z, 0.036, 0.004, 0.0225, 0.0108)
+        dd -= 0.0025 * G2(ax, z, 0.040, -0.010, 0.02, 0.008)            # under-eye
+        # eye opening (almond, outer corner lifted): pit so the eyeball shows between the lids
+        dx = ax - 0.036
+        hh = 0.0082 * math.sqrt(max(0.0, 1 - (dx / 0.0165) ** 2))
+        if hh > 0 and pit:
+            zc = 0.004 + tilt * dx / 0.0165 - 0.0012 * (dx / 0.0165) ** 2
+            q = abs(z - zc) / hh
+            dd -= 0.02 * smooth01((1.0 - q) / 0.18)
         # nose: bridge -> tip, alae
-        if -0.06 < z < 0.03:
-            t = smooth01((0.014 - z) / 0.052)
-            hgt = nose * (0.003 + 0.0185 * t ** 1.35)
-            if z < -0.036:
-                hgt *= math.exp(-((z + 0.036) / 0.0075) ** 2)
-            wdt = (0.0062 + 0.0068 * t) * (0.86 if fem else 1.0)
+        if -0.055 < z < 0.03:
+            t = smooth01((0.012 - z) / 0.044)
+            hgt = nose * (0.0025 + 0.0165 * t ** 1.4)
+            if z < -0.030:
+                hgt *= math.exp(-((z + 0.030) / 0.0072) ** 2)
+            wdt = (0.0068 + 0.0075 * t) * (0.86 if fem else 1.0)
             dd += hgt * math.exp(-(x / wdt) ** 2)
-        dd += 0.0058 * nose * G2(ax, z, 0.0135, -0.040, 0.0068, 0.0062)
+        dd += 0.0055 * nose * G2(ax, z, 0.0145, -0.034, 0.0072, 0.0062)
         # cheekbones / cheek hollows / temples
-        dd += 0.0060 * cheek * G2(ax, z, 0.050, -0.012, 0.019, 0.011)
-        dd -= 0.0048 * gaunt * G2(ax, z, 0.044, -0.050, 0.014, 0.016)
+        dd += 0.0060 * cheek * G2(ax, z, 0.052, -0.012, 0.019, 0.011)
+        dd -= 0.0045 * gaunt * G2(ax, z, 0.046, -0.046, 0.014, 0.015)
         dd -= 0.0025 * G2(ax, z, 0.068, 0.032, 0.012, 0.02)
         # mouth
         mz = mouth_z(x)
-        w_m = math.exp(-(x / 0.0215) ** 4)
-        dd += 0.0042 * lips * w_m * math.exp(-((z - (mz + 0.0058)) / 0.0048) ** 2)
-        dd += 0.0052 * lips * w_m * math.exp(-((z - (mz - 0.0075)) / 0.0055) ** 2)
+        w_m = math.exp(-(x / 0.0225) ** 4)
+        dd += 0.0040 * lips * w_m * math.exp(-((z - (mz + 0.0056)) / 0.0046) ** 2)
+        dd += 0.0050 * lips * w_m * math.exp(-((z - (mz - 0.0072)) / 0.0052) ** 2)
         dd -= 0.0034 * w_m * math.exp(-((z - mz) / 0.0019) ** 2)
-        dd -= 0.0018 * G2(x, z, 0, mz + 0.0135, 0.004, 0.005) * 0           # philtrum (off)
-        dd -= 0.0020 * G2(ax, z, 0.023, mz, 0.0045, 0.0045)                # mouth corners
-        dd -= 0.0022 * G2(x, z, 0, mz - 0.019, 0.016, 0.005)              # mentolabial groove
+        dd -= 0.0020 * G2(ax, z, 0.024, mz, 0.0045, 0.0045)                # mouth corners
+        dd -= 0.0020 * G2(x, z, 0, mz - 0.018, 0.016, 0.005)              # mentolabial groove
         # chin
-        dd += 0.0045 * F["chin"] * G2(x, z, 0, -0.097, 0.015, 0.012)
+        dd += 0.0040 * F["chin"] * G2(x, z, 0, -0.090, 0.016, 0.011)
         return dd * g
 
     def to_w(x, f, z):
@@ -989,10 +1048,7 @@ def build_head(hid, B, J, H, mats):
         ce, se = cos(radians(el)), sin(radians(el))
         for az in azs:
             d = (sin(radians(az)) * ce, cos(radians(az)) * ce, se)
-            r = 0.0
-            for o, R in shapes:
-                t = ray_ell(d, o, R)
-                r = t if r == 0.0 else smax(r, t, 0.02)
+            r = ray_profile(d, shapes)
             px, pf, pz = d[0] * r, d[1] * r, d[2] * r
             r += disp(px, pf, pz)
             verts.append(to_w(d[0] * r, d[1] * r, d[2] * r))
@@ -1014,22 +1070,22 @@ def build_head(hid, B, J, H, mats):
     bvh = BVHTree.FromPolygons(verts, faces)
     ob = new_obj(f"{hid}_head", verts, faces, mats["skn"])
     dec = ob.modifiers.new("dec", 'DECIMATE')
-    dec.ratio = 2300.0 / (len(faces) * 2)
+    dec.ratio = 1800.0 / (len(faces) * 2)
     apply_all(ob)
 
     # ---- eyes ----
     E = []
     for sx in (-1, 1):
-        tgt = to_w(sx * 0.034, 0.10, 0.002)
-        dvec = (tgt - c).normalized()
-        h = bvh.ray_cast(c, dvec, 0.3)
-        s = h[0] if h[0] else tgt
+        dl = Vector((sx * 0.036, 0.1, 0.004)).normalized()
+        r0 = ray_profile(dl, shapes)
+        r0 += disp(dl.x * r0, dl.y * r0, dl.z * r0, pit=False)
+        s = to_w(dl.x * r0, dl.y * r0, dl.z * r0)
         fwd_e = V(sx * sin(radians(9)), -cos(radians(9)), -sin(radians(2))).normalized()
         up_e = (Z - fwd_e * Z.dot(fwd_e)).normalized()
         lat = up_e.cross(fwd_e)
         rot = Matrix((lat, up_e, fwd_e)).transposed()
-        rad = (0.0158 * k, 0.0118 * k, 0.0118 * k)
-        e = s - fwd_e * 0.0072 * k
+        rad = (0.0178 * k, 0.0132 * k, 0.0132 * k)
+        e = s - fwd_e * 0.0052 * k
         E.append((e, rot, rad, fwd_e))
     HI = HeadInfo()
     HI.c, HI.k, HI.to_w, HI.bvh, HI.eyes, HI.mouth_z = c, k, to_w, bvh, E, mouth_z
@@ -1080,7 +1136,6 @@ def build_head(hid, B, J, H, mats):
         rot = rot_from(V(sx * 0.42, -1, 0.0), V(0, 0.3, 1))
         ellipsoid(ea, p, (0.0095 * k, 0.019 * k, 0.029 * k), rot, seg=10, rings=7)
         ellipsoid(ea, p + V(sx * 0.004, 0.006, 0.0), (0.006 * k, 0.012 * k, 0.018 * k), rot, seg=8, rings=5)
-    limb(ea, hb + V(0, 0.012, -0.05), hb + V(0, 0.010, 0.06), [(0, .047, .049, 0), (1, .045, .047, 0)], n=12)
     solid(f"{hid}_ears", ea, "skin", {"Head": 1.0}, tag="head")
 
     # ---- eyeballs ----
@@ -1091,7 +1146,7 @@ def build_head(hid, B, J, H, mats):
     limbal = tuple(a * 0.45 for a in iris)
     for i, (e, rot, rad, fe) in enumerate(E):
         ac = Acc()
-        ellipsoid(ac, e, rad, rot, seg=12, rings=12)
+        ellipsoid(ac, e, rad, rot, seg=12, rings=10)
 
         def ecol(co, e=e, rot=rot, rad=rad):
             ql = rot.inverted() @ (co - e)
@@ -1100,9 +1155,9 @@ def build_head(hid, B, J, H, mats):
             nr = math.sqrt((ql.x / rad[0]) ** 2 + (ql.y / rad[1]) ** 2)
             if nr < 0.12:
                 return pupil
-            if nr < 0.4:
+            if nr < 0.30:
                 return iris
-            if nr < 0.62:
+            if nr < 0.46:
                 return limbal
             return sclera
         if glow_eyes:
@@ -1130,6 +1185,7 @@ def build_head(hid, B, J, H, mats):
                 z = 0.025 + 0.008 * sin(pi * t * 0.85)
             else:
                 z = 0.022 + 0.005 * sin(pi * t * 0.9) + 0.002 * t
+            z += 0.004
             o = to_w(x * 0.9, 0.0, z * 0.9)
             tgt = to_w(x, 0.1, z)
             dv = (tgt - c).normalized()
@@ -1760,8 +1816,8 @@ def kit_thor(K):
     hang(K, "loinflap", "leather", -16, 16, 0.95, 0.68, 0.02, lambda c: skirt_w2(c, J, 0.6), nu=3, nv=4, fold=0.0, gap=0.018)
     # ---- head: auburn hair + beard, winged steel cap
     hairline = lambda az: table(az, [(0, 36), (40, 32), (62, 22), (82, 16), (102, 10), (130, -30), (180, -44)])
-    hair_cap("hair", HI, hairline, lambda az, v: 0.008 + 0.010 * smooth01((az - 30) / 100) + 0.006 * v, nu=30, nv=6, grooves=12)
-    hair_sheet("hairback", HI, K.bw, J, 112, 248, -28, 1.44, 0.012, flare=0.03, nu=10, nv=5, grooves=6, tatter=0.03)
+    hair_cap("hair", HI, hairline, lambda az, v: 0.008 + 0.010 * smooth01((az - 30) / 100) + 0.006 * v, nu=26, nv=5, grooves=11)
+    hair_sheet("hairback", HI, K.bw, J, 128, 232, -26, 1.47, 0.014, flare=0.02, nu=8, nv=4, grooves=5, tatter=0.03)
     beard("beard", HI, lambda az: table(az, [(0, -44), (16, -40), (28, -26), (50, -8), (70, 2), (88, 6)]), 92,
           lambda az, v: 0.004 + 0.040 * (1 - v) ** 1.3 * (1 - smooth01((az - 30) / 60) * 0.75), nu=14, nv=6, grooves=8)
     moustache("stache", HI, droop=0.016, width=0.026, r=0.0065)
@@ -1796,8 +1852,8 @@ def kit_loki(K):
             lambda c: {"Chest": smooth01((c.z - 1.12 * s) / 0.12), "Spine": 1 - smooth01((c.z - 1.12 * s) / 0.12) + 0.001},
             thick=0.008, tag="cloth")
     for sx in (-1, 1):
-        fnp = lambda u, v, sx=sx: (lerp(K.tz(1.25) + 0.05 * (1 - u if sx > 0 else u) * 0, K.tz(1.45), v),
-                                   sx * lerp(6, 46, u) * lerp(1.0, 1.08, v))
+        fnp = lambda u, v, sx=sx: (lerp(lerp(K.tz(1.235), K.tz(1.30), u), lerp(K.tz(1.425), K.tz(1.495), u ** 1.4), v),
+                                   sx * lerp(7, 50, u) * lerp(0.92, 1.06, v))
         K.torso(f"chestguard{sx}", fnp, 6, 5, 0.026, "plate", {"Chest": 1.0}, bulge=lambda u, v: 0.004 * sin(pi * u), thick=0.012)
         g = K.bw.cyl(K.ax0, K.ax1, lambda u, v, sx=sx: (lerp(K.tz(1.25), K.tz(1.45), u), sx * lerp(5, 9, v)), 5, 1, 0.031)
         shell(f"guardtrim{sx}", g, "gold", {"Chest": 1.0}, thick=0.006, outward=K.out_axis, tag="armor")
@@ -1809,8 +1865,8 @@ def kit_loki(K):
         hang(K, f"coattail{k}", "cloth", a0, a1, 1.0, 0.50, 0.08, lambda c: skirt_w2(c, J, 0.45), nu=5, nv=6, tatter=0.04,
              gap=0.026, folds=3)
     for side, sx in sides():
-        hang(K, f"coatside{side}", "cloth", sx * 34, sx * 124, 1.0, 0.56, 0.07, lambda c: skirt_w2(c, J, 0.6), nu=7, nv=6,
-             gap=0.026, folds=4, fold=0.008)
+        hang(K, f"coatside{side}", "cloth", sx * 40, sx * 124, 1.0, 0.56, 0.08, lambda c: skirt_w2(c, J, 0.65), nu=7, nv=6,
+             gap=0.032, folds=4, fold=0.008)
     for side, sx in sides():
         if sx < 0:
             pauldron(K, side, [(16, 86, 86, 0.030), (-14, 22, 88, 0.040)], ["plate"], trim="gold")
@@ -1839,7 +1895,7 @@ def kit_loki(K):
         g = hw.sph(hc, lambda u, v, sx=sx: (lerp(-6, 36, v), sx * lerp(70, 104, u)), 4, 4, 0.016)
         shell(f"cheekplate{sx}", g, "gold", HB, thick=0.010, outward=lambda p: p - hc, tag="helm")
         b0 = hc + V(sx * 0.036, -0.075, 0.068)
-        pts = bezier(b0, b0 + V(sx * 0.03, 0.0, 0.10), b0 + V(sx * 0.07, 0.10, 0.20), b0 + V(sx * 0.05, 0.23, 0.31), 11)
+        pts = bezier(b0, b0 + V(sx * 0.035, -0.012, 0.07), b0 + V(sx * 0.08, 0.05, 0.15), b0 + V(sx * 0.075, 0.17, 0.22), 11)
         tube_part(f"horn{sx}", pts, [0.020 - 0.0019 * i for i in range(10)] + [0.0008], "gold", HB, n=8, ref=V(0, -1, 0),
                   flat=0.7, tag="crest")
     g = hw.sph(hc, lambda u, v: (lerp(36, 39, v), lerp(-14, 14, u)), 3, 1, 0.0285)
@@ -1866,7 +1922,7 @@ def kit_hades(K):
     hang(K, "cloak", "cloth", 108, 252, 1.50, 0.26, 0.17, lambda c: cape_w(c, J), nu=12, nv=10, tatter=0.07, roll=True, gap=0.035)
     hang(K, "loin", "cloth", -24, 24, 0.97, 0.52, 0.03, lambda c: skirt_w2(c, J, 0.65), nu=4, nv=5, tatter=0.04, fold=0.0, gap=0.02)
     for side, sx in sides():
-        pauldron(K, side, [(30, 88, 102, 0.052), (4, 42, 104, 0.066), (-22, 12, 98, 0.076), (-46, -14, 88, 0.082)], ["steel"],
+        pauldron(K, side, [(30, 88, 100, 0.048), (2, 42, 100, 0.060), (-24, 10, 92, 0.068)], ["steel"],
                  trim="gold", spikes=[(-30, 60, 0.11, 0.02), (10, 70, 0.14, 0.022), (50, 55, 0.10, 0.018)])
         a, b = K.seg(side, "upper")
         K.limb(f"rerebrace{side}", a, b, lambda u, v: (lerp(0.40, 0.86, v), 90 + ab(u) * 150), 12, 3, 0.012, "steel",
@@ -1882,7 +1938,7 @@ def kit_hades(K):
         thigh_lames(K, side, ["steel"], [(0.12, 0.38), (0.34, 0.58), (0.54, 0.80)], half=74, off=0.016)
         knee_cop(K, side, "steel", off=0.02, size=1.15, spike="gold")
         sa, sb = K.seg(side, "shin")
-        K.limb(f"greave{side}", sa, sb, lambda u, v: (lerp(0.10, 0.90, v), ab(u) * 156), 14, 5, 0.022, "steel",
+        K.limb(f"greave{side}", sa, sb, lambda u, v: (lerp(0.10, 0.90, v), ab(u) * 156), 10, 4, 0.022, "steel",
                {"Shin" + side: 1.0}, sx, bulge=lambda u, v: 0.008 * max(0, 1 - abs(ab(u)) * 4), thick=0.012)
         K.limb(f"greavetrim{side}", sa, sb, lambda u, v: (lerp(0.10, 0.15, v), ab(u) * 156), 14, 1, 0.026, "gold",
                {"Shin" + side: 1.0}, sx, thick=0.008)
@@ -1945,8 +2001,8 @@ def kit_zeus(K):
     shell("chest_em", g, "glow", {"Chest": 1.0}, thick=0.003, bevel=0, outward=K.out_axis, tag="em")
     belt(K, 0.95, 1.03, "gold", off=0.016, buckle="plate", buckle_size=(0.07, 0.018, 0.06))
     # long coat skirt: open front, gold hem
-    for (a0, a1, nm, nu) in ((34, 150, "R", 6), (150, 210, "B", 3), (210, 326, "L", 6)):
-        hang(K, "coat" + nm, "cloth", a0, a1, 1.05, 0.40, 0.15, lambda c: skirt_w2(c, J, 0.55), nu=nu, nv=7, gap=0.016,
+    for (a0, a1, nm, nu) in ((42, 150, "R", 6), (150, 210, "B", 3), (210, 318, "L", 6)):
+        hang(K, "coat" + nm, "cloth", a0, a1, 1.05, 0.40, 0.17, lambda c: skirt_w2(c, J, 0.62), nu=nu, nv=7, gap=0.032,
              fold=0.008, folds=4, hem_slot="gold", hem_w=0.03)
     for side, sx in sides():
         pauldron(K, side, [(24, 86, 92, 0.034), (-4, 32, 94, 0.046)], ["plate", "steel"], trim="gold")
@@ -2031,9 +2087,9 @@ def kit_hela(K):
     for kk in range(9):
         a = (kk - 4) / 4.0
         base = hc + V(a * 0.07, -0.072 + abs(a) ** 1.5 * 0.05, 0.072 - abs(a) * 0.012)
-        ln = 0.40 - abs(a) * 0.17
-        d = V(a * 0.6, 0.62, 1.0).normalized()
-        pts = bezier(base, base + d * ln * 0.35, base + d * ln * 0.7 + V(0, 0.05, 0), base + d * ln + V(0, 0.12, -0.02), 7)
+        ln = 0.36 - abs(a) * 0.15
+        d = V(a * 0.55, 1.15, 0.65).normalized()
+        pts = bezier(base, base + d * ln * 0.3 + V(0, -0.02, 0.03), base + d * ln * 0.7 + V(0, 0.03, 0.01), base + d * ln + V(0, 0.10, -0.05), 7)
         loft(cr, tube_rings(pts, [0.016, 0.015, 0.012, 0.009, 0.006, 0.003, 0.0005], 6, V(0, -1, 0), flat=0.45), 6, cap0=True,
              cap1=False)
     solid("headdress", cr, "steel", HB, tag="crest")
@@ -2068,7 +2124,7 @@ def kit_valkyrie(K):
         K.limb(f"bootcuff{side}", a, b, lambda u, v: (lerp(0.74, 1.0, v), u * 360), 14, 2, lambda u, v: 0.012 - 0.002 * v,
                "leather", {"Thigh" + side: 1.0}, sx, closed=True, thick=0.010, tag="boots")
         knee_cop(K, side, "steel", off=0.024, size=0.9)
-        greave(K, side, "plate", t0=0.12, t1=0.72, h0=54, h1=44, off=0.022, ridge=0.006)
+        greave(K, side, "steel", t0=0.12, t1=0.72, h0=54, h1=44, off=0.022, ridge=0.006)
     # ---- head: blonde hair + braids, winged steel helm (open face)
     hairline = lambda az: table(az, [(0, 36), (30, 32), (60, 20), (84, 12), (104, 6), (130, -30), (180, -40)])
     hair_cap("hair", HI, hairline, lambda az, v: 0.007 + 0.008 * smooth01((az - 40) / 100) + 0.004 * v, nu=28, nv=6, grooves=12)
@@ -2087,7 +2143,7 @@ def kit_valkyrie(K):
             tube_part(f"hwing{sx}{kk}", pts, [0.022, 0.024, 0.022, 0.018, 0.010, 0.001], "feather", HB, n=6, ref=V(sx, 0, 0),
                       flat=0.22, tag="helm")
     # braids: one down the back + two framing the face
-    for k_, (x0, yb, zb, ln) in enumerate(((0.0, 0.10, -0.03, 0.30), (-0.072, 0.0, -0.06, 0.20), (0.072, 0.0, -0.06, 0.20))):
+    for k_, (x0, yb, zb, ln) in enumerate(((0.0, 0.10, -0.03, 0.30),)):
         p0 = hc + V(x0, yb, zb)
         if k_ == 0:
             pts = bezier(p0, p0 + V(0, 0.04, -0.06), p0 + V(0.0, 0.07, -0.16), p0 + V(0.01, 0.06, -ln), 9)
@@ -2360,7 +2416,7 @@ def make_mats(hid, H):
         "lth": make_mat(f"{hid}_leather", (1, 1, 1), 0.05, 0.5, vcol=True),
         "pri": make_mat(f"{hid}_armor", (1, 1, 1), 0.62, 0.34, vcol=True),
         "acc": make_mat(f"{hid}_metal", (1, 1, 1), 0.95, 0.26, vcol=True),
-        "em": make_mat(f"{hid}_glow", tuple(c * 0.4 for c in lin(pal["glow"])), 0.0, 0.3, emissive=lin(pal["glow"]), em_str=1.6),
+        "em": make_mat(f"{hid}_glow", tuple(c * 0.4 for c in lin(pal["glow"])), 0.0, 0.3, emissive=lin(pal["glow"]), em_str=1.0),
     }
     L = lambda key: lin(pal[key])
     SLOTS.clear()
