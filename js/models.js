@@ -25,7 +25,7 @@ window.ModelFactory = {
     if (!this._loader || this._glbCache[assetName] || this._glbLoading[assetName]) return;
     this._glbLoading[assetName] = [];
     this._loader.load(
-      `assets/models/${assetName}.glb?v=20261123d`,
+      `assets/models/${assetName}.glb?v=20261123g`,
       (gltf) => {
         this._glbCache[assetName] = { scene: gltf.scene, animations: gltf.animations || [] };
         const callbacks = this._glbLoading[assetName] || [];
@@ -39,6 +39,25 @@ window.ModelFactory = {
     );
   },
 
+  // Object3D.clone() keeps SkinnedMeshes bound to the ORIGINAL bones, so every bot would share one
+  // skeleton. Re-bind each cloned SkinnedMesh to the cloned bones by name (what SkeletonUtils.clone does).
+  _cloneSkinned(source) {
+    const clone = source.clone(true);
+    const srcSkinned = [], dstSkinned = [];
+    source.traverse(o => { if (o.isSkinnedMesh) srcSkinned.push(o); });
+    if (!srcSkinned.length) return clone;
+    const bonesByName = {};
+    clone.traverse(o => { if (o.isSkinnedMesh) dstSkinned.push(o); if (o.isBone) bonesByName[o.name] = o; });
+    dstSkinned.forEach((mesh, i) => {
+      const src = srcSkinned[i];
+      if (!src || !src.skeleton) return;
+      const bones = src.skeleton.bones.map(b => bonesByName[b.name] || b);
+      mesh.bind(new THREE.Skeleton(bones, src.skeleton.boneInverses.map(m => m.clone())), src.bindMatrix.clone());
+      mesh.frustumCulled = false; // skinned bounds don't follow animation in r128
+    });
+    return clone;
+  },
+
   attachBlenderGLB(assetName, targetGroup, onLoadedTransform = null, fallbackToHide = null) {
     if (typeof THREE === 'undefined' || !THREE.GLTFLoader) return false;
     this.initGLBPreload();
@@ -47,7 +66,7 @@ window.ModelFactory = {
     }
 
     const applyClone = (cached) => {
-      const clonedScene = cached.scene.clone(true);
+      const clonedScene = this._cloneSkinned(cached.scene);
       if (onLoadedTransform) onLoadedTransform(clonedScene);
       if (fallbackToHide) {
         // Flag them so per-frame visibility toggles (holster, etc.) never resurrect the placeholder.

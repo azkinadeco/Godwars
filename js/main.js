@@ -180,6 +180,50 @@ class GodWarsGame {
     const rimLight = new THREE.PointLight(0x38bdf8, 1.4, 18);
     rimLight.position.set(0, 3.5, -3.5);
     this.lobbyScene.add(hemi, keyLight, rimLight);
+    hemi.intensity = 0.55; keyLight.intensity = 0.9;
+
+    // --- Showcase stage pass: per-pedestal spotlights w/ soft shadows, light shafts, back colonnade, dust motes
+    const stageFx = new THREE.Group();
+    [[-2.6, 0.82, 0x7dd3fc], [0, 1.0, 0xfff1c9], [2.6, 0.82, 0xfdba74]].forEach(([sx, k, col]) => {
+      const spot = new THREE.SpotLight(col, 2.4 * k, 14, 0.42, 0.55, 1.4);
+      spot.position.set(sx * 0.9, 7.2, 2.6);
+      spot.target.position.set(sx, 0.4, 0);
+      spot.castShadow = true;
+      spot.shadow.mapSize.set(512, 512);
+      spot.shadow.bias = -0.0008;
+      stageFx.add(spot, spot.target);
+      // visible additive light shaft
+      const shaft = new THREE.Mesh(
+        new THREE.ConeGeometry(1.35, 7.2, 24, 1, true),
+        new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.06, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
+      );
+      shaft.position.set(sx * 0.95, 3.6, 1.3);
+      shaft.lookAt(sx, 7.2 + 3.6, 2.6 + 1.3);
+      shaft.rotateX(Math.PI / 2);
+      stageFx.add(shaft);
+    });
+    // colonnade backdrop
+    const colMat = new THREE.MeshStandardMaterial({ color: 0x2b3446, roughness: 0.7, metalness: 0.2 });
+    const capMat = new THREE.MeshStandardMaterial({ color: 0xb08a4a, roughness: 0.45, metalness: 0.6 });
+    for (let i = -4; i <= 4; i++) {
+      if (Math.abs(i) < 2) continue;
+      const x = i * 1.55, z = -5.2 - Math.abs(i) * 0.35;
+      const col = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.33, 6.5, 16), colMat);
+      col.position.set(x, 3.25, z);
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.3, 0.85), capMat);
+      cap.position.set(x, 6.55, z);
+      const base = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.3, 0.85), capMat);
+      base.position.set(x, 0.15, z);
+      stageFx.add(col, cap, base);
+    }
+    // dust motes
+    const moteGeo = new THREE.BufferGeometry();
+    const moteN = 260, motePos = new Float32Array(moteN * 3);
+    for (let i = 0; i < moteN; i++) { motePos[i * 3] = (Math.random() - 0.5) * 10; motePos[i * 3 + 1] = Math.random() * 6; motePos[i * 3 + 2] = (Math.random() - 0.5) * 6; }
+    moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
+    this.lobbyMotes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ color: 0xffe7a3, size: 0.035, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false }));
+    stageFx.add(this.lobbyMotes);
+    this.lobbyScene.add(stageFx);
 
     // Reflective Golden Valhalla Stage Floor
     const floor = new THREE.Mesh(
@@ -2723,7 +2767,7 @@ class GodWarsGame {
 
     const hData = window.GODWARS_DATA.HEROES[this.player.heroId];
     const cdMult = (this.player.perks && this.player.perks.tacCdMult) || 1.0;
-    this.player.tacticalCooldown = (this.isFiringRange ? 2.5 : hData.tacticalCooldown) * cdMult;
+    this.player.tacticalCooldown = (this.isFiringRange && !this.isOnline ? 2.5 : hData.tacticalCooldown) * cdMult;
     this.fovKick = 6;
 
     const eyePos = this.camera.position.clone();
@@ -3087,6 +3131,10 @@ class GodWarsGame {
             });
           });
         }
+        if (this.lobbyMotes) { this.lobbyMotes.rotation.y += 0.0009; this.lobbyMotes.position.y = Math.sin(performance.now() * 0.0003) * 0.15; }
+        // heroes/GLBs attach asynchronously: refresh shadow flags about once a second
+        this._lobbyShadowTick = (this._lobbyShadowTick || 0) + 1;
+        if (this._lobbyShadowTick % 60 === 1) this.lobbyScene.traverse(o => { if (o.isMesh && !o.material.transparent) { o.castShadow = true; o.receiveShadow = true; } });
         this.renderer.render(this.lobbyScene, this.lobbyCamera);
       }
       return;
@@ -3187,7 +3235,7 @@ class GodWarsGame {
     if (p.inspectTimer > 0) p.inspectTimer = Math.max(0, p.inspectTimer - dt);
     if (p.meleeTimer > 0) p.meleeTimer = Math.max(0, p.meleeTimer - dt);
 
-    p.ultCharge = Math.min(100, p.ultCharge + dt * (this.isFiringRange ? 15 : 1.6));
+    p.ultCharge = Math.min(100, p.ultCharge + dt * (this.isFiringRange && !this.isOnline ? 15 : 1.6));
 
     // Lv4 Gold Extended Mag Automatic Holstered Weapon Reload!
     const holsteredIdx = p.activeSlot === 0 ? 1 : 0;
@@ -3211,7 +3259,7 @@ class GodWarsGame {
       if (p.healTimer <= 0) {
         const hItem = window.GODWARS_DATA.HEAL_ITEMS[p.healingType];
         if (hItem && (p.heals[p.healingType] > 0 || this.isFiringRange)) {
-          if (!this.isFiringRange) p.heals[p.healingType]--;
+          if (!this.isFiringRange || this.isOnline) p.heals[p.healingType]--;
           if (hItem.shieldRestore > 0) {
             p.shield = Math.min(p.maxShield, p.shield + hItem.shieldRestore);
           }
@@ -3637,7 +3685,7 @@ class GodWarsGame {
         const needed = maxMag - wep.mag;
         const take = Math.min(needed, wep.reserve);
         wep.mag += take;
-        if (!this.isFiringRange) wep.reserve -= take;
+        if (!this.isFiringRange || this.isOnline) wep.reserve -= take;
       }
     }
 

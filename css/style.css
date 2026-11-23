@@ -2267,3 +2267,13 @@ body.mobile-mode #hud-combo-meter {
 }
 .online-arena-fields input:focus-visible { outline: 2px solid #fbbf24; outline-offset: 1px; }
 .mode-selector-row { flex-wrap: wrap; }
+
+.online-status { font-size: 12px; line-height: 1.4; padding: 6px 8px; border-radius: 6px; background: rgba(15, 23, 42, 0.85); color: #cbd5e1; border: 1px solid rgba(148, 163, 184, 0.4); }
+.online-status.hidden { display: none; }
+.online-status[data-kind="error"] { color: #fecaca; border-color: rgba(244, 63, 94, 0.7); }
+#btn-start-match:disabled { opacity: 0.7; cursor: progress; }
+/* Target size (WCAG 2.5.8): the music toggle was 17px tall */
+.btn-music-toggle { min-height: 32px; padding-top: 6px; padding-bottom: 6px; }
+@media (pointer: coarse) { .btn-music-toggle { min-height: 44px; } }
+/* Page zoom is allowed for accessibility; the live game surfaces keep gestures for controls */
+#game-canvas, #hud-screen, #mobile-touch-controls { touch-action: none; }

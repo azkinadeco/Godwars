@@ -225,13 +225,22 @@
     // Lobby entry point
     async startArena(name, room) {
       const G = window.GAME;
-      G.showLoadingHint && G.showLoadingHint('CONNECTING TO ARENA…');
+      const btn = document.getElementById('btn-start-match');
+      const status = document.getElementById('online-status');
+      const setStatus = (txt, kind) => { if (status) { status.textContent = txt; status.dataset.kind = kind || ''; status.classList.toggle('hidden', !txt); } };
+      if (btn) { btn.disabled = true; btn.dataset.label = btn.dataset.label || btn.textContent; btn.textContent = '⏳ CONNECTING…'; }
+      setStatus(`Menghubungkan ke room ${room}…`, 'info');
       try {
         await this.connect(name, room);
       } catch (e) {
-        alert(`Tidak bisa terhubung ke server arena (${e.message}).\n\nJalankan di Mac: node server/server.js\nlalu buka http://<IP-Mac>:8787 di HP (Wi-Fi yang sama).`);
+        if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label; }
+        const reason = e.message === 'room full' ? 'Room penuh (maks 12 pemain). Coba kode room lain.'
+          : 'Server arena tidak terjangkau. Di Mac jalankan "npm start", lalu buka alamat yang ditampilkan server dari HP di Wi-Fi yang sama.';
+        setStatus(reason, 'error');
         return;
       }
+      if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label; }
+      setStatus('', '');
       G.isOnline = true;
       G.startBattleRoyaleMatch(true, true);       // reuse firing-range shell: no ring, no dropship
       G.isOnline = true;
@@ -240,6 +249,11 @@
       G.bots = []; G.allies = [];
       const rp = document.getElementById('hud-range-controls'); if (rp) rp.classList.add('hidden');
       G.player.name = name;
+      // Fair arena loadout: everyone starts Lv2 blue armour, normal (non-mythic) guns, finite heals.
+      const P = G.player, T = window.GODWARS_DATA.EVO_TIERS[2];
+      P.shieldTier = 2; P.maxShield = T.maxShield; P.shield = T.maxShield; P.ultCharge = 20;
+      (P.weapons || []).forEach(w => { if (w) { w.isMythicGold = false; } });
+      if (P.heals) Object.keys(P.heals).forEach(k => { P.heals[k] = Math.min(P.heals[k], 2); });
       (this._pendingPlayers || []).forEach(info => this.ensureRemote(info));
       this.respawn();
       this.startSending();

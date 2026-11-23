@@ -79,12 +79,62 @@ def add_part(arm_obj, bone_name, prim, loc, scale, mat, rot=(0, 0, 0), taper=1.0
     attach_to_bone(obj, arm_obj, bone_name)
     return obj
 
+
+def build_skinned_body(arm_obj, mat_suit, mat_skin):
+    """One continuous organic body mesh (Skin modifier + Subdivision), heat-weighted to the rig,
+    so shoulders/elbows/knees bend as a single surface instead of floating primitives."""
+    J = {  # joint -> (position, radius_x, radius_y)
+        "pelvis": ((0, 0, 0.96), 0.17, 0.12), "waist": ((0, 0, 1.12), 0.15, 0.11),
+        "chest": ((0, 0, 1.36), 0.21, 0.13), "neck": ((0, 0, 1.56), 0.065, 0.065),
+        "shL": ((-0.24, 0, 1.47), 0.075, 0.075), "elL": ((-0.38, 0, 1.18), 0.055, 0.055), "wrL": ((-0.38, -0.18, 0.97), 0.045, 0.04),
+        "shR": ((0.24, 0, 1.47), 0.075, 0.075), "elR": ((0.38, 0, 1.18), 0.055, 0.055), "wrR": ((0.38, -0.22, 1.00), 0.045, 0.04),
+        "hipL": ((-0.12, 0, 0.92), 0.095, 0.095), "knL": ((-0.17, 0, 0.50), 0.07, 0.07), "anL": ((-0.17, 0, 0.09), 0.055, 0.055), "toL": ((-0.17, -0.15, 0.04), 0.05, 0.04),
+        "hipR": ((0.12, 0, 0.92), 0.095, 0.095), "knR": ((0.17, 0, 0.50), 0.07, 0.07), "anR": ((0.17, 0, 0.09), 0.055, 0.055), "toR": ((0.17, -0.15, 0.04), 0.05, 0.04),
+        "fistL": ((-0.38, -0.25, 0.93), 0.05, 0.05), "fistR": ((0.38, -0.29, 0.96), 0.05, 0.05),
+    }
+    names = list(J.keys())
+    edges = [("pelvis", "waist"), ("waist", "chest"), ("chest", "neck"),
+             ("chest", "shL"), ("shL", "elL"), ("elL", "wrL"), ("wrL", "fistL"),
+             ("chest", "shR"), ("shR", "elR"), ("elR", "wrR"), ("wrR", "fistR"),
+             ("pelvis", "hipL"), ("hipL", "knL"), ("knL", "anL"), ("anL", "toL"),
+             ("pelvis", "hipR"), ("hipR", "knR"), ("knR", "anR"), ("anR", "toR")]
+    mesh = bpy.data.meshes.new("BodyMesh")
+    mesh.from_pydata([J[n][0] for n in names], [(names.index(a), names.index(b)) for a, b in edges], [])
+    body = bpy.data.objects.new("Body", mesh)
+    bpy.context.collection.objects.link(body)
+    bpy.context.view_layer.objects.active = body
+    body.select_set(True)
+    skin = body.modifiers.new("Skin", 'SKIN')
+    skin.use_smooth_shade = True
+    for i, n in enumerate(names):
+        sv = mesh.skin_vertices[0].data[i]
+        sv.radius = (J[n][1], J[n][2])
+        sv.use_root = (n == "pelvis")
+    sub = body.modifiers.new("Sub", 'SUBSURF')
+    sub.levels = 2
+    bpy.ops.object.modifier_apply(modifier="Skin")
+    bpy.ops.object.modifier_apply(modifier="Sub")
+    bpy.ops.object.shade_smooth()
+    body.data.materials.append(mat_suit)
+    # Heat-weight to the armature (falls back to envelopes if the solver can't converge)
+    bpy.ops.object.select_all(action='DESELECT')
+    body.select_set(True)
+    arm_obj.select_set(True)
+    bpy.context.view_layer.objects.active = arm_obj
+    try:
+        bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+    except Exception:
+        bpy.ops.object.parent_set(type='ARMATURE_ENVELOPE')
+    bpy.ops.object.select_all(action='DESELECT')
+    return body
+
 def build_rigged_hero(hero_id, cfg):
     clear_scene()
     mat_pri = make_mat(f"{hero_id}_pri", cfg["primary"], 0.82, 0.22)
     mat_acc = make_mat(f"{hero_id}_acc", cfg["accent"], 0.92, 0.16)
     mat_drk = make_mat(f"{hero_id}_drk", cfg["dark"], 0.65, 0.36)
     mat_em  = make_mat(f"{hero_id}_em",  cfg["primary"], 0.2, 0.12, cfg["primary"], 3.0)
+    mat_suit = make_mat(f"{hero_id}_suit", tuple(c * 0.08 + 0.015 for c in cfg["primary"]), 0.1, 0.7)  # linear values: keep dark so armour reads
     mat_skn = make_mat(f"{hero_id}_skn", (0.88, 0.72, 0.58) if hero_id != "hades" else (0.72, 0.78, 0.86), 0.05, 0.48)
 
     # 1. Build Humanoid Armature (Z-up in Blender -> exported Y-up in glTF!)
@@ -120,6 +170,7 @@ def build_rigged_hero(hero_id, cfg):
     mk_bone("ShinR",     (0.17, 0, 0.50),  (0.17, 0, 0.05), "ThighR")
 
     bpy.ops.object.mode_set(mode='OBJECT')
+    build_skinned_body(arm_obj, mat_suit, mat_skn)
 
     # 2. Sculpted Armor Meshes Attached to Bones
     add_part(arm_obj, "Hips", "cube", (0, 0, 0.98), (0.44, 0.26, 0.20), mat_drk)
@@ -137,8 +188,12 @@ def build_rigged_hero(hero_id, cfg):
     add_part(arm_obj, "Chest", "sphere", (0.36, 0, 1.50),  (0.28, 0.28, 0.22), mat_acc)
 
     # Head, Visor & Unique God Crest
-    add_part(arm_obj, "Head", "sphere", (0, 0, 1.74), (0.27, 0.28, 0.31), mat_skn)
-    add_part(arm_obj, "Head", "cube",   (0, -0.13, 1.76), (0.18, 0.05, 0.06), mat_em)
+    # Helmeted head: dark shell, wide glowing visor slit, chin guard and ear plates
+    add_part(arm_obj, "Head", "sphere", (0, 0, 1.74), (0.27, 0.29, 0.31), mat_drk)
+    add_part(arm_obj, "Head", "cube",   (0, -0.125, 1.765), (0.22, 0.06, 0.055), mat_em)
+    add_part(arm_obj, "Head", "cube",   (0, -0.10, 1.655), (0.16, 0.08, 0.07), mat_pri, taper=0.7)
+    for sx in (-1, 1):
+        add_part(arm_obj, "Head", "cyl", (sx * 0.135, 0, 1.73), (0.09, 0.09, 0.04), mat_acc, rot=(0, math.radians(90), 0))
     add_part(arm_obj, "Head", "sphere", (0, 0.02, 1.80), (0.30, 0.31, 0.22), mat_acc)
     if cfg["crest"] == "horns":
         add_part(arm_obj, "Head", "cone", (-0.14, -0.06, 2.02), (0.07, 0.07, 0.36), mat_acc, rot=(math.radians(-20), math.radians(-25), 0))
@@ -157,26 +212,15 @@ def build_rigged_hero(hero_id, cfg):
     add_part(arm_obj, "Hips", "cyl", (0, 0, 1.09), (0.50, 0.32, 0.07), mat_acc)
     add_part(arm_obj, "Chest", "cube", (0, 0, 1.20), (0.48, 0.27, 0.14), mat_drk)
 
-    # Arms & Gauntlets
-    add_part(arm_obj, "UpperArmL", "cyl", (-0.36, 0, 1.32), (0.15, 0.15, 0.30), mat_drk, taper=1.15)
-    add_part(arm_obj, "ForearmL",  "cyl", (-0.38, -0.08, 1.07), (0.14, 0.14, 0.28), mat_acc, rot=(math.radians(35), 0, 0), taper=1.2)
-    add_part(arm_obj, "UpperArmR", "cyl", (0.36, 0, 1.32),  (0.15, 0.15, 0.30), mat_drk, taper=1.15)
-    add_part(arm_obj, "ForearmR",  "cyl", (0.38, -0.10, 1.08), (0.14, 0.14, 0.28), mat_acc, rot=(math.radians(42), 0, 0), taper=1.2)
-
-    # Hands (gloved fists at the end of each forearm)
-    add_part(arm_obj, "ForearmL", "sphere", (-0.38, -0.17, 0.95), (0.12, 0.12, 0.12), mat_drk)
-    add_part(arm_obj, "ForearmR", "sphere", (0.38, -0.21, 0.99), (0.12, 0.12, 0.12), mat_drk)
-
-    # Legs, Knee Guards & Armored Boots
-    add_part(arm_obj, "ThighL", "cyl",  (-0.16, 0, 0.72), (0.18, 0.18, 0.44), mat_drk, taper=1.18)
-    add_part(arm_obj, "ShinL",  "cyl",  (-0.17, 0, 0.28), (0.16, 0.16, 0.44), mat_pri, taper=1.2)
-    add_part(arm_obj, "ShinL",  "cube", (-0.17, -0.09, 0.48), (0.16, 0.08, 0.14), mat_acc)
-    add_part(arm_obj, "ShinL",  "cube", (-0.17, -0.05, 0.06), (0.18, 0.26, 0.12), mat_acc)
-
-    add_part(arm_obj, "ThighR", "cyl",  (0.16, 0, 0.72),  (0.18, 0.18, 0.44), mat_drk, taper=1.18)
-    add_part(arm_obj, "ShinR",  "cyl",  (0.17, 0, 0.28),  (0.16, 0.16, 0.44), mat_pri, taper=1.2)
-    add_part(arm_obj, "ShinR",  "cube", (0.17, -0.09, 0.48), (0.16, 0.08, 0.14), mat_acc)
-    add_part(arm_obj, "ShinR",  "cube", (0.17, -0.05, 0.06), (0.18, 0.26, 0.12), mat_acc)
+    # Armour shells over the skinned body (bone-parented rigid plates)
+    for sx, fa in ((-1, "ForearmL"), (1, "ForearmR")):
+        add_part(arm_obj, fa, "cyl", (sx * 0.38, -0.10 if sx < 0 else -0.12, 1.06), (0.13, 0.13, 0.16), mat_acc, rot=(math.radians(38), 0, 0), taper=1.15)
+        add_part(arm_obj, "UpperArm" + ("L" if sx < 0 else "R"), "cube", (sx * 0.33, 0, 1.30), (0.07, 0.15, 0.16), mat_pri)
+    for sx, th, sh in ((-1, "ThighL", "ShinL"), (1, "ThighR", "ShinR")):
+        add_part(arm_obj, th, "cube", (sx * 0.15, -0.085, 0.72), (0.15, 0.05, 0.26), mat_pri, taper=0.8)
+        add_part(arm_obj, sh, "cube", (sx * 0.17, -0.075, 0.30), (0.12, 0.05, 0.30), mat_pri, taper=0.85)
+        add_part(arm_obj, sh, "sphere", (sx * 0.17, -0.07, 0.50), (0.13, 0.08, 0.11), mat_acc)
+        add_part(arm_obj, sh, "cube", (sx * 0.17, -0.06, 0.06), (0.13, 0.28, 0.11), mat_drk)
 
     # 3. Bake 3 Real Skeletal glTF Animations (Idle, Run, Slide) into NLA Tracks!
     bpy.context.view_layer.objects.active = arm_obj
