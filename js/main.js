@@ -951,7 +951,7 @@ class GodWarsGame {
     // Euphoria Adventure High-Resolution Color Grading: ACES Filmic Tone Mapping + sRGB Output!
     if (THREE.ACESFilmicToneMapping !== undefined) {
       this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      this.renderer.toneMappingExposure = 0.9;
+      this.renderer.toneMappingExposure = 0.86;
     }
     if (THREE.sRGBEncoding !== undefined) {
       this.renderer.outputEncoding = THREE.sRGBEncoding;
@@ -2722,6 +2722,7 @@ class GodWarsGame {
     if (p.onGround) {
       p.velocity.y = 10.4;
       p.onGround = false;
+      if (window.SFX && window.SFX.playJump) window.SFX.playJump(this.world.surfaceAt(p.position.x, p.position.z, p.position.y));
       // Apex Slide-Jump Momentum Burst!
       if (p.isSliding) {
         p.momentumBoost = 15.2;
@@ -2741,11 +2742,52 @@ class GodWarsGame {
     }
   }
 
+  /** Stride-based footsteps for the player + spatialised steps of nearby bots (audio cue like Apex). */
+  updateFootsteps(dt) {
+    const p = this.player;
+    if (!p || !window.SFX || !window.SFX.playFootstep || !this.world.surfaceAt) return;
+    if (!p._lastStepPos) p._lastStepPos = p.position.clone();
+    const moved = Math.hypot(p.position.x - p._lastStepPos.x, p.position.z - p._lastStepPos.z);
+    p._lastStepPos.copy(p.position);
+    if (p.onGround && !p.isSliding && !p.ziplining && p.alive && moved < 2) {
+      p._stepAcc = (p._stepAcc || 0) + moved;
+      const stride = p.isSprinting ? 2.25 : p.isADS ? 1.5 : 1.8;
+      if (p._stepAcc >= stride) {
+        p._stepAcc = 0;
+        const inten = p.knocked ? 0.3 : p.isSprinting ? 0.95 : p.isADS ? 0.4 : 0.6;
+        window.SFX.playFootstep(this.world.surfaceAt(p.position.x, p.position.z, p.position.y), inten);
+      }
+    }
+    // enemies / allies within earshot: positional steps (max 4 per frame window)
+    if (!this.bots || !this.camera) return;
+    const cam = this.camera.position;
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    let budget = 4;
+    for (const b of this.bots) {
+      if (!b.alive || !b.position || b.inDropship || b.skydiving || budget <= 0) continue;
+      const dx = b.position.x - cam.x, dz = b.position.z - cam.z, dist = Math.hypot(dx, dz);
+      if (dist > 30) { b._lastStepPos = null; continue; }
+      if (!b._lastStepPos) { b._lastStepPos = b.position.clone(); b._stepAcc = 0; continue; }
+      const mv = Math.hypot(b.position.x - b._lastStepPos.x, b.position.z - b._lastStepPos.z);
+      b._lastStepPos.copy(b.position);
+      if (mv > 2 || Math.abs(b.position.y - this.world.getGroundHeight(b.position.x, b.position.z, b.position.y)) > 0.3) continue;
+      b._stepAcc = (b._stepAcc || 0) + mv;
+      const sprint = mv / Math.max(dt, 0.001) > 6;
+      if (b._stepAcc >= (sprint ? 2.25 : 1.8)) {
+        b._stepAcc = 0;
+        const pan = dist > 0.1 ? (dx * right.x + dz * right.z) / dist : 0;
+        window.SFX.playFootstep(this.world.surfaceAt(b.position.x, b.position.z, b.position.y), (sprint ? 0.9 : 0.6) * (b.isAlly ? 0.6 : 1), pan * 0.85, dist);
+        budget--;
+      }
+    }
+  }
+
   triggerSlideOrCrouch() {
     if (!this.player || !this.player.alive || !this.player.onGround || this.player.knocked) return;
     if (this.player.slideCooldown <= 0 && !this.player.isSliding) {
       this.player.isSliding = true;
       this.player.slideTimer = 0.88;
+      if (window.SFX && window.SFX.playSlide) { const pp = this.player.position; window.SFX.playSlide(this.world.surfaceAt(pp.x, pp.z, pp.y), 0.85); }
       this.player.slideCooldown = 1.05;
 
       // Euphoria-Inspired PERFECT SLIDE DODGE when sliding under active enemy gunfire!
@@ -3461,6 +3503,7 @@ class GodWarsGame {
           p.velocity.y = Math.max(0, p.velocity.y);
           if (Math.abs(p.position.y - ledgeY) < 0.35) {
             p.position.y = ledgeY;
+            if (window.SFX && window.SFX.playMantle) window.SFX.playMantle(this.world.surfaceAt(p.position.x, p.position.z, ledgeY));
             p.position.x += forwardVec.x * 0.55;
             p.position.z += forwardVec.z * 0.55;
             p.onGround = true;
@@ -3478,6 +3521,10 @@ class GodWarsGame {
         if (!p.onGround && p.velocity.y < -5.5) {
           p.landingDip = Math.min(0.18, Math.abs(p.velocity.y) * 0.011);
         }
+        if (!p.onGround && p.velocity.y < -3 && !p.skydiving && window.SFX && window.SFX.playLand) {
+          window.SFX.playLand(this.world.surfaceAt(p.position.x, p.position.z, groundY), Math.min(1, (-p.velocity.y - 3) / 18));
+          p._stepAcc = 0;
+        }
         if (p.isSliding && groundY < (p.prevGroundY || 0) - 0.01) {
           p.slideTimer = Math.min(1.1, p.slideTimer + dt * 0.8);
         }
@@ -3491,6 +3538,7 @@ class GodWarsGame {
       if (p.landingDip > 0) {
         p.landingDip = Math.max(0, p.landingDip - dt * 0.85);
       }
+      this.updateFootsteps(dt);
 
       for (const pad of this.world.jumpPads) {
         if (Math.hypot(p.position.x - pad.x, p.position.z - pad.z) < pad.radius && p.position.y < 1.5) {

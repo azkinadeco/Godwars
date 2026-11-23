@@ -74,6 +74,7 @@ class AsgardWorld {
     this.buildZiplinesAndJumpTower();
     this.buildArenaChampionBanners();
     this.buildSupplyBins();
+    this.buildPropKit();
     this.buildGroundLootAndReplicators();
     this.buildCargoBots();
     this.buildStormRing();
@@ -100,13 +101,14 @@ class AsgardWorld {
     // pale marble ashlar + flagstone for temples, cast concrete for civic blocks, painted steel cladding,
     // weathered bronze trim, basalt for Helheim/forge, layered rock for terrain features.
     const P = (n) => window.ModelFactory.getPBR(n);
-    const pbr = (n, opts) => { const t = P(n); return new THREE.MeshStandardMaterial(Object.assign({ map: t.map, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.9, 0.9) }, opts)); };
+    // envMapIntensity 0.3: the sky IBL was flattening every diffuse surface to pastel; sun + hemi now carry the read
+    const pbr = (n, opts) => { const t = P(n); return new THREE.MeshStandardMaterial(Object.assign({ map: t.map, normalMap: t.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), envMapIntensity: 0.3 }, opts)); };
     this.mats = {
       gold: new THREE.MeshStandardMaterial({ color: 0x9a7740, metalness: 0.78, roughness: 0.4, normalMap: P('metal_panel').normalMap, normalScale: new THREE.Vector2(0.35, 0.35) }),
       brightGold: new THREE.MeshStandardMaterial({ color: 0xc49a4c, metalness: 0.85, roughness: 0.32 }),
-      marbleWall: pbr('marble', { color: 0xd6d1c8, roughness: 0.6, metalness: 0.0 }),
-      marbleFloor: pbr('stone_tiles', { color: 0xa8a196, roughness: 0.72, metalness: 0.0 }),
-      concrete: pbr('concrete', { color: 0xb4b0a8, roughness: 0.85, metalness: 0.0 }),
+      marbleWall: pbr('marble', { color: 0xb3ada3, roughness: 0.6, metalness: 0.0 }),
+      marbleFloor: pbr('stone_tiles', { color: 0x8c867b, roughness: 0.72, metalness: 0.0 }),
+      concrete: pbr('concrete', { color: 0x9c988f, roughness: 0.85, metalness: 0.0 }),
       darkSteel: pbr('metal_panel', { color: 0xc8ced6, metalness: 0.35, roughness: 0.5 }),
       obsidian: pbr('basalt', { color: 0xd8d8dc, metalness: 0.0, roughness: 0.78 }),
       stone: pbr('rock', { color: 0xd8d2c8, metalness: 0.0, roughness: 0.92 }),
@@ -163,6 +165,40 @@ class AsgardWorld {
     return geo;
   }
 
+  /** footstep surface for a material: 'stone' | 'grass' | 'metal' | 'wood' */
+  _surfaceKind(m) {
+    const M = this.mats || {};
+    if (!m) return 'stone';
+    if (m === M.darkSteel || m === M.gold || m === M.brightGold || m === M.roof) return 'metal';
+    if (m === M.woodGold) return 'wood';
+    if (m === M.grass) return 'grass';
+    return 'stone';
+  }
+
+  /** What the feet at (x, y, z) are standing on — mirrors getGroundHeight's priority. */
+  surfaceAt(x, z, y) {
+    let best = null, bestY = -1e9;
+    for (const r of this.ramps) {
+      if (x >= r.minX && x <= r.maxX && z >= r.minZ && z <= r.maxZ) {
+        const t = r.dir === 'N' ? (r.maxZ - z) / (r.maxZ - r.minZ) : r.dir === 'S' ? (z - r.minZ) / (r.maxZ - r.minZ) : r.dir === 'E' ? (x - r.minX) / (r.maxX - r.minX) : (r.maxX - x) / (r.maxX - r.minX);
+        const ry = r.lowY + Math.max(0, Math.min(1, t)) * (r.highY - r.lowY);
+        if (Math.abs(ry - y) < 0.4 && ry > bestY) { bestY = ry; best = r.kind; }
+      }
+    }
+    for (const s of this.walkableSurfaces) {
+      if (x >= s.minX - 0.3 && x <= s.maxX + 0.3 && z >= s.minZ - 0.3 && z <= s.maxZ + 0.3 && Math.abs(s.y - y) < 0.35 && s.y > bestY) { bestY = s.y; best = s.kind; }
+    }
+    if (best) return best;
+    // open ground: paved plaza / highways read as stone, everything else is meadow
+    if (Math.hypot(x, z) < 52) return 'stone';
+    for (const poi of window.GODWARS_DATA.POIS) {
+      if (poi.id === 'valhalla') continue;
+      const len = Math.hypot(poi.x, poi.z), ux = poi.x / len, uz = poi.z / len, proj = x * ux + z * uz;
+      if (proj > 0 && proj < len && Math.abs(x * (-uz) + z * ux) < 4.2) return 'stone';
+    }
+    return 'grass';
+  }
+
   addSolidWall(x, y, z, w, h, d, material, isClimbable = true) {
     const mesh = new THREE.Mesh(this._worldUV(new THREE.BoxGeometry(w, h, d), w, h, d, x, z), material || this.mats.marbleWall);
     mesh.position.set(x, y + h / 2, z);
@@ -187,7 +223,8 @@ class AsgardWorld {
         minZ: z - d / 2,
         maxZ: z + d / 2,
         y: y + h,
-        thickness: h
+        thickness: h,
+        kind: this._surfaceKind(material)
       });
     }
     return mesh;
@@ -231,7 +268,8 @@ class AsgardWorld {
       minZ: z - d / 2,
       maxZ: z + d / 2,
       y: topY,
-      thickness
+      thickness,
+      kind: this._surfaceKind(material || this.mats.marbleFloor)
     });
 
     // Add horizontal slab collider for elevated 2nd-floor/roof slabs OR thick ground plinths (> 0.5m)
@@ -312,6 +350,7 @@ class AsgardWorld {
     this.scene.add(group);
 
     this.ramps.push({
+      kind: this._surfaceKind(mat),
       minX: x - w / 2 - 0.2,
       maxX: x + w / 2 + 0.2,
       minZ: z - d / 2 - 0.2,
@@ -501,7 +540,55 @@ class AsgardWorld {
     this.addSolidWall(cx + width * 0.05, roofY, cz - depth * 0.25, 1.4, 0.9, 1.4, M.darkSteel, true);
     vis(new THREE.CylinderGeometry(0.35, 0.35, 1.6, 10), M.darkSteel, cx + width * 0.36, roofY + 0.8, cz - depth * 0.3);
 
+    (this.buildings = this.buildings || []).push({ cx, cz, width, depth, roofY });
+    this.addBuildingDressing(cx, cz, width, depth, floorCount, wallMat, trimMat);
     this.decorateBuildingArchetype(cx, cz, width, depth, roofY, wallMat, trimMat);
+  }
+
+  /** Per-building set dressing (deterministic by position): awnings, wall lamps, drainpipes,
+   *  a balcony and a rooftop water tank so the shared template stops reading as copy-paste. */
+  addBuildingDressing(cx, cz, width, depth, floorCount, wallMat, trimMat) {
+    const M = this.mats, fh = 4.6, roofY = floorCount * fh;
+    const h = Math.abs(Math.sin(cx * 12.9898 + cz * 78.233) * 43758.5453) % 1;
+    const add = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); m.castShadow = true; m.receiveShadow = true; this.scene.add(m); return m; };
+    if (!this._dressMats) {
+      const c = (hex, r = 0.9) => new THREE.MeshStandardMaterial({ color: new THREE.Color(hex).convertSRGBToLinear(), roughness: r, metalness: 0, side: THREE.DoubleSide, envMapIntensity: 0.3 });
+      this._dressMats = { awnings: [c(0x7a2e2a), c(0x2e5a5c), c(0x5c5a2e), c(0x34405e)], lamp: new THREE.MeshBasicMaterial({ color: 0xffd9a0 }), pipe: new THREE.MeshStandardMaterial({ color: new THREE.Color(0x3a3d42).convertSRGBToLinear(), metalness: 0.7, roughness: 0.45 }) };
+    }
+    const D = this._dressMats;
+    const awn = D.awnings[Math.floor(h * 4) % 4];
+    // door awnings (both facades) + wall lamps beside each door
+    for (const sz of [-1, 1]) {
+      const zf = cz + sz * (depth / 2);
+      const a = add(new THREE.BoxGeometry(4.6, 0.06, 1.5), awn, cx, 3.55, zf + sz * 0.72, sz * -0.32, 0, 0);
+      a.castShadow = true;
+      for (const sx of [-1, 1]) {
+        add(new THREE.BoxGeometry(0.06, 0.06, 1.4), D.pipe, cx + sx * 2.2, 3.45, zf + sz * 0.66, sz * -0.32, 0, 0);
+        add(new THREE.BoxGeometry(0.16, 0.24, 0.12), D.pipe, cx + sx * 2.5, 2.7, zf + sz * 0.3);
+        add(new THREE.BoxGeometry(0.1, 0.12, 0.06), D.lamp, cx + sx * 2.5, 2.66, zf + sz * 0.37);
+      }
+    }
+    // corner drainpipe(s) running the full height
+    const cornerX = cx + (h > 0.5 ? 1 : -1) * (width / 2 + 0.08), cornerZ = cz + depth / 2 + 0.08;
+    add(new THREE.CylinderGeometry(0.08, 0.08, roofY + 0.6, 8), D.pipe, cornerX, (roofY + 0.6) / 2, cornerZ);
+    for (let y = 1.5; y < roofY; y += 3) add(new THREE.BoxGeometry(0.22, 0.06, 0.22), D.pipe, cornerX, y, cornerZ);
+    // balcony on an upper floor (walkable, railed), east or west face
+    if (floorCount >= 2 && h > 0.25) {
+      // east face only: the west face hosts the interior stair
+      const by = fh, bw = 1.5, bd = Math.min(6, depth * 0.45), sx = 1, bxx = cx + width / 2 + 0.75;
+      this.addWalkableFloor(bxx, by, cz + depth * 0.15, bw, bd, 0.25, M.cornice);
+      this.addSolidWall(bxx + sx * (bw / 2 - 0.05), by, cz + depth * 0.15, 0.08, 1.0, bd, M.gold, false);
+      [-1, 1].forEach(e => this.addSolidWall(bxx, by, cz + depth * 0.15 + e * (bd / 2 - 0.04), bw, 1.0, 0.08, M.gold, false));
+      add(new THREE.BoxGeometry(0.12, 0.5, bd), D.pipe, bxx - sx * 0.3, by - 0.35, cz + depth * 0.15); // bracket beam
+    }
+    // rooftop water tank on legs or a second plant box
+    if (h < 0.55) {
+      const tx = cx + width * 0.05, tz = cz + depth * 0.2;
+      add(new THREE.CylinderGeometry(1.0, 1.0, 1.8, 16), M.darkSteel, tx, roofY + 2.1, tz);
+      add(new THREE.ConeGeometry(1.05, 0.4, 16), M.darkSteel, tx, roofY + 3.2, tz);
+      [[-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7]].forEach(([lx, lz]) => add(new THREE.BoxGeometry(0.1, 1.2, 0.1), D.pipe, tx + lx, roofY + 0.6, tz + lz));
+      this.colliders.push({ minX: tx - 1, maxX: tx + 1, minZ: tz - 1, maxZ: tz + 1, minY: roofY, maxY: roofY + 3.4, isClimbable: false });
+    }
   }
 
   /**
@@ -691,8 +778,8 @@ class AsgardWorld {
 
     // Euphoria Adventure Multi-Stop Celestial Sky Dome Shader (Sun Disc, Golden Corona & 2-Octave FBM Clouds!)
     this.skyUniforms = {
-      zenith:  { value: new THREE.Color(0x2a63b8) },
-      midSky:  { value: new THREE.Color(0x76aee6) },
+      zenith:  { value: new THREE.Color(0x1a56c0) },
+      midSky:  { value: new THREE.Color(0x5a9ae2) },
       horizon: { value: new THREE.Color(0xcbd9e6) },   // == fog colour: mountains melt into haze
       sunDir:  { value: new THREE.Vector3(0.52, 0.62, 0.45).normalize() },
       sunCol:  { value: new THREE.Color(0xfff4c8) },
@@ -762,11 +849,12 @@ class AsgardWorld {
     this.skyMesh = skyMesh;
 
     // Euphoria Adventure High-Contrast Anime/Fantasy Lighting + Tight Follow-Player Sun Shadow Map (P0-3)!
-    const hemiLight = new THREE.HemisphereLight(0xb8d2f5, 0x5a4a38, 0.42);
+    // cooler, dimmer fill + warmer, stronger key = Apex-style sunlit contrast (shadows read blue, lit faces warm)
+    const hemiLight = new THREE.HemisphereLight(0x9fc2f0, 0x4a3d30, 0.42);
     hemiLight.position.set(0, 180, 0);
     this.scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xffe2b8, 1.55);
+    const sunLight = new THREE.DirectionalLight(0xffd6a0, 1.95);
     sunLight.position.set(60, 95, 50);
     sunLight.castShadow = true;
     const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
@@ -854,7 +942,7 @@ class AsgardWorld {
   _makeTerrainMaterial() {
     const P = (n) => window.ModelFactory.getPBR(n);
     const grass = P('grass'), rock = P('rock'), dirt = P('dirt');
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: grass.map, normalMap: rock.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.93, metalness: 0.0 });
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, map: grass.map, normalMap: rock.normalMap, normalScale: new THREE.Vector2(0.6, 0.6), roughness: 0.93, metalness: 0.0, envMapIntensity: 0.3 });
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.rockMap = { value: rock.map };
       sh.uniforms.dirtMap = { value: dirt.map };
@@ -999,7 +1087,7 @@ class AsgardWorld {
     for (let ri = 0; ri < radii.length - 1; ri++) {
       for (let ai = 0; ai < segA; ai++) {
         const a = ri * row + ai, b = a + 1, c = a + row, d = c + 1;
-        idx.push(a, c, b, b, c, d);
+        idx.push(a, b, c, b, d, c); // CCW seen from above -> normals point up
       }
     }
     const geo = new THREE.BufferGeometry();
@@ -1012,9 +1100,10 @@ class AsgardWorld {
     for (let i = 0; i < n.count; i++) {
       const y = verts[i * 3 + 1];
       const slope = 1 - n.getY(i);
-      const rock = Math.min(1, Math.max(0, (slope - 0.05) / 0.12) + Math.max(0, (y - 14) / 10));
-      const snow = Math.min(1, Math.max(0, (y - 62) / 14) * (1 - Math.max(0, (slope - 0.35) / 0.25)));
-      col.setRGB(0.34, 0.44, 0.22).lerp(new THREE.Color(0.85, 0.83, 0.8), rock).convertSRGBToLinear();
+      // alpine banding: meadow on gentle lower slopes, cool grey rock above, snow caps on the peaks
+      const rock = Math.min(1, Math.max(0, (slope - 0.22) / 0.16) + Math.max(0, (y - 26) / 14));
+      const snow = Math.min(1, Math.max(0, (y - 44) / 12) * (1 - Math.max(0, (slope - 0.5) / 0.3)));
+      col.setRGB(0.30, 0.42, 0.2).lerp(new THREE.Color(0.7, 0.74, 0.8), rock).convertSRGBToLinear();
       cols.push(col.r, col.g, col.b);
       blend.push(rock, 0.15 * (1 - rock), snow);
     }
@@ -1907,6 +1996,102 @@ class AsgardWorld {
   // - ZERO pyramid cones! Uses crossed painted grass blade & leaf cards!
   // - ZERO overlap with buildings, interiors, or roads!
   // =========================================================================
+  /**
+   * Blender prop kit (assets/models/kit_*.glb): set dressing + cover. Colliders come from each
+   * model's real bounding box once it loads; spots that would overlap existing geometry are skipped.
+   */
+  placeKit(name, x, z, rotY = 0, opts = {}) {
+    const r = opts.radius || 1.2;
+    const y = opts.y !== undefined ? opts.y : this.terrainHeightAt(x, z);
+    if (!opts.force) {
+      for (const c of this.colliders) {
+        if (c.isDoor) continue;
+        if (x + r > c.minX && x - r < c.maxX && z + r > c.minZ && z - r < c.maxZ && y + 1 > c.minY && y < c.maxY) return null;
+      }
+      for (const d of this.doors) if (Math.hypot(x - d.x, z - d.z) < 3.2 + r) return null;
+    }
+    const g = new THREE.Group();
+    g.position.set(x, y, z); g.rotation.y = rotY;
+    if (opts.scale) g.scale.setScalar(opts.scale);
+    this.scene.add(g);
+    // reserve the footprint immediately so later placements don't stack on it
+    const res = { minX: x - r * 0.7, maxX: x + r * 0.7, minZ: z - r * 0.7, maxZ: z + r * 0.7, minY: y, maxY: y + 0.01, isClimbable: true, reserved: true };
+    this.colliders.push(res);
+    window.ModelFactory.attachBlenderGLB(name, g, (glb) => {
+      glb.traverse(m => { if (m.isMesh) { m.castShadow = !opts.noShadow; m.receiveShadow = true; if (m.material && !m.material.userData.gwKit) { m.material.userData.gwKit = true; if (!m.material.emissiveMap && m.material.envMapIntensity !== undefined) m.material.envMapIntensity = 0.45; } } });
+      if (opts.noCollide) return;
+      g.add(glb); g.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(glb);
+      const h = box.max.y - box.min.y;
+      Object.assign(res, { minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, minY: box.min.y, maxY: box.max.y, isClimbable: h < 2.4, reserved: false, thin: opts.thin });
+      if (opts.thin) { // poles: collide only with a slim core
+        const cx0 = (box.min.x + box.max.x) / 2, cz0 = (box.min.z + box.max.z) / 2;
+        Object.assign(res, { minX: cx0 - 0.25, maxX: cx0 + 0.25, minZ: cz0 - 0.25, maxZ: cz0 + 0.25 });
+      } else if (h < 2.4) {
+        this.walkableSurfaces.push({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, y: box.max.y, thickness: h, kind: /barrel|generator|ac_unit|crate/.test(name) ? 'metal' : 'stone' });
+      }
+    });
+    return g;
+  }
+
+  buildPropKit() {
+    let seed = 4242;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+    const POIS = window.GODWARS_DATA.POIS;
+    const R = this.islandRadius;
+    // 1. highways: street lamps both sides every ~28 m, jersey barriers in staggered pairs (cover while rotating)
+    POIS.forEach(poi => {
+      if (poi.id === 'valhalla') return;
+      const len = Math.hypot(poi.x, poi.z), ux = poi.x / len, uz = poi.z / len, px = -uz, pz = ux, ang = Math.atan2(ux, uz);
+      for (let t = 62; t < len - 48; t += 28) {
+        const side = (Math.round(t / 28) % 2) ? 1 : -1;
+        this.placeKit('kit_lamppost', ux * t + px * 5.1 * side, uz * t + pz * 5.1 * side, ang + (side > 0 ? Math.PI / 2 : -Math.PI / 2), { radius: 0.4, thin: true });
+      }
+      for (let t = 75; t < len - 55; t += 46) {
+        const side = rnd() > 0.5 ? 1 : -1;
+        this.placeKit('kit_barrier', ux * t + px * 8.5 * side, uz * t + pz * 8.5 * side, ang + (rnd() - 0.5) * 0.5, { radius: 1.2 });
+        this.placeKit('kit_barrier', ux * (t + 3) + px * 9.2 * side, uz * (t + 3) + pz * 9.2 * side, ang + 0.3, { radius: 1.2 });
+      }
+    });
+    // 2. around every building: crate stacks, barrels, generators near walls; AC + antenna on roofs
+    (this.buildings || []).forEach((b, i) => {
+      const along = [[b.cx + b.width / 2 + 2.2, b.cz + b.depth * 0.3, Math.PI / 2], [b.cx - b.width / 2 - 2.2, b.cz - b.depth * 0.3, -Math.PI / 2],
+                     [b.cx + b.width * 0.32, b.cz + b.depth / 2 + 2.4, 0], [b.cx - b.width * 0.32, b.cz - b.depth / 2 - 2.4, Math.PI]];
+      along.forEach(([x, z, ry], k) => {
+        const pick = (i + k) % 4;
+        if (pick === 0) { this.placeKit('kit_crate_large', x, z, ry, { radius: 1.0 }); this.placeKit('kit_crate_small', x + 1.3 * Math.cos(ry), z - 1.3 * Math.sin(ry), ry + 0.4, { radius: 0.6 }); }
+        else if (pick === 1) { this.placeKit('kit_barrel', x, z, rnd() * 6, { radius: 0.45 }); this.placeKit('kit_barrel', x + 0.75, z + 0.3, rnd() * 6, { radius: 0.45 }); }
+        else if (pick === 2) this.placeKit('kit_generator', x, z, ry, { radius: 1.1 });
+        else this.placeKit('kit_spool', x, z, ry, { radius: 0.8 });
+      });
+      this.placeKit('kit_ac_unit', b.cx + b.width * 0.3, b.cz - b.depth * 0.05, 0, { y: b.roofY, radius: 0.8 });
+      if (i % 3 === 0) this.placeKit('kit_antenna', b.cx + b.width * 0.38, b.cz + b.depth * 0.36, 0, { y: b.roofY, radius: 0.4, thin: true });
+    });
+    // 3. POI perimeters: sandbag nests facing outward + rune banners at the approaches
+    POIS.forEach((poi, pi) => {
+      const ring = poi.id === 'valhalla' ? 58 : 44;
+      for (let k = 0; k < 4; k++) {
+        const a = k / 4 * Math.PI * 2 + pi * 0.7 + 0.4;
+        this.placeKit('kit_sandbags', poi.x + Math.cos(a) * ring, poi.z + Math.sin(a) * ring, -a + Math.PI / 2, { radius: 1.4 });
+      }
+      for (let k = 0; k < 2; k++) {
+        const a = Math.atan2(-poi.z, -poi.x) + (k ? 0.22 : -0.22);
+        if (poi.id === 'valhalla') continue;
+        this.placeKit('kit_rune_banner', poi.x + Math.cos(a) * (ring - 6), poi.z + Math.sin(a) * (ring - 6), -a, { radius: 0.4, thin: true });
+      }
+    });
+    // 4. Valhalla plaza market: a ring of stalls between the palaces
+    [[-36, 26, 0.3], [36, 26, -0.3], [-36, -26, Math.PI - 0.3], [36, -26, Math.PI + 0.3], [-44, 6, Math.PI / 2], [44, -6, -Math.PI / 2]].forEach(([x, z, ry]) => this.placeKit('kit_market_stall', x, z, ry, { radius: 1.8 }));
+    // 5. open-field cover scatter: crates & barriers in the meadows between POIs
+    for (let i = 0, placed = 0; i < 160 && placed < 34; i++) {
+      const a = rnd() * Math.PI * 2, r = 50 + rnd() * (R - 75);
+      const x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (POIS.some(p => Math.hypot(x - p.x, z - p.z) < 40)) continue;
+      const kinds = ['kit_crate_large', 'kit_barrier', 'kit_sandbags', 'kit_crate_small', 'kit_barrel'];
+      if (this.placeKit(kinds[i % kinds.length], x, z, rnd() * Math.PI * 2, { radius: 1.3 })) placed++;
+    }
+  }
+
   /** Instance every mesh of a Blender GLB at the given world matrices (one draw call per material). */
   _instanceGLB(name, matrices, shadows = true) {
     if (!matrices.length || !window.ModelFactory || !window.ModelFactory.attachBlenderGLB) return;
@@ -1948,7 +2133,7 @@ class AsgardWorld {
     const grassGeoB = grassGeoA.clone();
     grassGeoB.rotateY(Math.PI / 2);
 
-    const grassCount = 750;
+    const grassCount = (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) ? 650 : 1600;
     const grassInstA = new THREE.InstancedMesh(grassGeoA, grassMat, grassCount);
     const grassInstB = new THREE.InstancedMesh(grassGeoB, grassMat, grassCount);
     let gIdx = 0;
@@ -2161,6 +2346,7 @@ class AsgardWorld {
               m.userData.gwTinted = true;
               if (m.color.getHex() === 0xffffff) m.color.setHex(0xe6dccb);
               if (m.roughness !== undefined) m.roughness = Math.max(m.roughness, 0.7);
+              m.envMapIntensity = 0.35;
             }
             // Candy-red toon roofs / maroon walls clashed with the marble+bronze palette:
             // remap red vertex paint to slate roofing and weathered stone (geometry is shared -> once).

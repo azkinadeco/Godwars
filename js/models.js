@@ -871,7 +871,7 @@ window.ModelFactory = {
       };
       const grip = GRIPS[weaponId] || GRIPS.m4a1;
       // NOTE: r128 treats hex colours as linear; author these in sRGB and convert, or dark cloth renders pastel.
-      const sleeveMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(0x2a2d34).lerp(new THREE.Color(hData.hexColor), 0.2).convertSRGBToLinear(), metalness: 0.05, roughness: 0.85 });
+      const sleeveMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(0x2b2d31).lerp(new THREE.Color(hData.hexColor), 0.1).convertSRGBToLinear(), metalness: 0.05, roughness: 0.9 });
       const plateMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(hData.hexColor).convertSRGBToLinear().multiplyScalar(0.85), metalness: 0.6, roughness: 0.38, side: THREE.DoubleSide });
       // tan tactical leather: reads against the dark gunmetal (black gloves vanished into the gun)
       const leatherMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(0x6a5644).convertSRGBToLinear(), metalness: 0.0, roughness: 0.72 });
@@ -943,7 +943,17 @@ window.ModelFactory = {
         strip.translateX(side * 0.056);
         const cuffRing = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.006, 6, 16), leatherMat);
         cuffRing.position.copy(wrist.clone().addScaledVector(dir, 0.012)); cuffRing.quaternion.copy(q); cuffRing.rotateX(Math.PI / 2);
-        g.add(sleeve, bracer, strip, cuffRing);
+        // fabric straps / elbow pad so the sleeve reads as a geared arm, not a tube
+        if (!this._fpStrapMat) this._fpStrapMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(0x17181b).convertSRGBToLinear(), roughness: 0.8 });
+        for (const [tt, rr] of [[0.22, 0.0605], [0.52, 0.0715]]) {
+          const strap = new THREE.Mesh(new THREE.TorusGeometry(rr, 0.004, 5, 20), this._fpStrapMat);
+          strap.position.copy(wrist.clone().addScaledVector(dir, tt)); strap.quaternion.copy(q); strap.rotateX(Math.PI / 2);
+          g.add(strap);
+        }
+        const pad = new THREE.Mesh(FG.palm, plateMat);
+        pad.scale.set(0.05, 0.07, 0.03);
+        pad.position.copy(wrist.clone().addScaledVector(dir, 0.62)); pad.quaternion.copy(q); pad.translateX(side * 0.065);
+        g.add(sleeve, bracer, strip, cuffRing, pad);
         g.traverse(m => { if (m.isMesh) { m.castShadow = false; m.receiveShadow = false; } });
         return g;
       };

@@ -1,5 +1,5 @@
 """Render hero GLB previews (Eevee).
-  Blender -b --factory-startup -P tools/blender_preview_heroes.py -- lineup|close:<id>|run:<id>|views:<id> [anim] [frame] [outfile]
+  Blender -b --factory-startup -P tools/blender_preview_heroes.py -- lineup|close:<id>|face:<id>|lobby:<id>|run:<id>|side:<id>|back:<id>|full:<id> [anim] [frame] [outfile]
 """
 import bpy, sys, os, math
 from mathutils import Vector
@@ -115,6 +115,12 @@ else:
     if kind == "close":
         camera((0.9, -2.6, 1.6), (0, 0, 1.45), lens=60)
         sc.render.resolution_x, sc.render.resolution_y = 900, 900
+    elif kind == "face":
+        camera((0.28, -1.15, 1.76), (0, 0, 1.72), lens=70)
+        sc.render.resolution_x, sc.render.resolution_y = 700, 700
+    elif kind == "lobby":
+        camera((0.0, -4.0, 1.3), (0, 0, 1.05), lens=50)
+        sc.render.resolution_x, sc.render.resolution_y = 700, 900
     elif kind == "run":
         camera((2.6, -2.6, 1.2), (0, 0, 0.9), lens=45)
         sc.render.resolution_x, sc.render.resolution_y = 900, 900
