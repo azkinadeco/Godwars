@@ -2277,3 +2277,160 @@ body.mobile-mode #hud-combo-meter {
 @media (pointer: coarse) { .btn-music-toggle { min-height: 44px; } }
 /* Page zoom is allowed for accessibility; the live game surfaces keep gestures for controls */
 #game-canvas, #hud-screen, #mobile-touch-controls { touch-action: none; }
+
+/* =========================================================================
+   MINIMAL COMBAT HUD v2 — thin, translucent, numbers over words.
+   The screen belongs to the fight: no heavy frames, no instruction text,
+   secondary info dims until it matters.
+   ========================================================================= */
+#hud-screen { --hud-bg: rgba(6, 10, 18, 0.42); --hud-line: rgba(255, 255, 255, 0.10); }
+#compass-bar { width: 220px; top: 8px; background: transparent; border-bottom: 1px solid rgba(255,255,255,0.25); clip-path: none; padding: 2px 10px; }
+#compass-ribbon-track { font-size: 10px; }
+#compass-ribbon-track b { font-size: 12px; }
+#minimap-container { width: 118px; height: 118px; top: 10px; left: 12px; border: 1px solid rgba(255,255,255,0.22); background: rgba(6,10,18,0.55); box-shadow: none; }
+#hud-ring-timer { top: 134px; left: 12px; background: var(--hud-bg); border-left: 2px solid var(--crimson); padding: 2px 8px; font-size: 10px; }
+.hud-top-right { top: 8px; right: 12px; gap: 6px; }
+.match-counters { background: var(--hud-bg); border: none; clip-path: none; border-radius: 3px; padding: 3px 10px; gap: 10px; font-size: 11px; }
+.counter-item span { font-size: 9px; opacity: 0.75; }
+#hud-damage-count, #hud-kill-leader, #hud-fps { display: none; }
+.counter-item:has(#hud-damage-count), .counter-item:has(#hud-kill-leader), .counter-item:has(#hud-fps) { display: none; }
+body.show-fps .counter-item:has(#hud-fps), body.show-fps #hud-fps { display: inline; }
+.hud-gear-btn { opacity: 0.7; }
+.kill-feed-item { background: var(--hud-bg); border-right-width: 2px; padding: 2px 8px; font-size: 10px; border-radius: 2px; }
+
+/* squadmates: name + two hairline bars, status only when knocked/down */
+#hud-squadmates-list .ally-hud-row { background: transparent; border: none; border-left: 2px solid rgba(52,211,153,0.7); padding: 2px 6px; margin-bottom: 4px; width: 150px; box-shadow: none; clip-path: none; }
+#hud-squadmates-list .ally-hud-row.knocked { border-left-color: #f59e0b; }
+.ally-row-top { font-size: 9px; margin-bottom: 2px; }
+.ally-row-top b { color: #f59e0b; }
+.ally-mini-track { height: 3px; margin-bottom: 1px; }
+
+/* player vitals: name line + slim shield cells + hp bar */
+.hud-bottom-left { width: 210px; bottom: 12px; left: 14px; background: var(--hud-bg); border: none; border-left: 2px solid var(--gold); padding: 6px 10px; clip-path: none; border-radius: 2px; }
+.player-header-row { margin-bottom: 4px; }
+#hud-hero-name { font-size: 12px; letter-spacing: 1px; }
+#hud-shield-tier { font-size: 9px; opacity: 0.85; }
+.bar-row { margin-bottom: 3px; }
+.bar-label { font-size: 9px; margin-bottom: 2px; opacity: 0.8; }
+.bar-label .bl-word { opacity: 0.6; }
+#hud-shield-cells { height: 6px; gap: 3px; }
+.shield-cell-segment { border: none; }
+.bar-track { height: 7px; }
+#hud-next-evo { display: none; }
+
+/* abilities: compact chips, key letter + live status */
+.hud-bottom-center { bottom: 12px; gap: 5px; }
+.hud-ability-slot { min-width: 0; width: 70px; padding: 3px 6px; background: var(--hud-bg); border: 1px solid var(--hud-line); clip-path: none; border-radius: 2px; }
+.hud-ability-slot.ready { border-color: rgba(251,191,36,0.7); box-shadow: none; }
+.slot-key { font-size: 8px; opacity: 0.8; }
+.slot-title { font-size: 8.5px; max-width: 64px; opacity: 0.7; font-weight: 700; }
+.slot-status { font-size: 11px; }
+
+/* weapons: active card shows name + big ammo; holstered card shrinks to one dim line */
+.hud-bottom-right { width: 200px; bottom: 12px; right: 14px; gap: 3px; }
+.weapon-hud-card { background: var(--hud-bg); border: none; border-right: 2px solid var(--slot-color, #fbbf24); padding: 3px 10px; clip-path: none; border-radius: 2px; opacity: 0.5; }
+.weapon-hud-card.active { box-shadow: none; transform: none; opacity: 1; padding: 5px 10px; }
+.wep-card-top { font-size: 8px; opacity: 0.7; }
+.wep-card-name { font-size: 11px; margin: 1px 0; letter-spacing: 0.5px; }
+.wep-card-ammo { font-size: 13px; }
+.weapon-hud-card.active .wep-card-ammo { font-size: 20px; color: #f8fafc; }
+.weapon-hud-card:not(.active) .wep-card-top, .weapon-hud-card:not(.active) .wep-att-pips { display: none; }
+.weapon-hud-card:not(.active) .wep-bottom-row { display: inline-flex; }
+.weapon-hud-card:not(.active) .wep-card-name { display: inline; margin-right: 8px; font-size: 10px; }
+.att-pip { width: 6px; height: 6px; }
+
+/* ---------- phones: smaller everything, pushed to the edges ---------- */
+body.mobile-mode #compass-bar { width: 140px; top: 2px; font-size: 9px; }
+body.mobile-mode #minimap-container, body.mobile-mode #minimap-canvas { width: 64px; height: 64px; }
+body.mobile-mode #minimap-container { top: 4px; }
+body.mobile-mode #hud-ring-timer { top: 70px; font-size: 9px; padding: 1px 5px; }
+body.mobile-mode .match-counters { padding: 2px 6px; gap: 6px; }
+body.mobile-mode .counter-item { padding: 0 2px; font-size: 8.5px; background: none; border: none; }
+body.mobile-mode .counter-item b { font-size: 10px; }
+body.mobile-mode .counter-item:has(#hud-squads-count) { display: none; }
+body.mobile-mode .hud-gear-btn { min-width: 30px; min-height: 30px; padding: 2px 6px; font-size: 10px; }
+body.mobile-mode #kill-feed { max-width: 160px; font-size: 9px; }
+body.mobile-mode #hud-squadmates-list { top: 88px; transform: scale(0.8); }
+body.mobile-mode .hud-bottom-left { width: 128px; padding: 3px 6px; transform: translateX(-104%); bottom: calc(4px + env(safe-area-inset-bottom)); }
+body.mobile-mode #hud-hero-name { font-size: 9px; }
+body.mobile-mode #hud-shield-tier { display: none; }
+body.mobile-mode .bar-label { font-size: 8px; margin-bottom: 1px; }
+body.mobile-mode .bar-label .bl-word { display: none; }
+body.mobile-mode #hud-shield-cells { height: 4px; }
+body.mobile-mode .bar-track { height: 5px; }
+body.mobile-mode .hud-bottom-right { width: 132px; bottom: calc(4px + env(safe-area-inset-bottom)); flex-direction: column; gap: 2px; }
+body.mobile-mode .weapon-hud-card { min-height: 0; padding: 2px 6px; }
+body.mobile-mode .weapon-hud-card.active { padding: 3px 6px; transform: none; }
+body.mobile-mode .wep-card-name { font-size: 8.5px; }
+body.mobile-mode .weapon-hud-card.active .wep-card-ammo { font-size: 13px; }
+body.mobile-mode .weapon-hud-card:not(.active) .wep-card-ammo { font-size: 9px; }
+body.mobile-mode .touch-btn { font-size: 8px; border-width: 1px; background: rgba(6, 10, 18, 0.38); border-color: rgba(255,255,255,0.22); }
+body.mobile-mode #btn-touch-heal, body.mobile-mode #btn-touch-grenade { bottom: calc(52px + env(safe-area-inset-bottom)); width: 44px; height: 44px; }
+body.mobile-mode #btn-touch-heal { left: calc(50% - 128px); }
+body.mobile-mode #btn-touch-grenade { left: calc(50% + 84px); }
+body.mobile-mode #btn-touch-fire { border: 1.5px solid rgba(253, 224, 71, 0.7); background: radial-gradient(circle, rgba(234, 88, 12, 0.7), rgba(185, 28, 28, 0.75)); }
+body.mobile-mode #btn-touch-ult { border-width: 1.5px; background: rgba(217, 119, 6, 0.55); }
+body.mobile-mode #btn-touch-heal, body.mobile-mode #btn-touch-grenade { bottom: calc(8px + env(safe-area-inset-bottom)); }
+body.mobile-mode #btn-touch-heal { left: calc(50% - 184px); }
+body.mobile-mode #btn-touch-grenade { left: calc(50% + 140px); }
+
+/* =========================================================================
+   LOBBY v2 — light glass, thin lines, short labels. The squad on stage is the hero.
+   ========================================================================= */
+.lobby-topbar { padding: 6px 18px; background: linear-gradient(180deg, rgba(6, 10, 18, 0.78), rgba(6, 10, 18, 0)); border-bottom: none; }
+.brand-title { font-size: 16px; letter-spacing: 2px; }
+.brand-sub { display: none; }
+.brand-logo-img { width: 32px; height: 32px; }
+.lobby-tab-btn { background: transparent; border: none; border-bottom: 2px solid transparent; clip-path: none; padding: 6px 12px; font-size: 11px; letter-spacing: 1.2px; }
+.lobby-tab-btn.active, .lobby-tab-btn:hover { background: transparent; color: #fff; border-bottom-color: var(--gold); }
+#career-rank-badge { font-size: 10px; padding: 3px 10px; background: rgba(6,10,18,0.5); border: 1px solid rgba(255,255,255,0.12); }
+.lobby-music-pill { background: rgba(6,10,18,0.5); border: 1px solid rgba(255,255,255,0.12); }
+.btn-music-toggle { font-size: 10px; }
+.btn-icon { background: rgba(6,10,18,0.5); border: 1px solid rgba(255,255,255,0.15); padding: 4px 10px; font-size: 13px; }
+
+.stage-nameplate { background: transparent; border: none; border-bottom: 2px solid var(--gold); clip-path: none; padding: 2px 10px; }
+.stage-nameplate.ally { border-bottom-color: rgba(56,189,248,0.8); margin-top: 24px; }
+.stage-np-title { font-size: 13px; letter-spacing: 1.5px; text-shadow: 0 1px 6px rgba(0,0,0,0.8); }
+.stage-np-sub { font-size: 9px; letter-spacing: 1px; opacity: 0.85; }
+.stage-nameplate:has(.stage-np-title:empty) { visibility: hidden; }
+
+.apex-ready-panel { width: 280px; background: rgba(6, 10, 18, 0.55); border: none; border-left: 2px solid var(--gold); clip-path: none; padding: 10px 12px; gap: 7px; box-shadow: none; border-radius: 2px; }
+.section-label { font-size: 9px; letter-spacing: 1.5px; opacity: 0.75; }
+.mode-pill-btn { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); padding: 6px 4px; font-size: 10px; letter-spacing: 0.8px; border-radius: 2px; }
+.mode-pill-btn.active { background: rgba(245,158,11,0.18); border-color: rgba(251,191,36,0.8); }
+.btn-apex-ready { border: none; padding: 11px 16px; font-size: 16px; letter-spacing: 3px; box-shadow: 0 4px 18px rgba(234, 88, 12, 0.35); clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+.btn-apex-secondary { font-size: 10px; letter-spacing: 1.2px; padding: 6px 10px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.14); }
+
+.play-quick-hero-panel { background: rgba(6, 10, 18, 0.55); border: none; border-right: 2px solid rgba(56,189,248,0.7); padding: 8px 12px; gap: 6px; border-radius: 2px; max-width: 470px; }
+#lobby-slot1-name, #lobby-slot2-name { font-size: 9px !important; opacity: 0.85; }
+#play-quick-heroes { gap: 5px; }
+.hero-card.compact { padding: 4px 8px; background: rgba(255,255,255,0.04); border-width: 1px; }
+.play-ability-pills span { font-size: 9px; padding: 2px 6px; }
+
+body.mobile-mode .lobby-topbar, .lobby-topbar { min-height: 0; }
+@media (max-width: 960px), (max-height: 520px) {
+  .lobby-topbar { padding: 3px calc(10px + env(safe-area-inset-right)) 3px calc(10px + env(safe-area-inset-left)); min-height: 34px; }
+  .brand-title { font-size: 12px; }
+  .brand-logo-img { width: 22px !important; height: 22px !important; }
+  .lobby-tab-btn { font-size: 9.5px; padding: 4px 7px; min-height: 30px; }
+  .lobby-music-pill { padding: 2px 6px; }
+  #lobby-music-viz { display: none; }
+  .btn-music-toggle { font-size: 9px; min-height: 30px; padding: 2px 4px; max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .btn-icon { padding: 2px 8px; font-size: 12px; min-height: 30px; }
+  .stage-np-title { font-size: 10px; }
+  .stage-np-sub { font-size: 8px; }
+  .stage-nameplate.ally { margin-top: 14px; }
+  .apex-ready-panel { width: 200px; padding: 6px 8px; gap: 5px; }
+  .section-label { font-size: 8px; }
+  .mode-pill-btn { font-size: 8.5px; padding: 5px 2px; min-height: 30px; }
+  .btn-apex-ready { font-size: 13px; padding: 8px 10px; letter-spacing: 2px; }
+  .btn-apex-secondary { font-size: 8.5px; padding: 5px 6px; min-height: 30px; }
+  .play-quick-hero-panel { max-width: 330px; padding: 5px 8px; gap: 4px; }
+  #lobby-slot1-name, #lobby-slot2-name { display: none; }
+  .hero-card.compact { padding: 3px 6px; min-height: 30px; }
+  .hc-name { font-size: 9px; }
+  .hc-icon { font-size: 11px; }
+}
+body.mobile-mode #joystick-base { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.22); box-shadow: none; }
+body.mobile-mode #joystick-knob { background: radial-gradient(circle, rgba(255,255,255,0.55), rgba(255,255,255,0.18)); border: 1px solid rgba(255,255,255,0.5); box-shadow: none; }
+@media (max-width: 960px), (max-height: 520px) { #stage-player-role { display: none; } }

@@ -357,10 +357,10 @@ class GodWarsGame {
     const hAlly1 = window.GODWARS_DATA.HEROES[ally1Id];
     const hAlly2 = window.GODWARS_DATA.HEROES[ally2Id];
     const setTxt = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
-    setTxt('stage-player-name', `${hCenter.classIcon} YOU • ${hCenter.name}`);
-    setTxt('stage-player-role', `${hCenter.title} (${hCenter.role})`);
-    setTxt('stage-ally1-name', showSquad ? `${hAlly1.classIcon} ALLY • ${hAlly1.name}` : 'SOLO MODE');
-    setTxt('stage-ally2-name', showSquad ? `${hAlly2.classIcon} ALLY • ${hAlly2.name}` : 'SOLO MODE');
+    setTxt('stage-player-name', hCenter.name);
+    setTxt('stage-player-role', hCenter.role);
+    setTxt('stage-ally1-name', showSquad ? hAlly1.name : '');
+    setTxt('stage-ally2-name', showSquad ? hAlly2.name : '');
     const a1Box = document.getElementById('stage-tag-ally1');
     const a2Box = document.getElementById('stage-tag-ally2');
     if (a1Box) a1Box.classList.toggle('hidden', !showSquad);
@@ -919,8 +919,8 @@ class GodWarsGame {
     const w2 = window.GODWARS_DATA.WEAPONS[this.selectedLoadout[1]];
     const el1 = document.getElementById('lobby-slot1-name');
     const el2 = document.getElementById('lobby-slot2-name');
-    if (el1 && w1) el1.textContent = `1: ${w1.divineName}`;
-    if (el2 && w2) el2.textContent = `2: ${w2.divineName}`;
+    if (el1 && w1) el1.textContent = w1.divineName;
+    if (el2 && w2) el2.textContent = w2.divineName;
 
     document.querySelectorAll('.armory-card').forEach(c => {
       c.classList.toggle('equipped', this.selectedLoadout.includes(c.dataset.wid));
@@ -1162,7 +1162,7 @@ class GodWarsGame {
         if (!door.open && !door.destroyed) {
           const dist = Math.hypot(p.position.x - door.x, p.position.z - door.z);
           if (dist < 2.35 && Math.abs(p.position.y - door.y) < 2.2) {
-            this.toggleDoor(door);
+            this.world.toggleDoor(door, false);
           }
         }
       }
@@ -4079,10 +4079,10 @@ class GodWarsGame {
           squadHudEl.innerHTML = this.allies.map(a => {
             const sPct = a.alive ? (a.shield / a.maxShield) * 100 : 0;
             const hPct = a.alive ? ((a.knocked ? a.knockedHp : a.hp) / a.maxHp) * 100 : 0;
-            const status = !a.alive ? '☠️ ELIMINATED' : a.knocked ? '⚠️ KNOCKED' : a.currentEnemy ? '⚔️ FIGHTING' : '🛡️ SQUAD';
+            const status = !a.alive ? 'DOWN' : a.knocked ? 'KNOCKED' : ''; // only states that need action
             return `
               <div class="ally-hud-row ${a.knocked ? 'knocked' : ''}">
-                <div class="ally-row-top"><span>${a.name}</span><b>${status}</b></div>
+                <div class="ally-row-top"><span>${String(a.name).replace(/^ALLY_/, '')}</span>${status ? `<b>${status}</b>` : ''}</div>
                 <div class="ally-mini-track"><div style="width:${sPct}%;background:#38bdf8;height:100%"></div></div>
                 <div class="ally-mini-track"><div style="width:${hPct}%;background:${a.knocked ? '#f59e0b' : '#10b981'};height:100%"></div></div>
               </div>
@@ -4175,23 +4175,23 @@ class GodWarsGame {
 
     // Tactical (Q) & Ultimate (Z)
     setTxt('hud-tactical-name', hData.tacticalName);
-    setTxt('hud-tactical-cd', p.tacticalCooldown > 0 ? `${p.tacticalCooldown.toFixed(1)}s` : 'READY [Q]');
+    setTxt('hud-tactical-cd', p.tacticalCooldown > 0 ? `${p.tacticalCooldown.toFixed(1)}s` : 'READY');
     const tacBox = document.getElementById('hud-tactical-box');
     if (tacBox) tacBox.classList.toggle('ready', p.tacticalCooldown <= 0);
 
     setTxt('hud-ult-name', hData.ultimateName);
-    setTxt('hud-ult-pct', p.ultCharge >= 100 ? 'READY [Z]' : `${Math.floor(p.ultCharge)}%`);
+    setTxt('hud-ult-pct', p.ultCharge >= 100 ? 'READY' : `${Math.floor(p.ultCharge)}%`);
     const ultBox = document.getElementById('hud-ult-box');
     if (ultBox) ultBox.classList.toggle('ready', p.ultCharge >= 100);
 
     const curHeal = window.GODWARS_DATA.HEAL_ITEMS[this.selectedHealId];
     setTxt('hud-heal-title', curHeal.shortName);
-    setTxt('hud-heal-count', p.healTimer > 0 ? `${p.healTimer.toFixed(1)}s...` : `${curHeal.icon} x${p.heals[this.selectedHealId] || 0} [H]`);
+    setTxt('hud-heal-count', p.healTimer > 0 ? `${p.healTimer.toFixed(1)}s...` : `${curHeal.icon} ${p.heals[this.selectedHealId] || 0}`);
 
     const gData = window.GODWARS_DATA.GRENADES[this.selectedGrenadeId];
     const gCount = p.grenadeCounts[this.selectedGrenadeId] || 0;
     setTxt('hud-bomb-name', gData.shortName);
-    setTxt('hud-bomb-count', `${gData.icon} x${gCount} [G]`);
+    setTxt('hud-bomb-count', `${gData.icon} ${gCount}`);
 
     // Dual Weapon Slots + 4 Colored Attachment Slot Pips + Fire Mode Badge
     const attCfg = window.GODWARS_DATA.ATTACHMENTS;
@@ -4202,7 +4202,7 @@ class GodWarsGame {
       slotEl.style.setProperty('--slot-color', w.isMythicGold ? '#fde047' : w.data.color);
       const mode = (w.data.modes || ['AUTO'])[w.fireModeIndex || 0];
       setTxt(`hud-wep-name-${idx}`, `${w.isMythicGold ? '★ MYTHIC ' : ''}${w.data.divineName}`);
-      setTxt(`hud-wep-base-${idx}`, `${w.data.baseName} • [${mode}]`);
+      setTxt(`hud-wep-base-${idx}`, mode);
       setTxt(`hud-wep-ammo-${idx}`, w.reloading ? 'RELOADING...' : `${w.mag} / ${w.reserve}`);
 
       const pipsEl = document.getElementById(`hud-wep-atts-${idx}`);
@@ -4227,6 +4227,16 @@ class GodWarsGame {
     if (!this._lastMobileHudTick || nowMs - this._lastMobileHudTick >= 100) {
       this._lastMobileHudTick = nowMs;
       this.updateMobileAutoLootAndDoors();
+      // Enclosed buildings: bots push doors open as they walk up to them (they used to path through open decks).
+      if (this.world && this.world.doors && this.bots) {
+        for (const door of this.world.doors) {
+          if (door.open || door.destroyed || door.broken) continue;
+          for (const bt of this.bots) {
+            if (!bt.alive || bt.isRemote || !bt.position) continue;
+            if (Math.abs(bt.position.x - door.x) < 2.2 && Math.abs(bt.position.z - door.z) < 2.2 && Math.abs(bt.position.y - door.y) < 2.2) { this.world.toggleDoor(door, false); break; }
+          }
+        }
+      }
       this.updateVisualSoundRadar();
       this.updateSmartHealSuggestion();
     }

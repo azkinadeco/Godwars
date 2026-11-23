@@ -32,9 +32,9 @@
 
       <nav class="lobby-nav">
         <button class="lobby-tab-btn active" data-target="tab-play">PLAY</button>
-        <button class="lobby-tab-btn" data-target="tab-legends">LEGENDS (6 GODS)</button>
-        <button class="lobby-tab-btn" data-target="tab-armory">LOADOUT / ARMORY</button>
-        <button class="lobby-tab-btn" data-target="tab-map">ASGARD MAP</button>
+        <button class="lobby-tab-btn" data-target="tab-legends">LEGENDS</button>
+        <button class="lobby-tab-btn" data-target="tab-armory">LOADOUT</button>
+        <button class="lobby-tab-btn" data-target="tab-map">MAP</button>
         <button class="lobby-tab-btn" data-target="tab-settings">SETTINGS</button>
       </nav>
 
@@ -45,7 +45,7 @@
           <button id="btn-lobby-music" class="btn-music-toggle" title="Toggle Lobby Music">🎵 ZHU - VILLAIN</button>
           <input type="range" id="slider-music-volume" min="0" max="1" step="0.05" value="0.55" style="width:58px;accent-color:#fbbf24;" title="Lobby Music Volume" />
         </div>
-        <button id="btn-fullscreen" class="btn-icon" title="Fullscreen Mode">⛶ FULLSCREEN</button>
+        <button id="btn-fullscreen" class="btn-icon" title="Fullscreen Mode" aria-label="Fullscreen">⛶</button>
       </div>
     </header>
 
@@ -54,44 +54,39 @@
       <div class="stage-squad-tags">
         <div id="stage-tag-ally1" class="stage-nameplate ally">
           <div id="stage-ally1-name" class="stage-np-title">🎭 ALLY • LOKI</div>
-          <div class="stage-np-sub">TRIO SQUADMATE</div>
-        </div>
+          </div>
         <div class="stage-nameplate">
           <div id="stage-player-name" class="stage-np-title">⚡ YOU • THOR</div>
           <div id="stage-player-role" class="stage-np-sub">God of Thunder (Assault)</div>
         </div>
         <div id="stage-tag-ally2" class="stage-nameplate ally">
           <div id="stage-ally2-name" class="stage-np-title">🪽 ALLY • VALKYRIE</div>
-          <div class="stage-np-sub">TRIO SQUADMATE</div>
         </div>
       </div>
 
       <div class="play-bottom-dock">
         <!-- Bottom-Left Apex Matchmaking & Mode Selector Box -->
         <div class="apex-ready-panel">
-          <div class="section-label">SELECT GAME MODE (16 PLAYERS)</div>
+          <div class="section-label">MODE</div>
           <div class="mode-selector-row">
-            <button class="mode-pill-btn active" data-mode="trios">🛡️ TRIOS SQUADS</button>
-            <button class="mode-pill-btn" data-mode="solos">⚔️ SOLOS (FFA)</button>
-            <button class="mode-pill-btn" data-mode="firing_range">🎯 FIRING RANGE</button>
-            <button class="mode-pill-btn" data-mode="online">🌐 ONLINE ARENA</button>
+            <button class="mode-pill-btn active" data-mode="trios">TRIOS</button>
+            <button class="mode-pill-btn" data-mode="solos">SOLOS</button>
+            <button class="mode-pill-btn" data-mode="firing_range">RANGE</button>
+            <button class="mode-pill-btn" data-mode="online">ONLINE</button>
           </div>
           <div id="online-arena-fields" class="online-arena-fields hidden">
             <input id="online-name" maxlength="14" placeholder="NAMA KAMU" autocomplete="off" aria-label="Nama pemain" />
             <input id="online-room" maxlength="12" placeholder="ROOM" value="ASGARD" autocomplete="off" aria-label="Kode room" />
           </div>
           <div id="online-status" class="online-status hidden" role="status" aria-live="polite"></div>
-          <div style="font-size:11px;color:#94a3b8;">
-            Map: <b style="color:#fbbf24">ASGARD FLOATING ISLAND (6 POIs)</b>
-          </div>
-          <button id="btn-start-match" class="btn-apex-ready">⚡ READY / DEPLOY</button>
-          <button id="btn-instant-drop" class="btn-apex-secondary" style="width:100%;">⚔️ INSTANT GROUND DROP (SKIP DROPSHIP)</button>
+          <button id="btn-start-match" class="btn-apex-ready">READY</button>
+          <button id="btn-instant-drop" class="btn-apex-secondary" style="width:100%;">QUICK DROP</button>
         </div>
 
         <!-- Bottom-Right Quick Hero Switcher & Loadout Summary -->
         <div class="play-quick-hero-panel">
           <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span class="section-label">QUICK SELECT LEGEND (6 GODS)</span>
+            <span class="section-label">LEGEND</span>
             <span id="lobby-slot1-name" style="font-size:10.5px;color:#fbbf24;font-weight:800;">1: VALHALLA M4A1</span>
             <span id="lobby-slot2-name" style="font-size:10.5px;color:#38bdf8;font-weight:800;">2: BIFROST P90</span>
           </div>
@@ -378,14 +373,14 @@
       </div>
       <div class="bar-row">
         <div class="bar-label">
-          <span>RUNE ARMOR</span>
+          <span class="bl-word">ARMOR</span>
           <span id="hud-shield-text">75/75</span>
         </div>
         <div id="hud-shield-cells"></div>
       </div>
       <div class="bar-row">
         <div class="bar-label">
-          <span>HEALTH</span>
+          <span class="bl-word">HP</span>
           <span id="hud-hp-text">110/110</span>
         </div>
         <div class="bar-track"><div id="hud-hp-fill"></div></div>
@@ -396,29 +391,29 @@
     <!-- Bottom-Center Heal (H/4), Tactical (Q), Ultimate (Z), Divine Bomb (G/X) & Backpack (I/Tab) -->
     <div class="hud-bottom-center">
       <div id="hud-heal-box" class="hud-ability-slot" title="Tap or Press [4] to Cycle Heal Item, [H] to Use">
-        <div class="slot-key">HEAL [H / 4]</div>
+        <div class="slot-key">H</div>
         <div id="hud-heal-title" class="slot-title">SHIELD BATTERY</div>
         <div id="hud-heal-count" class="slot-status">⚡ x3 [H]</div>
       </div>
       <div id="hud-tactical-box" class="hud-ability-slot ready">
-        <div class="slot-key">TACTICAL [Q]</div>
+        <div class="slot-key">Q</div>
         <div id="hud-tactical-name" class="slot-title">ARC BOLT</div>
         <div id="hud-tactical-cd" class="slot-status">READY</div>
       </div>
       <div id="hud-ult-box" class="hud-ability-slot">
-        <div class="slot-key">ULTIMATE [Z]</div>
+        <div class="slot-key">Z</div>
         <div id="hud-ult-name" class="slot-title">BIFROST SLAM</div>
         <div id="hud-ult-pct" class="slot-status">35%</div>
       </div>
       <div id="hud-bomb-box" class="hud-ability-slot" title="Tap or Press [X] to Cycle Bomb Type, [G] to Throw">
-        <div class="slot-key">GOD BOMB [G / X]</div>
+        <div class="slot-key">G</div>
         <div id="hud-bomb-name" class="slot-title">SOLAR BOMB</div>
         <div id="hud-bomb-count" class="slot-status">💥 x3 [G]</div>
       </div>
       <div id="hud-bag-box" class="hud-ability-slot" title="Open Tactical Backpack & Attachments [I / Tab]">
-        <div class="slot-key">BAG [I / TAB]</div>
-        <div class="slot-title">ATTACHMENTS</div>
-        <div class="slot-status">🎒 INSPECT</div>
+        <div class="slot-key">TAB</div>
+        <div class="slot-title">BAG</div>
+        <div class="slot-status">🎒</div>
       </div>
     </div>
 
@@ -426,7 +421,7 @@
     <div class="hud-bottom-right">
       <div id="hud-weapon-slot-0" class="weapon-hud-card active">
         <div class="wep-card-top">
-          <span>SLOT 1 [1] • [B] MODE</span>
+          <span>1</span>
           <span id="hud-wep-base-0">M4A1 • [AUTO]</span>
         </div>
         <div id="hud-wep-name-0" class="wep-card-name">VALHALLA M4A1</div>
@@ -437,7 +432,7 @@
       </div>
       <div id="hud-weapon-slot-1" class="weapon-hud-card">
         <div class="wep-card-top">
-          <span>SLOT 2 [2] • [B] MODE</span>
+          <span>2</span>
           <span id="hud-wep-base-1">P90 • [AUTO]</span>
         </div>
         <div id="hud-wep-name-1" class="wep-card-name">BIFROST P90</div>

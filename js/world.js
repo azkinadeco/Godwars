@@ -387,126 +387,121 @@ class AsgardWorld {
   }
 
   /**
-   * Builds a complete Enterable 1, 2, or 3-Story Apex Legends Compound Building with:
-   * - True Apex Proportions (4.6m floor height, 3.6m wide doors, 1.2m peek windows, interior cover crates!)
-   * - Walkable Ground Floor, 2nd Floor (4.6m), 3rd Floor (9.2m), & Overwatch Rooftop (13.8m)
-   * - Wide Exterior & Flanking Staircase Ramps connecting every single floor smoothly
-   * - Rooftop Battlement Parapets & Golden Architectural Roof Trims
+   * Enclosed multi-storey building (replaces the old open "parking deck" template):
+   * full perimeter walls with framed windows on every floor, ground-floor doors N/S, an interior
+   * switchback-free stair stack along the west wall that runs through a stairwell all the way
+   * to a parapeted roof, stone plinth, storey cornices and rooftop plant boxes for cover.
+   * Collision stays AABB (walls/sills/headers are separate boxes), so windows can be mantled
+   * through and shot through, Apex-style.
    */
   buildApexCompoundBuilding(cx, cz, width, depth, wallMat, trimMat, stories = 2) {
     const floorCount = typeof stories === 'boolean' ? (stories ? 2 : 1) : stories;
-    const fh = 4.6;
-    const wallT = 0.6;
-    const doorW = 3.6;
-
-    // 1. Ground Floor Slab (flush at y = 0.06)
-    this.addWalkableFloor(cx, 0.06, cz, width, depth, 0.12, this.mats.marbleFloor);
-
-    // Interior Tactical Cover Crates on Ground Floor (Real Apex indoor CQC cover!)
     const M = this.mats;
-    const crateMat = M.darkSteel, stairMat = M.darkSteel, roofMat = M.cornice;
-    this.addSolidWall(cx - width * 0.22, 0.06, cz, 2.2, 1.35, 2.2, crateMat, true);
-    this.addSolidWall(cx + width * 0.22, 0.06, cz, 2.2, 1.35, 2.2, crateMat, true);
+    const fh = 4.6, wallT = 0.5, doorW = 3.6;
+    const SILL = 1.05, HEAD = 2.75, WIN = 2.0;
+    const x0 = cx - width / 2, x1 = cx + width / 2, z0 = cz - depth / 2, z1 = cz + depth / 2;
+    const stairW = 3.0, stairL = Math.min(depth - 3.2, Math.max(7.5, depth * 0.72));
+    const sx0 = x0 + wallT / 2, sx1 = sx0 + stairW;                 // stair strip along the west wall
+    const sz0 = cz - stairL / 2, sz1 = cz + stairL / 2;
+    const vis = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; this.scene.add(m); return m; };
 
-    // 2. Ground Floor North & South Walls with Interactive Apex Energy Doors!
-    const segW = Math.max(1.5, (width - doorW) / 2);
-    this.addSolidWall(cx - (doorW / 2 + segW / 2), 0, cz + depth / 2, segW, fh, wallT, wallMat);
-    this.addSolidWall(cx + (doorW / 2 + segW / 2), 0, cz + depth / 2, segW, fh, wallT, wallMat);
-    this.addApexDoor(cx, 0, cz + depth / 2, doorW, 3.2, 'X');
-
-    this.addSolidWall(cx - (doorW / 2 + segW / 2), 0, cz - depth / 2, segW, fh, wallT, wallMat);
-    this.addSolidWall(cx + (doorW / 2 + segW / 2), 0, cz - depth / 2, segW, fh, wallT, wallMat);
-    this.addApexDoor(cx, 0, cz - depth / 2, doorW, 3.2, 'X');
-
-    // East & West Ground Walls with Shoot-Through Chest-High Window Embrasures!
-    for (let side of [-1, 1]) {
-      const wx = cx + side * (width / 2);
-      this.addSolidWall(wx, 0, cz, wallT, 1.25, depth, wallMat);
-      this.addSolidWall(wx, 2.9, cz, wallT, fh - 2.9, depth, wallMat);
-      this.addSolidWall(wx, 1.25, cz - depth * 0.36, wallT, 1.65, depth * 0.26, wallMat);
-      this.addSolidWall(wx, 1.25, cz + depth * 0.36, wallT, 1.65, depth * 0.26, wallMat);
-      // window frames: bronze sill + lintel so the openings read as windows, not missing blocks
-      for (const wz of [cz - depth * 0.115, cz + depth * 0.115]) {
-        const span = depth * 0.23 - 0.2;
-        [1.22, 2.93].forEach(fy => {
-          const fr = new THREE.Mesh(new THREE.BoxGeometry(wallT + 0.16, 0.14, span), trimMat);
-          fr.position.set(wx, fy, wz); fr.castShadow = true; this.scene.add(fr);
-        });
+    // ---- openings along one wall. axis 'X': wall runs along x at z = c; 'Z': along z at x = c.
+    const facade = (axis, c, a0, a1, baseY, h, door, avoid) => {
+      const L = a1 - a0;
+      const n = Math.max(1, Math.floor((L - 1.5) / 4.0));
+      const ops = [];
+      for (let i = 0; i < n; i++) {
+        const oc = a0 + (i + 0.5) * (L / n);
+        if (door && Math.abs(oc - (a0 + a1) / 2) < doorW / 2 + WIN / 2 + 0.4) continue;
+        if (avoid && oc > avoid[0] - WIN / 2 - 0.3 && oc < avoid[1] + WIN / 2 + 0.3) continue;
+        ops.push({ c: oc, w: WIN, kind: 'win' });
       }
-    }
+      if (door) ops.push({ c: (a0 + a1) / 2, w: doorW, kind: 'door' });
+      ops.sort((p, q) => p.c - q.c);
+      const box = (s0, s1, y0, y1, mat = wallMat) => {
+        if (s1 - s0 < 0.05 || y1 - y0 < 0.05) return;
+        if (axis === 'X') this.addSolidWall((s0 + s1) / 2, y0, c, s1 - s0, y1 - y0, wallT, mat);
+        else this.addSolidWall(c, y0, (s0 + s1) / 2, wallT, y1 - y0, s1 - s0, mat);
+      };
+      let cur = a0;
+      ops.forEach(o => {
+        const s0 = o.c - o.w / 2, s1 = o.c + o.w / 2;
+        box(cur, s0, baseY, baseY + h);                               // pier
+        if (o.kind === 'win') {
+          box(s0, s1, baseY, baseY + SILL);                           // sill wall (mantle-able)
+          box(s0, s1, baseY + HEAD, baseY + h);                       // header
+          // frame: proud sill ledge, lintel and a centre mullion (visual)
+          const along = (len, hh, dd) => axis === 'X' ? new THREE.BoxGeometry(len, hh, dd) : new THREE.BoxGeometry(dd, hh, len);
+          const px = axis === 'X' ? o.c : c, pz = axis === 'X' ? c : o.c;
+          vis(along(o.w + 0.3, 0.12, wallT + 0.22), trimMat, px, baseY + SILL + 0.06, pz);
+          vis(along(o.w + 0.2, 0.1, wallT + 0.14), trimMat, px, baseY + HEAD - 0.05, pz);
+          vis(along(0.09, HEAD - SILL, 0.09), trimMat, px, baseY + (SILL + HEAD) / 2, pz);
+        } else {
+          box(s0, s1, baseY + 3.2, baseY + h);                        // door header
+          if (baseY < 0.5) this.addApexDoor(axis === 'X' ? o.c : c, baseY, axis === 'X' ? c : o.c, doorW, 3.2, axis);
+        }
+        cur = s1;
+      });
+      box(cur, a1, baseY, baseY + h);
+    };
 
-    // Ornate Asgardian Corner Fluted Columns & Gilded Door Pediments (Euphoria Architectural Detail!)
-    const totalH = floorCount * fh;
-    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => {
-      const col = new THREE.Mesh(this._worldUV(new THREE.BoxGeometry(0.9, totalH + 0.6, 0.9), 0.9, totalH + 0.6, 0.9), wallMat === M.marbleWall ? M.cornice : M.concrete);
-      col.position.set(cx + sx * (width / 2 + 0.15), (totalH + 0.6) / 2, cz + sz * (depth / 2 + 0.15));
-      this.scene.add(col);
+    // ---- ground slab + stone plinth band
+    this.addWalkableFloor(cx, 0.06, cz, width, depth, 0.12, M.marbleFloor);
+    [[cx, z1 + 0.06, width + 0.24, 0.12], [cx, z0 - 0.06, width + 0.24, 0.12], [x1 + 0.06, cz, 0.12, depth], [x0 - 0.06, cz, 0.12, depth]].forEach(([px, pz, bw, bd]) => {
+      vis(this._worldUV(new THREE.BoxGeometry(bw + 0.24 * (bd > bw ? 1 : 0), 0.7, bd), bw, 0.7, bd), M.stone, px, 0.35, pz);
     });
-    for (let dSide of [-1, 1]) {
-      const pediment = new THREE.Mesh(new THREE.BoxGeometry(doorW + 1.4, 0.48, 0.95), trimMat);
-      pediment.position.set(cx, 3.45, cz + dSide * (depth / 2 + 0.1));
-      this.scene.add(pediment);
-    }
 
-    // 3. Build Upper Stories (2nd Floor y=4.6m, 3rd Floor y=9.2m, Overwatch Roof y=13.8m)
-    for (let lvl = 1; lvl <= floorCount; lvl++) {
-      const slabY = lvl * fh;
-      const prevY = (lvl - 1) * fh;
+    // ---- ground-floor interior cover (kept clear of the stair strip)
+    this.addSolidWall(cx + width * 0.22, 0.06, cz, 2.2, 1.35, 2.2, M.darkSteel, true);
+    this.addSolidWall(cx + width * 0.02, 0.06, cz + depth * 0.18, 1.6, 1.1, 1.6, M.darkSteel, true);
 
-      // Walkable Floor / Roof Deck Slab
-      this.addWalkableFloor(cx, slabY, cz, width + 1.4, depth + 1.4, 0.42, lvl === floorCount ? roofMat : this.mats.marbleFloor);
+    for (let lvl = 0; lvl < floorCount; lvl++) {
+      const baseY = lvl * fh;
+      const topY = baseY + fh;
+      // walls: N/S with ground doors, E/W windows (west wall skips windows behind the stair)
+      facade('X', z1, x0, x1, baseY, fh, lvl === 0, null);
+      facade('X', z0, x0, x1, baseY, fh, lvl === 0, null);
+      facade('Z', x1, z0 + wallT / 2, z1 - wallT / 2, baseY, fh, false, null);
+      facade('Z', x0, z0 + wallT / 2, z1 - wallT / 2, baseY, fh, false, [sz0, sz1]);
 
-      // Visual-only cornice band wrapping each slab edge: gives every storey a readable silhouette line
-      // (previously each level was a bare slab and buildings read like parking decks).
-      const cw = width + 1.9, cd = depth + 1.9, ch = 0.55, ct = 0.32;
-      const corniceMat = this.mats.cornice;
-      [[0, cd / 2, cw, ct], [0, -cd / 2, cw, ct], [cw / 2, 0, ct, cd], [-cw / 2, 0, ct, cd]].forEach(([ox, oz, bw, bd]) => {
-        const band = new THREE.Mesh(new THREE.BoxGeometry(bw, ch, bd), corniceMat);
-        band.position.set(cx + ox, slabY - 0.2, cz + oz);
-        band.castShadow = true; band.receiveShadow = true;
-        this.scene.add(band);
+      // stair flight inside, west strip, climbing north (-Z) from baseY to topY
+      this.addStairRamp((sx0 + sx1) / 2, cz, stairW, stairL, baseY, topY, 'N', M.darkSteel, true);
+
+      // slab above with a stairwell hole over the flight (3 pieces around the hole)
+      const isRoof = lvl === floorCount - 1;
+      const slabMat = isRoof ? M.cornice : M.marbleFloor;
+      const ov = 0.25, t = 0.42;
+      const ex0 = x0 - ov, ex1 = x1 + ov, ez0 = z0 - ov, ez1 = z1 + ov;
+      this.addWalkableFloor((sx1 + ex1) / 2, topY, cz, ex1 - sx1, ez1 - ez0, t, slabMat);
+      this.addWalkableFloor((ex0 + sx1) / 2, topY, (ez0 + sz0) / 2, sx1 - ex0, sz0 - ez0, t, slabMat);
+      this.addWalkableFloor((ex0 + sx1) / 2, topY, (sz1 + ez1) / 2, sx1 - ex0, ez1 - sz1, t, slabMat);
+      // guard wall along the stairwell's open (east) side so you enter the flight from the south end
+      this.addSolidWall(sx1 + 0.12, topY, cz - 0.6, 0.24, 1.05, stairL - 1.2, trimMat, true);
+
+      // storey cornice band (visual)
+      const cw = width + 0.9, cd = depth + 0.9;
+      [[0, cd / 2, cw, 0.3], [0, -cd / 2, cw, 0.3], [cw / 2, 0, 0.3, cd], [-cw / 2, 0, 0.3, cd]].forEach(([ox, oz, bw, bd]) => {
+        vis(new THREE.BoxGeometry(bw, 0.45, bd), M.cornice, cx + ox, topY - 0.12, cz + oz);
       });
 
-      // Alternating East / West Wide Exterior Staircase Ramp connecting prevY -> slabY!
-      const rampOnEast = (lvl % 2 === 1);
-      const rx = rampOnEast ? (cx + width / 2 + 2.1) : (cx - width / 2 - 2.1);
-      const rDir = rampOnEast ? 'N' : 'S';
-      this.addStairRamp(rx, cz, 3.2, depth * 0.82, prevY, slabY, rDir, stairMat, true);
-
-      if (lvl < floorCount) {
-        // Upper Interior Floor Walls with Wide Balcony Doors, Windows & Interior Cover!
-        this.addSolidWall(cx - width * 0.33, slabY, cz + depth / 2, width * 0.30, fh, wallT, wallMat);
-        this.addSolidWall(cx + width * 0.33, slabY, cz + depth / 2, width * 0.30, fh, wallT, wallMat);
-        this.addSolidWall(cx - width * 0.33, slabY, cz - depth / 2, width * 0.30, fh, wallT, wallMat);
-        this.addSolidWall(cx + width * 0.33, slabY, cz - depth / 2, width * 0.30, fh, wallT, wallMat);
-
-        // Chest-high peek walls on East/West balconies
-        this.addSolidWall(cx - width / 2, slabY, cz, wallT, 1.3, depth * 0.72, wallMat);
-        this.addSolidWall(cx + width / 2, slabY, cz, wallT, 1.3, depth * 0.72, wallMat);
-
-        // Interior Cover Box on Upper Floor
-        this.addSolidWall(cx, slabY, cz, 2.4, 1.25, 2.0, crateMat, true);
-      } else {
-        // Topmost Rooftop High-Ground Battlement Cover Parapets + Corner Spires!
-        this.addSolidWall(cx, slabY, cz + depth / 2, width * 0.72, 1.25, 0.48, wallMat);
-        this.addSolidWall(cx, slabY, cz - depth / 2, width * 0.72, 1.25, 0.48, wallMat);
-        this.addSolidWall(cx - width / 2, slabY, cz, 0.48, 1.25, depth * 0.55, wallMat);
-        this.addSolidWall(cx + width / 2, slabY, cz, 0.48, 1.25, depth * 0.55, wallMat);
-        // parapet coping caps in trim colour
-        [[0, depth / 2, width * 0.72 + 0.1, 0.62], [0, -depth / 2, width * 0.72 + 0.1, 0.62], [-width / 2, 0, 0.62, depth * 0.55 + 0.1], [width / 2, 0, 0.62, depth * 0.55 + 0.1]].forEach(([ox, oz, bw, bd]) => {
-          const cap = new THREE.Mesh(new THREE.BoxGeometry(bw, 0.12, bd), trimMat);
-          cap.position.set(cx + ox, slabY + 1.31, cz + oz); this.scene.add(cap);
-        });
-
-        // Decorative Golden Corner Finials on Rooftop
-        [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([sx, sz]) => {
-          const finial = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.5, 1.1), trimMat);
-          finial.position.set(cx + sx * (width / 2 + 0.15), slabY + 0.25, cz + sz * (depth / 2 + 0.15));
-          this.scene.add(finial);
-        });
-      }
+      if (lvl > 0) this.addSolidWall(cx + width * 0.2, baseY, cz - depth * 0.15, 2.0, 1.25, 1.6, M.darkSteel, true);
     }
-    this.decorateBuildingArchetype(cx, cz, width, depth, floorCount * fh, wallMat, trimMat);
+
+    // ---- roof: parapet with trim coping, plant boxes / vents as cover
+    const roofY = floorCount * fh;
+    const pT = 0.35, pH = 1.1;
+    this.addSolidWall(cx, roofY, z1 - pT / 2, width, pH, pT, wallMat);
+    this.addSolidWall(cx, roofY, z0 + pT / 2, width, pH, pT, wallMat);
+    this.addSolidWall(x1 - pT / 2, roofY, cz, pT, pH, depth - pT * 2, wallMat);
+    this.addSolidWall(x0 + pT / 2, roofY, cz, pT, pH, depth - pT * 2, wallMat);
+    [[0, depth / 2 - pT / 2, width + 0.1, pT + 0.16], [0, -depth / 2 + pT / 2, width + 0.1, pT + 0.16], [width / 2 - pT / 2, 0, pT + 0.16, depth], [-width / 2 + pT / 2, 0, pT + 0.16, depth]].forEach(([ox, oz, bw, bd]) => {
+      vis(new THREE.BoxGeometry(bw, 0.1, bd), trimMat, cx + ox, roofY + pH + 0.05, cz + oz);
+    });
+    this.addSolidWall(cx + width * 0.28, roofY, cz + depth * 0.22, 2.4, 1.3, 1.8, M.darkSteel, true);
+    this.addSolidWall(cx + width * 0.05, roofY, cz - depth * 0.25, 1.4, 0.9, 1.4, M.darkSteel, true);
+    vis(new THREE.CylinderGeometry(0.35, 0.35, 1.6, 10), M.darkSteel, cx + width * 0.36, roofY + 0.8, cz - depth * 0.3);
+
+    this.decorateBuildingArchetype(cx, cz, width, depth, roofY, wallMat, trimMat);
   }
 
   /**
