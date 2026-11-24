@@ -95,6 +95,16 @@ window.GODWARS_DATA = {
       color: '#0284c7',
       icon: '⚡'
     },
+    syringe: {
+      id: 'syringe',
+      name: 'Eir Healing Syringe',
+      shortName: 'SYRINGE',
+      castTime: 1.4,
+      shieldRestore: 0,
+      hpRestore: 25,
+      color: '#34d399',
+      icon: '💉'
+    },
     medkit: {
       id: 'medkit',
       name: 'Ambrosia Medkit',

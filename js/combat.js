@@ -999,7 +999,7 @@ class CombatManager {
       const maxRange = actor.meleeComboStep === 3 ? 5.2 : 4.25;
       if (dist <= maxRange) {
         const toTarget = tCenter.clone().sub(origin).normalize();
-        if (actor.meleeComboStep === 3 || toTarget.dot(lookDir) > 0.35) {
+        if ((actor.meleeComboStep === 3 || toTarget.dot(lookDir) > 0.35) && this.game.world.segmentClear(origin, tCenter, false)) {
           let dmg = actor.meleeComboStep === 3 ? 65 : actor.meleeComboStep === 2 ? 44 : 36;
           if (actor.heroId === 'thor' && actor.thunderCharge >= 50) {
             dmg += 18;
@@ -1030,23 +1030,18 @@ class CombatManager {
     let hitCollider = null;
     let hitGround = false;
 
-    // Reused scratch objects (this loop runs over every collider for every bullet).
+    if (Math.abs(dir.lengthSq() - 1) > 1e-4) dir = dir.clone().normalize();
     const ray = this._ray || (this._ray = new THREE.Ray());
     const box = this._box || (this._box = new THREE.Box3());
     const ip = this._ip || (this._ip = new THREE.Vector3());
     ray.set(origin, dir);
-    for (const c of this.game.world.colliders) {
-      if (c.isDoor && !c.active) continue;
-      box.min.set(c.minX, c.minY, c.minZ);
-      box.max.set(c.maxX, c.maxY, c.maxZ);
-      if (ray.intersectBox(box, ip)) {
-        const d = origin.distanceTo(ip);
-        if (d < bestDist) {
-          bestDist = d;
-          hitPoint.copy(ip);
-          hitCollider = c;
-        }
-      }
+    // Solid world (walls around window/door gaps, slabs, roofs, props, trees, rocks, stairs): grid DDA.
+    const solidHit = this._solidHit || (this._solidHit = { c: null, nx: 0, ny: 0, nz: 0 });
+    const tSolid = this.game.world.raycastSolids(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, range, solidHit);
+    if (tSolid < bestDist) {
+      bestDist = tSolid;
+      hitPoint.copy(origin).addScaledVector(dir, tSolid);
+      hitCollider = solidHit.c;
     }
 
     if (dir.y < -0.001) {
@@ -1228,14 +1223,10 @@ class CombatManager {
       const n = _gwV1;
       let surface = 'stone';
       if (hitCollider) {
-        const c = hitCollider, e = 0.02;
-        const dists = [hitPoint.x - c.minX, c.maxX - hitPoint.x, hitPoint.y - c.minY, c.maxY - hitPoint.y, hitPoint.z - c.minZ, c.maxZ - hitPoint.z];
-        let best = 0;
-        for (let k = 1; k < 6; k++) if (Math.abs(dists[k]) < Math.abs(dists[best])) best = k;
-        n.set(0, 0, 0);
-        if (best === 0) n.x = -1; else if (best === 1) n.x = 1; else if (best === 2) n.y = -1; else if (best === 3) n.y = 1; else if (best === 4) n.z = -1; else n.z = 1;
-        if (Math.abs(dists[best]) > e * 10) n.copy(dir).negate(); // inside-box edge case
-        if (c.isDoor) surface = 'metal';
+        const c = hitCollider;
+        n.set(solidHit.nx, solidHit.ny, solidHit.nz); // exact entry face from the slab test
+        if (n.lengthSq() < 0.5) n.copy(dir).negate();
+        if (c.isDoor || c.isStep) surface = 'metal';
       } else if (hitGround) {
         surface = 'ground';
         n.set(0, 1, 0);
@@ -1587,6 +1578,58 @@ class CombatManager {
     });
   }
 
+  /**
+   * Area-damage occlusion: true when any of the target's feet / chest / head is in clear view of
+   * `pos` (walls, slabs, props, rocks, closed doors and hills all shield; window gaps do not).
+   */
+  _blastReaches(pos, t) {
+    const W = this.game.world;
+    if (!W.segmentClear) return true;
+    const tp = this._blastTp || (this._blastTp = new THREE.Vector3());
+    const hs = t.knocked ? [0.3, 0.7] : [0.35, 1.15, 1.75];
+    for (const h of hs) {
+      tp.set(t.position.x, t.position.y + h, t.position.z);
+      if (W.segmentClear(pos, tp)) return true;
+    }
+    return false;
+  }
+
+  /** First solid/terrain hit distance along a normalised direction (for clipping beams/volleys). */
+  _solidDist(origin, dir, maxT) {
+    const t = this.game.world.raycastSolids(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, maxT);
+    return Math.min(maxT, t);
+  }
+
+  /**
+   * Swept grenade motion against the ballistic grid: bounces off walls, props, ceilings and
+   * upper floors (reflect + damping), flies cleanly through window and door gaps. Arc runes stick.
+   */
+  _moveGrenade(g, dt) {
+    const W = this.game.world, P = g.mesh.position, v = g.velocity;
+    const R = 0.23; // > the 0.22 ground-snap offset so the floor logic below doesn't double-bounce
+    const hit = this._gHit || (this._gHit = { c: null, nx: 0, ny: 0, nz: 0 });
+    let remain = dt;
+    for (let iter = 0; iter < 4 && remain > 1e-5; iter++) {
+      const sp = v.length();
+      if (sp < 1e-4) break;
+      const step = sp * remain, dx = v.x / sp, dy = v.y / sp, dz = v.z / sp;
+      const t = W.raycastSolids(P.x, P.y, P.z, dx, dy, dz, step + R, hit);
+      if (t > step + R) { P.addScaledVector(v, remain); return; }
+      const travel = Math.max(0, t - R);
+      P.x += dx * travel; P.y += dy * travel; P.z += dz * travel;
+      remain *= Math.max(0, 1 - travel / step);
+      if (g.data.id === 'yggdrasil_arc') { g.stuck = true; v.set(0, 0, 0); return; }
+      const vn = v.x * hit.nx + v.y * hit.ny + v.z * hit.nz;
+      if (vn >= 0) { P.addScaledVector(v, remain); return; } // grazing / already separating
+      const floor = hit.ny > 0.7;
+      const e = floor ? 0.42 : 0.5, fr = floor ? (-vn > 2 ? 0.65 : 0.97) : 0.8; // restitution / friction (rolling on slabs is light)
+      const tx = v.x - hit.nx * vn, ty = v.y - hit.ny * vn, tz = v.z - hit.nz * vn;
+      v.set(tx * fr - hit.nx * vn * e, ty * fr - hit.ny * vn * e, tz * fr - hit.nz * vn * e);
+      if (floor && v.y < 1.2) v.y = 0;                          // settle on slabs instead of jittering
+      g.bounces = (g.bounces || 0) + 1;
+    }
+  }
+
   detonateGrenade(g) {
     const pos = g.mesh.position.clone();
     this.scene.remove(g.mesh);
@@ -1601,7 +1644,7 @@ class CombatManager {
     for (const t of targets) {
       if (!t.alive || (g.thrower && !this.isEnemy(g.thrower, t) && t !== g.thrower)) continue;
       const dist = t.position.distanceTo(pos);
-      if (dist <= g.data.radius) {
+      if (dist <= g.data.radius && this._blastReaches(pos, t)) {
         const falloff = 1 - (dist / g.data.radius) * 0.65;
         const dmg = Math.round(g.data.damage * falloff);
         if (this.isEnemy(g.thrower, t)) {
@@ -1653,14 +1696,14 @@ class CombatManager {
       if (actor.isPlayer) this.game.showBanner('LOKI: PHANTOM DECOY & PHASE CLOAK ACTIVE', '#10b981');
 
     } else if (heroId === 'thor') {
-      const targetPt = origin.clone().addScaledVector(lookDir, 28);
+      const targetPt = origin.clone().addScaledVector(lookDir, Math.max(1, this._solidDist(origin, lookDir, 28) - 0.3));
       targetPt.y = Math.max(0.5, targetPt.y);
       this.spawnLightningBolt(origin.clone().addScaledVector(lookDir, 1), targetPt, 0x38bdf8, 0.45);
       this.spawnExplosionVFX(targetPt, 8.5, 0x38bdf8, 0.45);
 
       const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && this.isEnemy(actor, t));
       targets.forEach(t => {
-        if (t.position.distanceTo(targetPt) <= 11 || t.position.distanceTo(actor.position) <= 12) {
+        if ((t.position.distanceTo(targetPt) <= 11 && this._blastReaches(targetPt, t)) || (t.position.distanceTo(actor.position) <= 12 && this._blastReaches(origin, t))) {
           this.spawnLightningBolt(targetPt, t.position.clone().add(new THREE.Vector3(0, 1.2, 0)), 0xfbbf24, 0.45);
           this.applyDamage(actor, t, 38, 'Mjölnir Arc Bolt', false, t.position);
           t.slowTimer = 3.0;
@@ -1669,14 +1712,14 @@ class CombatManager {
       if (actor.isPlayer) this.game.showBanner('THOR: MJÖLNIR ARC BOLT UNLEASHED', '#38bdf8');
 
     } else if (heroId === 'hades') {
-      const waveCenter = origin.clone().addScaledVector(lookDir, 10);
+      const waveCenter = origin.clone().addScaledVector(lookDir, Math.max(0.5, this._solidDist(origin, lookDir, 10) - 0.4));
       waveCenter.y = actor.position.y + 1.0;
       this.spawnExplosionVFX(waveCenter, 10, 0xa855f7, 0.5);
 
       let totalDrain = 0;
       const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && this.isEnemy(actor, t));
       targets.forEach(t => {
-        if (t.position.distanceTo(waveCenter) <= 11.5) {
+        if (t.position.distanceTo(waveCenter) <= 11.5 && (this._blastReaches(waveCenter, t) || this._blastReaches(origin, t))) {
           this.applyDamage(actor, t, 35, 'Stygian Soul Wave', false, t.position);
           totalDrain += 35;
         }
@@ -1704,14 +1747,15 @@ class CombatManager {
     } else if (heroId === 'hela') {
       [-0.12, 0, 0.12].forEach(angleOffset => {
         const dir = lookDir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), angleOffset).normalize();
-        const endPt = origin.clone().addScaledVector(dir, 36);
+        const reach = this._solidDist(origin, dir, 36);
+        const endPt = origin.clone().addScaledVector(dir, reach);
         this.spawnTracer(origin, endPt, 0x14b8a6, 3);
 
         const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && this.isEnemy(actor, t));
         targets.forEach(t => {
           const toTarget = t.position.clone().add(new THREE.Vector3(0, 1, 0)).sub(origin);
           const proj = toTarget.dot(dir);
-          if (proj > 0 && proj < 36) {
+          if (proj > 0 && proj < reach) {
             const perpDist = toTarget.clone().sub(dir.clone().multiplyScalar(proj)).length();
             if (perpDist < 1.85) {
               this.applyDamage(actor, t, 32, 'Hela Necrosword Volley', false, t.position);
@@ -1740,7 +1784,7 @@ class CombatManager {
 
           const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && this.isEnemy(actor, t));
           targets.forEach(t => {
-            if (t.position.distanceTo(impact) <= 6.5) {
+            if (t.position.distanceTo(impact) <= 6.5 && this._blastReaches(impact, t)) {
               this.applyDamage(actor, t, 22, 'Celestial Spear Swarm', false, t.position);
               t.slowTimer = 2.5;
             }
@@ -1793,7 +1837,7 @@ class CombatManager {
         const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && this.isEnemy(actor, t));
         targets.forEach(t => {
           const d = t.position.distanceTo(slamPos);
-          if (d <= 16) {
+          if (d <= 16 && this._blastReaches(_gwV3.set(slamPos.x, slamPos.y + 0.6, slamPos.z), t)) {
             const dmg = Math.round(90 * (1 - d / 22));
             this.applyDamage(actor, t, dmg, 'Bifrost Sky Slam', false, t.position);
           }
@@ -1844,7 +1888,7 @@ class CombatManager {
 
           const targets = [...this.game.bots, this.game.player].filter(t => t && t.alive && this.isEnemy(actor, t));
           targets.forEach(t => {
-            if (t.position.distanceTo(strikePos) <= 9.5) {
+            if (t.position.distanceTo(strikePos) <= 9.5 && this._blastReaches(_gwV3.set(strikePos.x, this.game.world.getGroundHeight(strikePos.x, strikePos.z, 0) + 0.5, strikePos.z), t)) {
               this.applyDamage(actor, t, 45, 'Wrath of Olympus', false, t.position);
             }
           });
@@ -1912,7 +1956,7 @@ class CombatManager {
         g.mesh.rotation.y += 14 * dt;
       } else if (!g.stuck) {
         g.velocity.y -= 22 * dt;
-        g.mesh.position.addScaledVector(g.velocity, dt);
+        this._moveGrenade(g, dt);
         g.mesh.rotation.x += 8 * dt;
         g.mesh.rotation.y += 6 * dt;
 

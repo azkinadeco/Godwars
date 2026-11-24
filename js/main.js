@@ -947,7 +947,7 @@ class GodWarsGame {
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: !this.detectMobile(),
+      antialias: this.wantAntialias ? this.wantAntialias() : !this.detectMobile(),
       powerPreference: 'high-performance'
     });
     // Euphoria Adventure High-Resolution Color Grading: ACES Filmic Tone Mapping + sRGB Output!
@@ -1254,12 +1254,7 @@ class GodWarsGame {
     if (!p || !p.alive || p.healingTimer > 0) return;
     const shieldMissing = p.maxShield - p.shield;
     const hpMissing = p.maxHp - p.hp;
-    let bestHeal = this.selectedHealId;
-
-    if (shieldMissing >= 50 && hpMissing >= 40 && p.heals.phoenix_kit > 0) bestHeal = 'phoenix_kit';
-    else if (shieldMissing >= 45 && p.heals.shield_battery > 0) bestHeal = 'shield_battery';
-    else if (shieldMissing > 0 && p.heals.shield_cell > 0) bestHeal = 'shield_cell';
-    else if (hpMissing >= 25 && p.heals.medkit > 0) bestHeal = 'medkit';
+    const bestHeal = this.bestHealItem();
 
     if (bestHeal && (p.heals[bestHeal] || 0) > 0) {
       this.selectedHealId = bestHeal;
@@ -1495,6 +1490,7 @@ class GodWarsGame {
       heals: {
         shield_cell: 6,
         shield_battery: 3,
+        syringe: 4,
         medkit: 2,
         phoenix_kit: 1
       },
@@ -1728,6 +1724,13 @@ class GodWarsGame {
     });
 
     window.addEventListener('mousemove', (e) => {
+      // HUD v4: while a desktop wheel is held, the mouse steers the wheel instead of the camera
+      if (this.radial && this.radial.mode === 'mouse') {
+        this.radial.vx = Math.max(-140, Math.min(140, this.radial.vx + (e.movementX || 0)));
+        this.radial.vy = Math.max(-140, Math.min(140, this.radial.vy + (e.movementY || 0)));
+        this.updateRadialVector(this.radial.vx, this.radial.vy);
+        return;
+      }
       if (!this.matchActive || document.pointerLockElement !== canvas || !this.player) return;
       const sens = 0.0021 * this.lookSensitivity * (this.player.isADS ? 0.56 : 1.0);
       this.player.yaw -= e.movementX * sens;
@@ -1787,7 +1790,7 @@ class GodWarsGame {
       } else if (code === 'KeyF') {
         this.triggerApexPing();
       } else if (code === 'KeyT') {
-        this.togglePingWheel();
+        if (!e.repeat) this.radialKeyDown(code);
       } else if (code === 'KeyY') {
         this.dropHoloSpray();
       } else if (code === 'KeyP') {
@@ -1824,19 +1827,22 @@ class GodWarsGame {
       } else if (code === 'KeyG') {
         this.throwEquippedGrenade();
       } else if (code === 'KeyX') {
-        this.toggleOrdnanceWheel();
+        if (!e.repeat) this.radialKeyDown(code);
       } else if (code === 'KeyH') {
         this.startHealing();
       } else if (code === 'Digit4') {
-        this.toggleHealWheel();
+        if (!e.repeat) this.radialKeyDown(code);
       } else if (code === 'KeyM') {
         e.preventDefault();
-        this.toggleFullMap();
+        if (!e.repeat) this.setFullMapVisible(true);
       }
     });
 
     window.addEventListener('keyup', (e) => {
       this.keys[e.code] = false;
+      // HUD v4: map peek and radial wheels are hold-to-show
+      if (e.code === 'KeyM') this.setFullMapVisible(false);
+      if (e.code === 'Digit4' || e.code === 'KeyX' || e.code === 'KeyT') this.radialKeyUp(e.code);
     });
 
     this.initMobileTouchControls();
@@ -2066,9 +2072,6 @@ class GodWarsGame {
     bindHoldBtn('btn-touch-reload', () => this.startReload());
     bindHoldBtn('btn-touch-tactical', () => this.useTacticalAbility());
     bindHoldBtn('btn-touch-ult', () => this.useUltimateAbility());
-    bindHoldBtn('btn-touch-grenade', () => this.throwEquippedGrenade(), null, () => this.toggleOrdnanceWheel());
-    bindHoldBtn('btn-touch-heal', () => this.startHealing(), null, () => this.toggleHealWheel());
-    bindHoldBtn('btn-touch-ping', () => this.triggerApexPing(), null, () => this.togglePingWheel());
     bindHoldBtn('btn-touch-melee', () => this.triggerQuickMelee());
     bindHoldBtn('btn-touch-inspect', () => this.triggerWeaponInspect());
     bindHoldBtn('btn-touch-holster', () => this.toggleHolsterWeapon());
@@ -2076,6 +2079,8 @@ class GodWarsGame {
     bindHoldBtn('btn-touch-bag', () => this.toggleInventoryModal());
     bindHoldBtn('btn-touch-loot', () => this.handleContextInteract());
     bindHoldBtn('btn-dropship-launch', () => this.launchFromDropship());
+    // HUD v4: SVG glyphs + hold-drag radial wheels for heal / ordnance / ping, hold-to-peek map
+    this.initHudV4();
 
     const wSlot1 = document.getElementById('hud-weapon-slot-0');
     const wSlot2 = document.getElementById('hud-weapon-slot-1');
@@ -2091,14 +2096,12 @@ class GodWarsGame {
     const hudBag = document.getElementById('hud-bag-box');
     if (hudTac) hudTac.addEventListener('click', () => this.useTacticalAbility());
     if (hudUlt) hudUlt.addEventListener('click', () => this.useUltimateAbility());
-    if (hudHeal) hudHeal.addEventListener('click', () => this.toggleHealWheel());
-    if (hudBomb) hudBomb.addEventListener('click', () => this.toggleOrdnanceWheel());
+    // HUD v4: click = use best heal / cycle ordnance (hold 4 or X for the wheel at the crosshair)
+    if (hudHeal) hudHeal.addEventListener('click', () => this.startHealing());
+    if (hudBomb) hudBomb.addEventListener('click', () => this.cycleGrenadeType());
     if (hudBag) hudBag.addEventListener('click', () => this.toggleInventoryModal());
 
-    const minimapWrap = document.getElementById('minimap-container');
-    if (minimapWrap) {
-      minimapWrap.addEventListener('click', () => this.toggleFullMap());
-    }
+    // minimap press-and-hold → full map peek is bound in initHudV4()
 
     const btnReplay = document.getElementById('btn-play-again');
     const btnLobby = document.getElementById('btn-back-lobby');
@@ -2111,6 +2114,434 @@ class GodWarsGame {
     if (btnSpec) btnSpec.addEventListener('click', () => this.enterSpectatorMode());
     if (btnSpecNext) btnSpecNext.addEventListener('click', () => { this.spectateIndex++; });
     if (btnSpecExit) btnSpecExit.addEventListener('click', () => this.returnToLobby());
+  }
+
+  // =========================================================================
+  // HUD v4 — crisp SVG glyphs, hold-drag radial wheels, hold-to-peek map,
+  // weapon silhouettes. Everything here is non-blocking: wheels and the map
+  // are pointer-events:none overlays and track touches by identifier so the
+  // joystick and fire thumb keep working underneath.
+  // =========================================================================
+  hudIcon(name) {
+    if (!this._hudIconCache) this._hudIconCache = {};
+    if (this._hudIconCache[name]) return this._hudIconCache[name];
+    const S = 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+    // gear outline is generated (8 rounded teeth) so it stays crisp at any size
+    const gear = (() => {
+      const pts = [];
+      for (let i = 0; i < 16; i++) {
+        const a0 = (i / 16) * Math.PI * 2 - Math.PI / 16 * 0.55;
+        const a1 = (i / 16) * Math.PI * 2 + Math.PI / 16 * 0.55;
+        const r = i % 2 === 0 ? 9.6 : 7.2;
+        pts.push([12 + Math.cos(a0) * r, 12 + Math.sin(a0) * r], [12 + Math.cos(a1) * r, 12 + Math.sin(a1) * r]);
+      }
+      return 'M' + pts.map(p => p[0].toFixed(2) + ' ' + p[1].toFixed(2)).join('L') + 'Z';
+    })();
+    const P = {
+      fire: `<circle cx="12" cy="12" r="6.5" ${S}/><path d="M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5" ${S}/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>`,
+      ads: `<circle cx="12" cy="12" r="8.5" ${S}/><circle cx="12" cy="12" r="3" ${S}/><path d="M12 3.5v4M12 16.5v4M3.5 12h4M16.5 12h4" ${S} stroke-width="1.6"/>`,
+      jump: `<path d="M6 13l6-6 6 6M6 19l6-6 6 6" ${S}/>`,
+      slide: `<path d="M4 18h16" ${S}/><path d="M5 8l5 2.5 3-3 6 7" ${S}/><circle cx="15.5" cy="5" r="1.8" fill="currentColor"/>`,
+      reload: `<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" ${S}/><path d="M20 4.5v4.2h-4.2" ${S}/>`,
+      tactical: `<path d="M13.5 2.5L5 13.5h6l-1 8 9-11.5h-6z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/>`,
+      ult: `<path d="M3.5 8.5l4.5 4 4-7 4 7 4.5-4-1.8 10H5.3z" ${S}/><path d="M6 21h12" ${S}/>`,
+      heal: `<path d="M9.5 4h5v5.5H20v5h-5.5V20h-5v-5.5H4v-5h5.5z" ${S}/>`,
+      grenade: `<circle cx="11" cy="14.5" r="6.2" ${S}/><path d="M9 8.5V6h4v2.5M13 6l3-2.5 3 1.5" ${S}/>`,
+      melee: `<path d="M21 3l-1.2 5.2-8.6 8.6-4-4 8.6-8.6z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/><path d="M5.5 11.5l7 7M8.6 15.4L4 20" ${S} stroke-width="2.2"/>`,
+      ping: `<path d="M12 21s-6.2-6-6.2-11a6.2 6.2 0 0 1 12.4 0c0 5-6.2 11-6.2 11z" ${S}/><circle cx="12" cy="10" r="2.2" fill="currentColor"/>`,
+      bag: `<path d="M6 9a6 6 0 0 1 12 0v10.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19.5z" ${S}/><path d="M9.5 4.5V3h5v1.5M9 14h6v4H9z" ${S}/>`,
+      swap: `<path d="M5 8h13M14.5 4.5L18 8l-3.5 3.5M19 16H6M9.5 12.5L6 16l3.5 3.5" ${S}/>`,
+      camera: `<rect x="3" y="7" width="12" height="10" rx="2" ${S}/><path d="M15 10.5l6-3v9l-6-3z" ${S}/>`,
+      more: `<circle cx="5.5" cy="12" r="1.9" fill="currentColor"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><circle cx="18.5" cy="12" r="1.9" fill="currentColor"/>`,
+      gear: `<path d="${gear}" ${S} stroke-width="1.7"/><circle cx="12" cy="12" r="3" ${S} stroke-width="1.7"/>`,
+      holster: `<path d="M4 12h13M12 6l6 6-6 6" ${S}/>`,
+      holo: `<path d="M12 3l2 6.5L20.5 12 14 14.5 12 21l-2-6.5L3.5 12 10 9.5z" ${S}/>`,
+      inspect: `<path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z" ${S}/><circle cx="12" cy="12" r="2.6" ${S}/>`,
+      close: `<path d="M6 6l12 12M18 6L6 18" ${S}/>`,
+      enemy: `<path d="M12 3.5l9 16H3z" ${S}/><path d="M12 10v4.5" ${S}/><circle cx="12" cy="17.3" r="1.1" fill="currentColor"/>`,
+      go: `<path d="M12 21s-6.2-6-6.2-11a6.2 6.2 0 0 1 12.4 0c0 5-6.2 11-6.2 11z" ${S}/><circle cx="12" cy="10" r="2.2" fill="currentColor"/>`,
+      defend: `<path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.4-7.5 9.5-4.3-1.1-7.5-4.9-7.5-9.5V6z" ${S}/>`,
+      loot: `<path d="M3.5 8L12 4l8.5 4v8.5L12 20.5 3.5 16.5z" ${S}/><path d="M3.5 8L12 12l8.5-4M12 12v8.5" ${S}/>`,
+      flash: `<circle cx="12" cy="12" r="4" ${S}/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" ${S}/>`,
+      arc: `<circle cx="12" cy="12" r="7.5" ${S} stroke-dasharray="3 2.6"/><path d="M13 6.5L9.5 12.5h3.5l-1.5 5" ${S}/>`
+    };
+    const svg = `<svg class="hv4-ico" viewBox="0 0 24 24" aria-hidden="true">${P[name] || P.more}</svg>`;
+    this._hudIconCache[name] = svg;
+    return svg;
+  }
+
+  // Small filled side-view silhouette per weapon (viewBox 64x22). Falls back by category text.
+  weaponSilhouette(wData) {
+    if (!wData) return '';
+    const S = {
+      ar: 'M2 8h9l1-1.5h27V8h4V7h17v2.6H44v1.4h-4.2V13H33l2.2 7h-5.2L28 13h-5.4l-1.8 6.5h-4.6L18 13h-6l-1.8 3.5H2z M22 4.2h8v2h-8z',
+      ak: 'M1.5 9.5l10-2.2V7h28v1h5V7.2h15.5v2.4H44.5V11H40v2h-6.5c1.4 2.4 2.5 5 3 7.6l-4.8.9c-.6-2.9-1.6-5.6-3.2-8.5h-5.2l-1.8 6.4h-4.6L19.2 13h-7.4L2 15.5z M16 4.8h4v2h-4z',
+      smg: 'M3 12.5C3 8 6 5.5 11 5.5h28l5 2.6h12v2.6H45.5l-4 3.3H31l-1.4 6.5h-5.2L25 14H15.5l-3 3H5.5C4 17 3 15.4 3 12.5z M20 3.2h11v2.3H20z',
+      vector: 'M3 7h10V5.5h28V7h6v2.5h13V12H47v1.5h-7l-3.5 7.5h-5.5l3-7.5h-5.2l-2.3 6h-4.8L24 13.5H13v-2H3z',
+      uzi: 'M8 6h34v2.5h10V11H42v2.5H31l-1.2 8h-6L25 13.5h-6l-1 3H8z M14 3.5h6V6h-6z',
+      pistol: 'M10 6.5h32v2h3.5V11H33.5l-1.5 2h-6l-3.5 8h-7l3.2-8.5H10z M30 4.5h3v2h-3z',
+      sniper: 'M1 10l11-2.6h24V7h27v2.2H36v2H31l-1.5 5h-4.5l1-5H18l-1.5 4H12L2 13.5z M18 3.6h14v2.6H18z',
+      shotgun: 'M2 10.5l10-2.8h12V7h37v2.8H40v2H26.5l-2.5 6.5h-5l1.5-6.5H12L2 14z',
+      lmg: 'M1.5 9l10-2h28V6h21v3H46v3h-6v2h-4l-1 6h-5l1-6h-5l-6 5h-6l2-5H11.5L1.5 15z M20 12h8l-1 5h-6z',
+      launcher: 'M6 6.5h50l4 2v5l-4 2H6z M20 15.5h5l-1.5 5h-4z M30 3h8v3.5h-8z'
+    };
+    const id = String(wData.id || '').toLowerCase();
+    const cat = String(wData.category || '').toLowerCase();
+    let k = 'ar';
+    if (id === 'ak47') k = 'ak';
+    else if (id === 'kriss') k = 'vector';
+    else if (id === 'uzi') k = 'uzi';
+    else if (id === 'p90') k = 'smg';
+    else if (id === 'magnum' || /pistol|handcannon|revolver/.test(cat)) k = 'pistol';
+    else if (/sniper|marksman/.test(cat)) k = 'sniper';
+    else if (/shotgun/.test(cat)) k = 'shotgun';
+    else if (/lmg|light machine/.test(cat)) k = 'lmg';
+    else if (/launcher|cannon/.test(cat)) k = 'launcher';
+    else if (/smg|submachine/.test(cat)) k = 'smg';
+    return `<svg class="hv4-sil" viewBox="0 0 64 22" aria-hidden="true"><path d="${S[k]}" fill="currentColor"/></svg>`;
+  }
+
+  initHudV4() {
+    if (this._hudV4Ready) return;
+    this._hudV4Ready = true;
+    const setIco = (id, ico, label) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = this.hudIcon(ico) + (label ? `<span class="hv4-lbl">${label}</span>` : '');
+      el.classList.add('hv4-btn');
+    };
+    setIco('btn-touch-fire', 'fire');
+    setIco('btn-touch-fire-left', 'fire');
+    setIco('btn-touch-ads', 'ads');
+    setIco('btn-touch-jump', 'jump');
+    setIco('btn-touch-slide', 'slide');
+    setIco('btn-touch-reload', 'reload');
+    setIco('btn-touch-tactical', 'tactical');
+    setIco('btn-touch-ult', 'ult');
+    setIco('btn-touch-heal', 'heal');
+    setIco('btn-touch-grenade', 'grenade');
+    setIco('btn-touch-melee', 'melee');
+    setIco('btn-touch-ping', 'ping');
+    setIco('btn-touch-bag', 'bag');
+    setIco('btn-touch-holster', 'holster');
+    setIco('btn-touch-emote', 'holo');
+    setIco('btn-touch-inspect', 'inspect');
+    // live badges (count / cooldown) on consumable + ability buttons
+    [['btn-touch-heal', 'hv4-cnt-heal'], ['btn-touch-grenade', 'hv4-cnt-bomb'], ['btn-touch-tactical', 'hv4-cd-tac'], ['btn-touch-ult', 'hv4-cd-ult']].forEach(([bid, cid]) => {
+      const b = document.getElementById(bid);
+      if (b && !document.getElementById(cid)) b.insertAdjacentHTML('beforeend', `<b id="${cid}" class="hv4-badge"></b>`);
+    });
+
+    // Melee lives right next to FIRE now (moved out of the ⋯ tray).
+    const melee = document.getElementById('btn-touch-melee');
+    const controls = document.getElementById('mobile-touch-controls');
+    if (melee && controls && melee.parentNode !== controls) {
+      controls.insertBefore(melee, document.getElementById('mobile-tac-tray'));
+      melee.classList.remove('tray-item');
+    }
+
+    // Top-right: compact glass icon buttons
+    const cam = document.getElementById('btn-hud-cam-toggle');
+    if (cam) cam.innerHTML = this.hudIcon('camera') + `<i class="hv4-cam-tag">${this.thirdPersonMode ? '3P' : '1P'}</i>`;
+    const tray = document.getElementById('btn-hud-tac-tray');
+    if (tray) tray.innerHTML = this.hudIcon('more');
+    const gear = document.getElementById('btn-hud-quick-settings');
+    if (gear) gear.innerHTML = this.hudIcon('gear');
+    [cam, tray, gear].forEach(b => b && b.classList.add('hv4-top-btn'));
+
+    // Weapon cards: add a silhouette slot + a tiny swap glyph
+    [0, 1].forEach(i => {
+      const card = document.getElementById(`hud-weapon-slot-${i}`);
+      if (card && !document.getElementById(`hud-wep-sil-${i}`)) {
+        card.insertAdjacentHTML('afterbegin', `<div id="hud-wep-sil-${i}" class="hv4-wep-sil"></div>`);
+      }
+    });
+    const right = document.querySelector('.hud-bottom-right');
+    if (right && !right.querySelector('.hv4-swap-tag')) right.insertAdjacentHTML('beforeend', `<span class="hv4-swap-tag">${this.hudIcon('swap')}</span>`);
+
+    // Full map canvas: higher backing resolution for the big peek overlay
+    const fm = document.getElementById('fullmap-canvas');
+    if (fm && fm.width < 560) { fm.width = 560; fm.height = 560; }
+    const fmModal = document.getElementById('fullmap-modal');
+    if (fmModal) { fmModal.removeAttribute('onclick'); fmModal.classList.add('hv4-map-peek'); }
+
+    // Inventory: no full-screen backdrop; clicking empty space is ignored by CSS (pointer-events none)
+    const inv = document.getElementById('inventory-modal');
+    if (inv) inv.classList.add('hv4-side-panel');
+
+    // Radial root (purely visual, never takes pointer events)
+    if (!document.getElementById('hv4-radial')) {
+      const r = document.createElement('div');
+      r.id = 'hv4-radial';
+      r.className = 'hidden';
+      document.body.appendChild(r);
+    }
+
+    // Hold-drag-release wheels on touch buttons
+    this.bindRadialHoldBtn('btn-touch-heal', 'heal', () => this.startHealing());
+    this.bindRadialHoldBtn('btn-touch-grenade', 'ordnance', () => this.throwEquippedGrenade());
+    this.bindRadialHoldBtn('btn-touch-ping', 'ping', () => this.triggerApexPing());
+
+    // Hold the minimap to peek the full island map (touch: by identifier; mouse: press & hold)
+    const mm = document.getElementById('minimap-container');
+    if (mm) {
+      let mapTouchId = null;
+      mm.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (mapTouchId !== null) return;
+        mapTouchId = e.changedTouches[0].identifier;
+        this.setFullMapVisible(true);
+      }, { passive: false });
+      const endMap = (e) => {
+        for (const t of e.changedTouches) {
+          if (t.identifier === mapTouchId) {
+            mapTouchId = null;
+            this.setFullMapVisible(false);
+          }
+        }
+      };
+      mm.addEventListener('touchend', endMap);
+      mm.addEventListener('touchcancel', endMap);
+      mm.addEventListener('mousedown', (e) => {
+        if (this.forceMobileUI) return;
+        e.preventDefault();
+        this.setFullMapVisible(true);
+        const up = () => { this.setFullMapVisible(false); window.removeEventListener('mouseup', up); };
+        window.addEventListener('mouseup', up);
+      });
+    }
+  }
+
+  setFullMapVisible(show) {
+    const modal = document.getElementById('fullmap-modal');
+    if (!modal) return;
+    modal.classList.toggle('hidden', !show);
+    this.fullMapPeek = show;
+    if (show) this.drawMinimap();
+  }
+
+  healHelps(id) {
+    const p = this.player;
+    const h = window.GODWARS_DATA.HEAL_ITEMS[id];
+    if (!p || !h) return false;
+    return (h.shieldRestore > 0 && p.shield < p.maxShield - 0.5) || (h.hpRestore > 0 && p.hp < p.maxHp - 0.5);
+  }
+
+  radialItems(kind) {
+    const D = window.GODWARS_DATA;
+    const p = this.player;
+    if (kind === 'heal') {
+      const order = ['shield_battery', 'shield_cell', 'syringe', 'medkit', 'phoenix_kit'];
+      const ico = { shield_cell: 'shield_cell', shield_battery: 'shield_battery', syringe: 'syringe', medkit: 'medkit', phoenix_kit: 'phoenix_kit' };
+      const lbl = { shield_cell: 'CELL', shield_battery: 'BATTERY', syringe: 'SYRINGE', medkit: 'MEDKIT', phoenix_kit: 'NECTAR' };
+      return order.filter(k => D.HEAL_ITEMS[k]).map(k => ({
+        id: k, label: lbl[k], color: D.HEAL_ITEMS[k].color, svg: this.lootIcon(ico[k]),
+        count: p ? (p.heals[k] || 0) : 0, sub: D.HEAL_ITEMS[k].shieldRestore > 0 && D.HEAL_ITEMS[k].hpRestore > 0 ? 'BOTH' : D.HEAL_ITEMS[k].shieldRestore > 0 ? 'SHIELD' : 'HP',
+        dim: !p || (p.heals[k] || 0) <= 0 || !this.healHelps(k)
+      }));
+    }
+    if (kind === 'ordnance') {
+      const ico = { solar_bomb: 'grenade', apollo_flash: 'flash', yggdrasil_arc: 'arc' };
+      return Object.values(D.GRENADES).map(g => ({
+        id: g.id, label: g.shortName.split(' ').pop(), color: g.color, svg: this.hudIcon(ico[g.id] || 'grenade'),
+        count: p ? (p.grenadeCounts[g.id] || 0) : 0, dim: !p || (p.grenadeCounts[g.id] || 0) <= 0,
+        active: g.id === this.selectedGrenadeId
+      }));
+    }
+    // ping
+    return ['enemy', 'go', 'defend', 'loot'].filter(k => D.PING_TYPES[k]).map(k => ({
+      id: k, label: { enemy: 'ENEMY', go: 'GO', defend: 'DEFEND', loot: 'LOOT' }[k], color: D.PING_TYPES[k].color, svg: this.hudIcon(k)
+    }));
+  }
+
+  openRadial(kind, cx, cy, mode) {
+    const root = document.getElementById('hv4-radial');
+    if (!root || !this.player) return;
+    const items = this.radialItems(kind);
+    const mobile = this.forceMobileUI;
+    const R = mobile ? 62 : 92;
+    const pad = R + 30;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const x = Math.max(pad, Math.min(vw - pad, cx));
+    const y = Math.max(pad, Math.min(vh - pad, cy));
+    root.style.left = `${x}px`;
+    root.style.top = `${y}px`;
+    root.style.setProperty('--hv4-r', `${R}px`);
+    root.className = `hv4-radial ${mobile ? 'mob' : 'desk'}`;
+    const n = items.length;
+    root.innerHTML = `<div class="hv4-ring"></div>` + items.map((it, i) => {
+      const a = -Math.PI / 2 + (i / n) * Math.PI * 2;
+      const ix = Math.cos(a) * R, iy = Math.sin(a) * R;
+      return `<div class="hv4-ri ${it.dim ? 'dim' : ''} ${it.active ? 'cur' : ''}" data-i="${i}" style="--c:${it.color};transform:translate(calc(-50% + ${ix.toFixed(1)}px), calc(-50% + ${iy.toFixed(1)}px))">
+        <span class="hv4-ri-ico">${it.svg}</span>${it.count !== undefined ? `<b>${it.count}</b>` : ''}</div>`;
+    }).join('') + `<div class="hv4-rc"><span id="hv4-rc-lbl">${kind === 'heal' ? 'HEAL' : kind === 'ping' ? 'PING' : 'ORDNANCE'}</span><small id="hv4-rc-sub">${mobile ? 'drag · release' : 'move · release'}</small></div>`;
+    this.radial = { kind, items, sel: -1, mode, vx: 0, vy: 0 };
+  }
+
+  updateRadialVector(dx, dy) {
+    const r = this.radial;
+    if (!r) return;
+    const dead = r.mode === 'mouse' ? 30 : 20;
+    let sel = -1;
+    if (Math.hypot(dx, dy) > dead) {
+      const n = r.items.length;
+      let a = Math.atan2(dy, dx) + Math.PI / 2; // 0 = up
+      a = ((a % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      sel = Math.round(a / (Math.PI * 2 / n)) % n;
+    }
+    if (sel === r.sel) return;
+    r.sel = sel;
+    const root = document.getElementById('hv4-radial');
+    if (!root) return;
+    root.querySelectorAll('.hv4-ri').forEach(el => el.classList.toggle('sel', Number(el.dataset.i) === sel));
+    const lbl = document.getElementById('hv4-rc-lbl');
+    const sub = document.getElementById('hv4-rc-sub');
+    if (sel >= 0) {
+      const it = r.items[sel];
+      if (lbl) { lbl.textContent = it.label; lbl.style.color = it.color; }
+      if (sub) sub.textContent = it.sub || (it.count !== undefined ? `x${it.count}` : 'release');
+      this.vibrate(8);
+    } else {
+      if (lbl) { lbl.textContent = r.kind === 'heal' ? 'HEAL' : r.kind === 'ping' ? 'PING' : 'ORDNANCE'; lbl.style.color = ''; }
+      if (sub) sub.textContent = 'cancel';
+    }
+  }
+
+  closeRadial(commit) {
+    const r = this.radial;
+    this.radial = null;
+    const root = document.getElementById('hv4-radial');
+    if (root) { root.className = 'hidden'; root.innerHTML = ''; }
+    if (!r || !commit || r.sel < 0) return;
+    const it = r.items[r.sel];
+    const D = window.GODWARS_DATA;
+    if (r.kind === 'heal') {
+      if ((this.player.heals[it.id] || 0) <= 0) { this.showBanner(`NO ${it.label} LEFT`, '#f43f5e'); return; }
+      if (!this.healHelps(it.id)) {
+        const h = D.HEAL_ITEMS[it.id];
+        this.showBanner(h.hpRestore > 0 && h.shieldRestore <= 0 ? 'HEALTH FULL' : h.shieldRestore > 0 && h.hpRestore <= 0 ? 'SHIELD FULL' : 'ALREADY FULL', '#94a3b8');
+        return;
+      }
+      this.selectedHealId = it.id;
+      this.startHealing(it.id);
+    } else if (r.kind === 'ordnance') {
+      this.selectedGrenadeId = it.id;
+      window.SFX.playReload();
+      if (this.forceMobileUI && (this.player.grenadeCounts[it.id] || 0) > 0) this.throwEquippedGrenade();
+      else this.showBanner(`EQUIPPED: ${D.GRENADES[it.id].shortName}`, it.color);
+    } else {
+      this.triggerApexPing(it.id);
+    }
+  }
+
+  // Touch: tap = default action; hold (or drag) = wheel around the button; release on an item uses it.
+  bindRadialHoldBtn(id, kind, onTap) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    let tid = null, sx = 0, sy = 0, timer = null, opened = false;
+    const open = () => {
+      if (opened || tid === null) return;
+      opened = true;
+      clearTimeout(timer); timer = null;
+      const rc = el.getBoundingClientRect();
+      this.openRadial(kind, rc.left + rc.width / 2, rc.top + rc.height / 2, 'touch');
+      this.vibrate(16);
+    };
+    el.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      window.SFX.init();
+      if (tid !== null) return;
+      const t = e.changedTouches[0];
+      tid = t.identifier; sx = t.clientX; sy = t.clientY; opened = false;
+      el.classList.add('hv4-down');
+      timer = setTimeout(open, 230);
+    }, { passive: false });
+    el.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      for (const t of e.changedTouches) {
+        if (t.identifier !== tid) continue;
+        const dx = t.clientX - sx, dy = t.clientY - sy;
+        if (!opened && Math.hypot(dx, dy) > 16) open();
+        if (opened) this.updateRadialVector(dx, dy);
+      }
+    }, { passive: false });
+    const end = (e, cancel) => {
+      let mine = false;
+      for (const t of e.changedTouches) if (t.identifier === tid) mine = true;
+      if (!mine) return;
+      e.preventDefault();
+      clearTimeout(timer); timer = null;
+      tid = null;
+      el.classList.remove('hv4-down');
+      if (opened) this.closeRadial(!cancel);
+      else if (!cancel) onTap();
+      opened = false;
+    };
+    el.addEventListener('touchend', (e) => end(e, false), { passive: false });
+    el.addEventListener('touchcancel', (e) => end(e, true), { passive: false });
+    el.addEventListener('mousedown', (e) => { e.preventDefault(); onTap(); });
+  }
+
+  // Desktop: hold 4 / X / T to show the wheel at the crosshair, steer with the mouse, release to pick.
+  radialKeyDown(code) {
+    const kind = code === 'Digit4' ? 'heal' : code === 'KeyX' ? 'ordnance' : 'ping';
+    if (this._radialKey) return;
+    this._radialKey = { code, kind, timer: setTimeout(() => {
+      if (!this._radialKey || this._radialKey.code !== code) return;
+      this._radialKey.opened = true;
+      this.openRadial(kind, window.innerWidth / 2, window.innerHeight / 2, 'mouse');
+    }, 180) };
+  }
+
+  radialKeyUp(code) {
+    const k = this._radialKey;
+    if (!k || k.code !== code) return;
+    clearTimeout(k.timer);
+    this._radialKey = null;
+    if (k.opened) { this.closeRadial(true); return; }
+    if (k.kind === 'heal') this.cycleHealType();
+    else if (k.kind === 'ordnance') this.cycleGrenadeType();
+    else this.triggerApexPing();
+  }
+
+  // 10 Hz: icon badges, weapon silhouettes, live bag refresh
+  updateHudV4Badges() {
+    const p = this.player;
+    if (!p) return;
+    const setB = (id, txt, cls) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (el.textContent !== txt) el.textContent = txt;
+      if (cls !== undefined) el.className = `hv4-badge ${cls}`;
+    };
+    const healId = this.bestHealItem() || this.selectedHealId;
+    const healCnt = Object.values(p.heals).reduce((a, b) => a + (b || 0), 0);
+    setB('hv4-cnt-heal', p.healTimer > 0 ? `${p.healTimer.toFixed(1)}` : `${healCnt}`, healCnt <= 0 ? 'empty' : '');
+    const hb = document.getElementById('btn-touch-heal');
+    if (hb) hb.style.setProperty('--hv4-accent', (window.GODWARS_DATA.HEAL_ITEMS[healId] || {}).color || '#34d399');
+    setB('hv4-cnt-bomb', `${p.grenadeCounts[this.selectedGrenadeId] || 0}`, (p.grenadeCounts[this.selectedGrenadeId] || 0) <= 0 ? 'empty' : '');
+    setB('hv4-cd-tac', p.tacticalCooldown > 0 ? `${Math.ceil(p.tacticalCooldown)}` : '', p.tacticalCooldown > 0 ? 'cd' : 'hidden');
+    setB('hv4-cd-ult', p.ultCharge >= 100 ? '' : `${Math.floor(p.ultCharge)}%`, p.ultCharge >= 100 ? 'hidden' : 'cd');
+    const tb = document.getElementById('btn-touch-tactical');
+    if (tb) tb.classList.toggle('hv4-cooling', p.tacticalCooldown > 0);
+    const ub = document.getElementById('btn-touch-ult');
+    if (ub) ub.classList.toggle('hv4-ready', p.ultCharge >= 100);
+
+    p.weapons.forEach((w, i) => {
+      const sil = document.getElementById(`hud-wep-sil-${i}`);
+      if (!sil || !w || !w.data) return;
+      const key = `${w.data.id}${w.isMythicGold ? 'g' : ''}`;
+      if (sil.dataset.k !== key) {
+        sil.dataset.k = key;
+        sil.innerHTML = this.weaponSilhouette(w.data);
+      }
+    });
+
+    const inv = document.getElementById('inventory-modal');
+    if (inv && !inv.classList.contains('hidden')) {
+      const sig = JSON.stringify([p.heals, p.grenadeCounts, p.weapons.map(w => [w.data.id, w.mag, w.reserve, w.attachments]), p.activeSlot, this.selectedGrenadeId]);
+      if (sig !== this._invSig) this.renderInventoryModal();
+    }
   }
 
   updateJoystick(clientX, clientY, knobEl) {
@@ -2557,66 +2988,65 @@ class GodWarsGame {
     const p = this.player;
     const container = document.getElementById('inventory-content');
     if (!container || !p) return;
-
-    const attCfg = window.GODWARS_DATA.ATTACHMENTS;
-    let html = `<div class="inv-weapons-row">`;
+    const D = window.GODWARS_DATA;
+    const attCfg = D.ATTACHMENTS;
+    const S = 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+    const attIco = {
+      barrel: `<svg viewBox="0 0 24 24"><path d="M3 12h13M16 9v6M19 10.5v3" ${S}/></svg>`,
+      mag: `<svg viewBox="0 0 24 24"><path d="M8 4h8l-1 16H9z" ${S}/><path d="M9 9h6" ${S}/></svg>`,
+      optic: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" ${S}/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg>`,
+      hopup: `<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" ${S}/><path d="M9 3v3M15 3v3M9 18v3M15 18v3" ${S}/></svg>`
+    };
+    const tier = D.EVO_TIERS[p.shieldTier] || D.EVO_TIERS[2];
+    let html = `<div class="iv-vitals"><span style="color:${tier.color}">${this.lootIcon('armor')}</span><b style="color:${tier.color}">${tier.name}</b><em>${Math.ceil(p.shield)}/${p.maxShield} · HP ${Math.ceil(p.hp)}/${p.maxHp}</em></div>`;
+    html += `<div class="iv-sec">WEAPONS</div>`;
     p.weapons.forEach((w, idx) => {
       const mode = (w.data.modes || ['AUTO'])[w.fireModeIndex || 0];
-      html += `
-        <div class="inv-wep-box" style="border-color:${w.isMythicGold ? '#fde047' : w.data.color}">
-          <div class="inv-wep-header">
-            <span>SLOT ${idx + 1} • ${w.data.baseName} (${mode})</span>
-            <b>${w.mag} / ${w.reserve}</b>
-          </div>
-          <div class="inv-wep-title">${w.isMythicGold ? '★ MYTHIC ' : ''}${w.data.divineName}</div>
-          <div class="inv-att-grid">
-            ${['barrel', 'mag', 'optic', 'hopup'].map(cat => {
-              const lvl = w.attachments[cat] || 0;
-              const tInfo = attCfg[cat].tiers[lvl];
-              return `<div class="inv-att-chip" style="border-color:${tInfo.color};color:${tInfo.color}">
-                <span>${cat.toUpperCase()}</span>
-                <b>${tInfo.name}</b>
-              </div>`;
-            }).join('')}
-          </div>
-        </div>
-      `;
+      const col = w.isMythicGold ? '#fde047' : w.data.color;
+      html += `<button class="iv-wep ${idx === p.activeSlot ? 'on' : ''}" data-slot="${idx}" style="--c:${col}">
+        <span class="iv-wep-sil">${this.weaponSilhouette(w.data)}</span>
+        <span class="iv-wep-txt"><b>${idx + 1} · ${w.data.baseName}</b><small>${mode} · ${w.mag}/${w.reserve}</small></span>
+        <span class="iv-atts">${['barrel', 'mag', 'optic', 'hopup'].map(cat => {
+          const tInfo = attCfg[cat].tiers[w.attachments[cat] || 0];
+          return `<i title="${cat}: ${tInfo.name}" style="color:${tInfo.color}">${attIco[cat]}</i>`;
+        }).join('')}</span>
+      </button>`;
     });
-    html += `</div>`;
-
-    html += `<div class="inv-items-row">`;
-    Object.values(window.GODWARS_DATA.HEAL_ITEMS).forEach(h => {
-      const cnt = p.heals[h.id] || 0;
-      html += `
-        <button class="inv-item-btn" data-heal="${h.id}" style="border-color:${h.color}">
-          <div style="font-size:20px">${h.icon}</div>
-          <div><b>${h.shortName}</b><br/><span>x${cnt} (Tap to Use)</span></div>
-        </button>
-      `;
+    html += `<div class="iv-sec">HEALS <small>tap to use</small></div><div class="iv-grid">`;
+    ['shield_cell', 'shield_battery', 'syringe', 'medkit', 'phoenix_kit'].forEach(k => {
+      const h = D.HEAL_ITEMS[k];
+      if (!h) return;
+      const cnt = p.heals[k] || 0;
+      const lbl = { shield_cell: 'CELL', shield_battery: 'BATTERY', syringe: 'SYRINGE', medkit: 'MEDKIT', phoenix_kit: 'NECTAR' }[k];
+      html += `<button class="iv-it ${cnt <= 0 ? 'dim' : ''}" data-heal="${k}" style="--c:${h.color}"><span>${this.lootIcon(k)}</span><b>${cnt}</b><small>${lbl}</small></button>`;
     });
-    Object.values(window.GODWARS_DATA.GRENADES).forEach(g => {
+    html += `</div><div class="iv-sec">ORDNANCE <small>tap to equip</small></div><div class="iv-grid">`;
+    const gIco = { solar_bomb: 'grenade', apollo_flash: 'flash', yggdrasil_arc: 'arc' };
+    Object.values(D.GRENADES).forEach(g => {
       const cnt = p.grenadeCounts[g.id] || 0;
-      html += `
-        <button class="inv-item-btn" data-bomb="${g.id}" style="border-color:${g.color}">
-          <div style="font-size:20px">${g.icon}</div>
-          <div><b>${g.shortName}</b><br/><span>x${cnt} (Tap to Equip)</span></div>
-        </button>
-      `;
+      html += `<button class="iv-it ${cnt <= 0 ? 'dim' : ''} ${g.id === this.selectedGrenadeId ? 'on' : ''}" data-bomb="${g.id}" style="--c:${g.color}"><span>${this.hudIcon(gIco[g.id] || 'grenade')}</span><b>${cnt}</b><small>${g.shortName.split(' ').pop()}</small></button>`;
     });
     html += `</div>`;
 
     container.innerHTML = html;
-    container.querySelectorAll('.inv-item-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+    this._invSig = JSON.stringify([p.heals, p.grenadeCounts, p.weapons.map(w => [w.data.id, w.mag, w.reserve, w.attachments]), p.activeSlot, this.selectedGrenadeId]);
+    container.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
         if (btn.dataset.heal) {
-          this.selectedHealId = btn.dataset.heal;
-          this.toggleInventoryModal();
-          this.startHealing();
+          const k = btn.dataset.heal;
+          if ((p.heals[k] || 0) <= 0) return;
+          if (!this.healHelps(k)) { this.showBanner(D.HEAL_ITEMS[k].hpRestore > 0 && !D.HEAL_ITEMS[k].shieldRestore ? 'HEALTH FULL' : 'SHIELD FULL', '#94a3b8'); return; }
+          this.selectedHealId = k;
+          this.startHealing(k);
         } else if (btn.dataset.bomb) {
           this.selectedGrenadeId = btn.dataset.bomb;
-          this.toggleInventoryModal();
-          this.showBanner(`EQUIPPED: ${window.GODWARS_DATA.GRENADES[this.selectedGrenadeId].name}`, '#fbbf24');
+          window.SFX.playReload();
+        } else if (btn.dataset.slot) {
+          this.player.holstered = false;
+          this.selectWeaponSlot(parseInt(btn.dataset.slot, 10));
         }
+        this.renderInventoryModal();
       });
     });
   }
@@ -2673,6 +3103,7 @@ class GodWarsGame {
   triggerQuickMelee() {
     const p = this.player;
     if (!p || !p.alive || p.inDropship || p.meleeTimer > 0) return;
+    this.cancelHealing();
     p.meleeTimer = 0.52;
     const eyePos = this.camera.position.clone();
     const lookDir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion).normalize();
@@ -2717,6 +3148,8 @@ class GodWarsGame {
       p.velocity.y = 10.4;
       p.onGround = false;
       if (window.SFX && window.SFX.playJump) window.SFX.playJump(this.world.surfaceAt(p.position.x, p.position.z, p.position.y));
+      if (window.SFX && window.SFX.playVoice && Math.random() < 0.7) window.SFX.playVoice('jump', { hero: p.heroId });
+      if (window.ViewAnim) window.ViewAnim.jump();
       // Apex Slide-Jump Momentum Burst!
       if (p.isSliding) {
         p.momentumBoost = 15.2;
@@ -2812,6 +3245,7 @@ class GodWarsGame {
       this.toggleFireMode();
       return;
     }
+    this.cancelHealing();
     this.player.activeSlot = slotIdx;
     this.player.isADS = false;
     this.player.inspectTimer = 0;
@@ -2830,6 +3264,7 @@ class GodWarsGame {
     let mult = (this.player.heroId === 'zeus' ? 0.8 : 1.0) * magReloadMult;
     if (wep.isMythicGold) mult *= 0.85;
     wep.reloadTimer = wep.data.reloadTime * mult;
+    wep._rlTotal = wep.reloadTimer;
     window.SFX.playReload();
   }
 
@@ -2885,7 +3320,7 @@ class GodWarsGame {
   toggleThirdPersonCamera() {
     this.thirdPersonMode = !this.thirdPersonMode;
     const btn = document.getElementById('btn-hud-cam-toggle');
-    if (btn) btn.textContent = this.thirdPersonMode ? '🎥 1ST' : '🎥 3RD';
+    if (btn) btn.innerHTML = this.hudIcon('camera') + `<i class="hv4-cam-tag">${this.thirdPersonMode ? '3P' : '1P'}</i>`;
     this.vibrate(14);
     this.showBanner(
       this.thirdPersonMode ? '🎥 3RD-PERSON ACTION CAMERA ACTIVE' : '🎥 1ST-PERSON FPS CAMERA ACTIVE',
@@ -3003,18 +3438,47 @@ class GodWarsGame {
     this.showBanner(`SELECTED HEAL ITEM: ${h.name.toUpperCase()} [PRESS H]`, h.color);
   }
 
-  startHealing() {
+  // HUD v4: health and shield are separate pools. Shield items (cell/battery) only refill shield,
+  // health items (syringe/medkit) only refill HP; the nectar kit does both. Never waste an item
+  // on a full pool: if the chosen item can't help, fall back to the best one that can.
+  bestHealItem(preferred = null) {
+    const p = this.player;
+    if (!p) return null;
+    const H = window.GODWARS_DATA.HEAL_ITEMS;
+    const have = (k) => (p.heals[k] || 0) > 0 && H[k];
+    const sMiss = p.maxShield - p.shield;
+    const hMiss = p.maxHp - p.hp;
+    const helps = (k) => have(k) && ((H[k].shieldRestore > 0 && sMiss > 0.5) || (H[k].hpRestore > 0 && hMiss > 0.5));
+    if (preferred && helps(preferred)) return preferred;
+    if (sMiss >= 50 && hMiss >= 40 && have('phoenix_kit')) return 'phoenix_kit';
+    // Apex habit: top up shields first, then health.
+    if (sMiss > 0.5) {
+      if (sMiss > 25 && have('shield_battery')) return 'shield_battery';
+      if (have('shield_cell')) return 'shield_cell';
+      if (have('shield_battery')) return 'shield_battery';
+    }
+    if (hMiss > 0.5) {
+      if (hMiss > 40 && have('medkit')) return 'medkit';
+      if (have('syringe')) return 'syringe';
+      if (have('medkit')) return 'medkit';
+    }
+    if (helps('phoenix_kit')) return 'phoenix_kit';
+    return null;
+  }
+
+  startHealing(preferredId = null) {
     const p = this.player;
     if (!p || !p.alive || p.healTimer > 0 || p.knocked) return;
 
-    let itemKey = this.selectedHealId;
-    if ((p.heals[itemKey] || 0) <= 0) {
-      itemKey = Object.keys(p.heals).find(k => p.heals[k] > 0) || 'shield_cell';
+    const anyLeft = Object.keys(p.heals).some(k => p.heals[k] > 0);
+    if (!anyLeft) {
+      this.showBanner('NO HEALING ITEMS LEFT', '#f43f5e');
+      return;
     }
-    if (p.shield < p.maxShield && p.hp >= p.maxHp && (itemKey === 'medkit')) {
-      itemKey = p.heals.shield_battery > 0 ? 'shield_battery' : 'shield_cell';
-    } else if (p.hp < p.maxHp && p.shield >= p.maxShield && (itemKey === 'shield_cell' || itemKey === 'shield_battery')) {
-      itemKey = p.heals.medkit > 0 ? 'medkit' : 'phoenix_kit';
+    const itemKey = this.bestHealItem(preferredId || this.selectedHealId);
+    if (!itemKey) {
+      this.showBanner(p.shield >= p.maxShield && p.hp >= p.maxHp ? 'HEALTH & SHIELD FULL' : 'NO USEFUL HEAL ITEM', '#94a3b8');
+      return;
     }
 
     const hItem = window.GODWARS_DATA.HEAL_ITEMS[itemKey];
@@ -3027,6 +3491,10 @@ class GodWarsGame {
     p.healingType = itemKey;
     p.healTimer = hItem.castTime;
     p.healDuration = hItem.castTime;
+    if (window.SFX && window.SFX.healStart) {
+      if (this._healSfx) window.SFX.healCancel(this._healSfx);
+      this._healSfx = window.SFX.healStart(itemKey, hItem.castTime);
+    }
   }
 
   interactWithLootBin() {
@@ -3046,6 +3514,7 @@ class GodWarsGame {
       ammo: '<path d="M5 9c0-3 1.2-5 2-5s2 2 2 5v11H5zM10.5 9c0-3 1.2-5 2-5s2 2 2 5v11h-4zM16 9c0-3 1.2-5 2-5s2 2 2 5v11h-4z" fill="currentColor"/>',
       shield_cell: '<path d="M12 3l7 4v10l-7 4-7-4V7z" fill="currentColor" opacity=".9"/><path d="M12 8v8" stroke="#0b1220" stroke-width="1.6"/>',
       shield_battery: '<rect x="6" y="4" width="12" height="17" rx="2" fill="currentColor"/><rect x="9" y="2" width="6" height="3" rx="1" fill="currentColor"/><path d="M13 7l-3 5h3l-2 5" stroke="#0b1220" stroke-width="1.5" fill="none"/>',
+      syringe: '<path d="M15 3l6 6M17 5l-9.5 9.5-1 4 4-1L20 8M9 13l2 2M11 11l2 2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M6.5 17.5L3 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
       medkit: '<rect x="3" y="6" width="18" height="14" rx="2" fill="currentColor"/><path d="M12 9v8M8 13h8" stroke="#0b1220" stroke-width="2.2"/><path d="M9 6V4h6v2" stroke="currentColor" stroke-width="1.5" fill="none"/>',
       phoenix_kit: '<path d="M12 2c1 4 6 6 6 12a6 6 0 01-12 0c0-3 2-4 2-7 2 1 3 3 3 5 1-3 0-7 1-10z" fill="currentColor"/>',
       note: '<circle cx="12" cy="12" r="4" fill="currentColor"/>',
@@ -3069,6 +3538,7 @@ class GodWarsGame {
     items.push({ kind: 'ammo', n: 2, name: 'AMMO', color: '#cbd5e1' });
     items.push({ kind: 'heal', id: 'shield_battery', n: loot.shieldBattery || 2, name: 'BATTERY', color: '#38bdf8' });
     items.push({ kind: 'heal', id: 'shield_cell', n: 3, name: 'CELL', color: '#7dd3fc' });
+    items.push({ kind: 'heal', id: 'syringe', n: loot.syringe || 2, name: 'SYRINGE', color: '#34d399' });
     if (loot.medkit) items.push({ kind: 'heal', id: 'medkit', n: loot.medkit, name: 'MEDKIT', color: '#34d399' });
     if (loot.phoenixKit) items.push({ kind: 'heal', id: 'phoenix_kit', n: loot.phoenixKit, name: 'NECTAR', color: '#c084fc' });
     if (loot.grenadeId && D.GRENADES[loot.grenadeId]) {
@@ -3336,6 +3806,8 @@ class GodWarsGame {
     document.getElementById('inventory-modal').classList.add('hidden');
     document.getElementById('heal-wheel-modal').classList.add('hidden');
     document.getElementById('deathbox-modal').classList.add('hidden');
+    this.setFullMapVisible(false);
+    this.closeRadial(false);
     document.getElementById('lobby-screen').classList.remove('hidden');
     this.updateLobby3DSquad(null);
     window.SFX.playLobbyMusic();
@@ -3393,7 +3865,7 @@ class GodWarsGame {
         // heroes/GLBs attach asynchronously: refresh shadow flags about once a second
         this._lobbyShadowTick = (this._lobbyShadowTick || 0) + 1;
         if (this._lobbyShadowTick % 60 === 1) this.lobbyScene.traverse(o => { if (o.isMesh && !o.material.transparent) { o.castShadow = true; o.receiveShadow = true; } });
-        if (this.post) { this.post.params.exposure = 0.64; this.post.params.bloom = 0.4; if (this.lobbyShafts) this.lobbyShafts.forEach(sh => { sh.material.opacity = this.post.enabled ? 0.012 : 0.035; }); this.post.render(this.lobbyScene, this.lobbyCamera); } else this.renderer.render(this.lobbyScene, this.lobbyCamera);
+        if (this.post) { if (this.applyLobbyGrade) this.applyLobbyGrade(); else { this.post.params.exposure = 0.64; this.post.params.bloom = 0.4; } if (this.lobbyShafts) this.lobbyShafts.forEach(sh => { sh.material.opacity = this.post.enabled ? 0.012 : 0.035; }); this.post.render(this.lobbyScene, this.lobbyCamera); } else this.renderer.render(this.lobbyScene, this.lobbyCamera);
       }
       return;
     }
@@ -3422,6 +3894,7 @@ class GodWarsGame {
     }
 
     this.bots.forEach(bot => bot.update(dt, this.matchTime));
+    if (window.HeroAnim) window.HeroAnim.updateActors(this, dt); // procedural bodies, vocals, death falls
     this.combat.update(dt);
     if (!this.isFiringRange) {
       this.updateStormRing(dt);
@@ -3479,9 +3952,108 @@ class GodWarsGame {
     }
   }
 
+  /** Interrupt an in-progress heal (shooting, swapping, melee, knocked, death). */
+  cancelHealing() {
+    const p = this.player;
+    if (!p || !(p.healTimer > 0)) return;
+    p.healTimer = 0;
+    p.healingType = null;
+    if (window.SFX && window.SFX.healCancel && this._healSfx) window.SFX.healCancel(this._healSfx);
+    this._healSfx = null;
+  }
+
+  /** Feed the procedural third-person body (js/anim.js) from the player's state. */
+  driveThirdPersonBody(dt) {
+    const p = this.player, m = p && p.thirdPersonMesh;
+    if (!m) return;
+    m.visible = true;
+    if (p.diveTrail) p.diveTrail.visible = false;
+    m.position.copy(p.position);
+    m.rotation.set(0, p.yaw + Math.PI, 0);
+    m.scale.set(1, 1, 1);
+    const wep = p.weapons && p.weapons[p.activeSlot];
+    const rl = wep && wep.reloading ? Math.max(0, Math.min(1, 1 - wep.reloadTimer / Math.max(0.1, wep._rlTotal || wep.data.reloadTime || 2))) : -1;
+    const healing = p.healTimer > 0 && p.healingType;
+    if (window.HeroAnim) {
+      window.HeroAnim.drive(m, {
+        grounded: p.onGround || p.ziplining,
+        sprint: p.isSprinting, slide: p.isSliding, crouch: p.isCrouching, ads: p.isADS,
+        knocked: p.knocked, reload: rl,
+        heal: healing ? p.healingType : null,
+        healT: healing ? Math.max(0, Math.min(1, 1 - p.healTimer / Math.max(0.1, p.healDuration || 1))) : 0,
+        melee: p.meleeTimer > 0 ? 1 - p.meleeTimer / 0.52 : -1,
+        aimPitch: p.pitch, noGun: !!p.holstered, weaponId: wep && wep.id, fired: !!this._tpFired
+      }, dt);
+    }
+    this._tpFired = false;
+  }
+
+  /** Damage vocals, knock scream, heal-cancel on knock, and death-state reset after a respawn. */
+  updatePlayerBodyEvents(dt) {
+    const p = this.player;
+    if (p._deathCamT != null) {
+      // respawned (online arena) -> stand the body back up
+      p._deathCamT = null;
+      if (window.HeroAnim && p.thirdPersonMesh) window.HeroAnim.resetDeath(p.thirdPersonMesh);
+    }
+    const hpNow = (p.hp || 0) + (p.shield || 0) + (p.knocked ? (p.knockedHp || 0) : 0);
+    if (p.knocked && !p._vKnocked) {
+      this.cancelHealing();
+      if (window.SFX && window.SFX.playVoice) window.SFX.playVoice('knock', { hero: p.heroId });
+      p._vAt = performance.now() * 0.001;
+    } else if (p._vHp != null && hpNow < p._vHp - 0.5) {
+      const now = performance.now() * 0.001, dmg = p._vHp - hpNow;
+      if (window.SFX && window.SFX.playVoice && now - (p._vAt || 0) > 0.7 && (dmg >= 4 || Math.random() < 0.2)) {
+        p._vAt = now;
+        window.SFX.playVoice(dmg > 30 ? 'hurtBig' : 'hurt', { hero: p.heroId, vol: 0.7 });
+      }
+      const rig = p.thirdPersonMesh && p.thirdPersonMesh.userData.gwRig;
+      if (rig) { rig.st.flinchV += 4 + Math.min(6, dmg * 0.15); rig.st.flinchDir = 1; }
+    }
+    p._vKnocked = !!p.knocked;
+    p._vHp = hpNow;
+  }
+
+  /** Player eliminated: third-person body falls, camera pulls back and slowly orbits it. */
+  updateDeathCamera(dt) {
+    const p = this.player, m = p.thirdPersonMesh;
+    if (!m) return;
+    if (p._deathCamT == null) {
+      p._deathCamT = 0;
+      this.cancelHealing();
+      m.position.copy(p.position);
+      m.rotation.set(0, p.yaw + Math.PI, 0);
+      m.visible = true;
+      if (window.HeroAnim) window.HeroAnim.startDeath(p);
+      if (window.SFX && window.SFX.playVoice) window.SFX.playVoice('death', { hero: p.heroId });
+      this._deathOrbit = p.yaw;
+      if (this.mouseDown) this.mouseDown = false;
+    }
+    p._deathCamT += dt;
+    m.visible = true;
+    if (window.HeroAnim) window.HeroAnim.drive(m, { grounded: true, noGun: true, reload: -1, melee: -1 }, dt);
+    if (this.viewmodelHolder) this.viewmodelHolder.visible = false;
+    if (this.fpKnockShield) this.fpKnockShield.visible = false;
+    if (window.ViewAnim && window.ViewAnim.st && window.ViewAnim.st.heal) window.ViewAnim.st.heal.root.visible = false;
+    this._deathOrbit += dt * 0.32;
+    const k = Math.min(1, p._deathCamT / 1.4);
+    const ease = k * k * (3 - 2 * k);
+    const dist = 2.6 + ease * 2.2, h = 1.5 + ease * 1.6;
+    const desired = new THREE.Vector3(
+      p.position.x + Math.sin(this._deathOrbit) * dist,
+      p.position.y + h,
+      p.position.z + Math.cos(this._deathOrbit) * dist
+    );
+    if (p._deathCamT < dt * 1.5) this.camera.position.copy(desired);
+    else this.camera.position.lerp(desired, Math.min(1, dt * 4));
+    this.camera.lookAt(p.position.x, p.position.y + 0.45, p.position.z);
+  }
+
   updatePlayer(dt) {
     const p = this.player;
+    if (p && !p.alive && !p.inDropship) { this.updateDeathCamera(dt); return; }
     if (!p || !p.alive || p.inDropship) return;
+    this.updatePlayerBodyEvents(dt);
 
     if (p.tacticalCooldown > 0) p.tacticalCooldown = Math.max(0, p.tacticalCooldown - dt);
     if (p.slideCooldown > 0) p.slideCooldown = Math.max(0, p.slideCooldown - dt);
@@ -3524,7 +4096,8 @@ class GodWarsGame {
           if (hItem.hpRestore > 0) {
             p.hp = Math.min(p.maxHp, p.hp + hItem.hpRestore);
           }
-          window.SFX.playEvoUpgrade();
+          if (window.SFX.healFinish && this._healSfx) window.SFX.healFinish(this._healSfx); else window.SFX.playEvoUpgrade();
+          this._healSfx = null;
           this.showBanner(`${hItem.name.toUpperCase()} COMPLETE!`, hItem.color);
         }
         p.healingType = null;
@@ -3590,6 +4163,7 @@ class GodWarsGame {
         } else {
           p.thirdPersonMesh.rotation.set(0.75, p.yaw + Math.PI, 0);
         }
+        if (window.HeroAnim) window.HeroAnim.drive(p.thirdPersonMesh, { skydive: true, grounded: false, noGun: true, reload: -1, melee: -1 }, dt);
       }
 
       // BATCH 6: Live Skydive Altimeter & Airspeed HUD
@@ -3619,12 +4193,15 @@ class GodWarsGame {
 
       // 3. Ground / Air / Slide / Valkyrie Jetpack Movement + Batch 2 Perk Modifiers
       const hData = window.GODWARS_DATA.HEROES[p.heroId];
-      p.isSprinting = !p.knocked && (this.keys['ShiftLeft'] || this.touchMove.dy < -0.75 || this.autoSprintLocked) && moveForward > 0.3 && !p.isADS;
+      p.isCrouching = !p.knocked && !p.isSliding && p.onGround && !!(this.keys['KeyC'] || this.keys['ControlLeft']);
+      p.isSprinting = !p.knocked && !p.isCrouching && !(p.healTimer > 0) && (this.keys['ShiftLeft'] || this.touchMove.dy < -0.75 || this.autoSprintLocked) && moveForward > 0.3 && !p.isADS;
 
       const perkSpeed = 1 + ((p.perks && p.perks.speedBonus) || 0);
       let speed = (p.knocked ? 2.2 : 7.8) * (hData.speedMult || 1.0) * perkSpeed;
       if (p.isSprinting) speed *= 1.38;
       if (p.isADS) speed *= 0.72;
+      if (p.isCrouching) speed *= 0.55;
+      if (p.healTimer > 0) speed *= 0.55; // can move while healing, just slower
       if (p.cloakTimer > 0) speed *= 1.3;
       if (p.slowTimer > 0) speed *= 0.6;
 
@@ -3703,6 +4280,7 @@ class GodWarsGame {
         }
         if (!p.onGround && p.velocity.y < -3 && !p.skydiving && window.SFX && window.SFX.playLand) {
           window.SFX.playLand(this.world.surfaceAt(p.position.x, p.position.z, groundY), Math.min(1, (-p.velocity.y - 3) / 18));
+          if (p.velocity.y < -15 && window.SFX.playVoice) window.SFX.playVoice('land', { hero: p.heroId });
           p._stepAcc = 0;
         }
         if (p.isSliding && groundY < (p.prevGroundY || 0) - 0.01) {
@@ -3734,10 +4312,14 @@ class GodWarsGame {
     // First-Person Knockdown Shield Visibility when Player is Knocked & Holding ADS!
     if (this.fpKnockShield) {
       const showKd = p.knocked && p.isADS && p.knockdownShieldHp > 0;
-      this.fpKnockShield.visible = showKd;
+      // knocked always uses the third-person camera now -> show the shield dome on the body
+      const kdBody = p.thirdPersonMesh && p.thirdPersonMesh.userData.kdShield;
+      this.fpKnockShield.visible = showKd && !kdBody;
+      if (kdBody) kdBody.visible = showKd;
       if (showKd) {
         const tierInfo = window.GODWARS_DATA.EVO_TIERS[p.shieldTier] || window.GODWARS_DATA.EVO_TIERS[2];
         this.fpKnockShield.material.color.setHex(tierInfo.hex);
+        if (kdBody) kdBody.material.color.setHex(tierInfo.hex);
       }
     }
 
@@ -3754,35 +4336,17 @@ class GodWarsGame {
       this.camera.position.copy(p.position).add(camBack);
       this.camera.rotation.set(p.pitch - 0.18, p.yaw, 0, 'YXZ');
       this.viewmodelHolder.visible = false;
-    } else if (this.thirdPersonMode && !p.knocked) {
-      // Euphoria-Inspired 3rd-Person Over-The-Shoulder Action Camera!
-      if (p.thirdPersonMesh) {
-        p.thirdPersonMesh.visible = true;
-        if (p.diveTrail) p.diveTrail.visible = false;
-        p.thirdPersonMesh.position.copy(p.position);
-        p.thirdPersonMesh.rotation.set(p.isSliding ? -0.48 : 0, p.yaw + Math.PI, 0);
-        p.thirdPersonMesh.scale.y = p.isSliding ? 0.72 : 1.0;
-
-        // Animate Rigged 3rd-Person Hero via Skeletal AnimationMixer (Idle / Run / Slide)!
-        const ud = p.thirdPersonMesh.userData;
-        if (ud && ud.mixer) {
-          ud.mixer.update(dt);
-          if (ud.playAnim) {
-            if (p.isSliding) ud.playAnim('Slide');
-            else if (inputLen > 0.1 && p.onGround) ud.playAnim('Run');
-            else ud.playAnim('Idle');
-          }
-        } else if (ud && ud.leftLeg && ud.rightLeg) {
-          const swing = (inputLen > 0.1 && p.onGround && !p.isSliding) ? Math.sin(this.matchTime * 14) * 0.68 : 0;
-          ud.leftLeg.rotation.x = swing;
-          ud.rightLeg.rotation.x = -swing;
-          if (ud.leftArm) ud.leftArm.rotation.x = -swing * 0.6;
-        }
-      }
-      const shoulderDist = p.isADS ? 2.15 : 3.35;
-      const headPivot = new THREE.Vector3(p.position.x, p.position.y + (p.isSliding ? 1.2 : 1.75), p.position.z);
-      const rightOff = new THREE.Vector3(Math.cos(p.yaw) * 0.68, 0, -Math.sin(p.yaw) * 0.68);
-      const backOff = new THREE.Vector3(Math.sin(p.yaw) * shoulderDist, (p.isSliding ? 0.15 : 0.32) - p.pitch * 1.1, Math.cos(p.yaw) * shoulderDist);
+    } else if (this.thirdPersonMode || p.knocked) {
+      // 3rd-person over-the-shoulder camera. Knocked (DBNO) always forces it so you see the
+      // crawling body; the chosen mode (thirdPersonMode) is untouched, so revive returns to it.
+      this.driveThirdPersonBody(dt);
+      const kn = p.knocked ? 1 : 0;
+      p._tpPivot = (p._tpPivot == null ? 1.75 : p._tpPivot) + (((kn ? 0.95 : p.isSliding ? 1.2 : p.isCrouching ? 1.35 : 1.75)) - (p._tpPivot == null ? 1.75 : p._tpPivot)) * Math.min(1, dt * 8);
+      const shoulderDist = kn ? 2.45 : p.isADS ? 2.15 : 3.35;
+      const headPivot = new THREE.Vector3(p.position.x, p.position.y + p._tpPivot, p.position.z);
+      const sideK = kn ? 0.42 : 0.68;
+      const rightOff = new THREE.Vector3(Math.cos(p.yaw) * sideK, 0, -Math.sin(p.yaw) * sideK);
+      const backOff = new THREE.Vector3(Math.sin(p.yaw) * shoulderDist, (kn ? 0.55 : p.isSliding ? 0.15 : 0.32) - p.pitch * 1.1, Math.cos(p.yaw) * shoulderDist);
       const desiredCam = headPivot.clone().add(rightOff).add(backOff);
 
       // P1-1 FIXED: 3rd-Person Camera Wall-Collision Raycast so camera NEVER clips behind walls!
@@ -3808,7 +4372,9 @@ class GodWarsGame {
       this.viewmodelHolder.visible = false;
     } else {
       if (p.thirdPersonMesh) p.thirdPersonMesh.visible = false;
-      const eyeHeight = (p.knocked ? 0.65 : p.isSliding ? 0.92 : 1.68) - (p.landingDip || 0);
+      const eyeTarget = p.knocked ? 0.65 : p.isSliding ? 0.92 : p.isCrouching ? 1.2 : 1.68;
+      p._eyeH = p._eyeH == null ? eyeTarget : p._eyeH + (eyeTarget - p._eyeH) * Math.min(1, dt * 12);
+      const eyeHeight = p._eyeH - (p.landingDip || 0);
       const targetRoll = p.isSliding ? -0.115 : (p.wallJumpCd > 0.3 ? 0.095 : 0);
       p.camRoll = (p.camRoll || 0) + (targetRoll - (p.camRoll || 0)) * Math.min(1, dt * 14);
       // BATCH 9: Dynamic Micro Camera Shake on Explosions/Kills/Hits
@@ -3837,107 +4403,23 @@ class GodWarsGame {
     this.camera.fov += (targetFov - this.camera.fov) * Math.min(1, dt * 14);
     this.camera.updateProjectionMatrix();
 
-    // Update First-Person Weapon Viewmodel + BATCH 7 Apex Weapon Look-Lag / Inertia Sway!
+    // First-person viewmodel motion (js/anim.js ViewAnim): spring-driven bob, sprint carry, jump/land,
+    // slide tilt, ADS, look sway, recoil, reload w/ magazine, melee, inspect + first-person healing hands.
     if (this.activeViewmodel && !p.skydiving) {
-      const dYaw = p.yaw - (this.prevPlayerYaw || p.yaw);
-      const dPitch = p.pitch - (this.prevPlayerPitch || p.pitch);
-      this.prevPlayerYaw = p.yaw;
-      this.prevPlayerPitch = p.pitch;
-      const swayClamp = (v) => Math.max(-0.045, Math.min(0.045, v));
-      this.swayX += (swayClamp(-dYaw * 0.45) - this.swayX) * Math.min(1, dt * 12);
-      this.swayY += (swayClamp(-dPitch * 0.45) - this.swayY) * Math.min(1, dt * 12);
-
-      const targetX = (p.isADS ? 0.0 : p.inspectTimer > 0 ? 0.06 : 0.19) + this.swayX * (p.isADS ? 0.25 : 1.0);
-      const targetY = (p.isADS ? -0.132 : p.inspectTimer > 0 ? -0.14 : -0.235) + this.swayY * (p.isADS ? 0.25 : 1.0);
-      const targetZ = p.isADS ? -0.32 : p.meleeTimer > 0 ? -0.24 : -0.58; // pushed out so the stock no longer clips the lens and both hands read
-      const bob = (inputLen > 0.1 && p.onGround && !p.isADS) ? Math.sin(this.matchTime * 11) * 0.012 : 0;
-
-      this.activeViewmodel.position.x += (targetX - this.activeViewmodel.position.x) * Math.min(1, dt * 16);
-      this.activeViewmodel.position.y += (targetY + bob - this.activeViewmodel.position.y) * Math.min(1, dt * 16);
-      this.activeViewmodel.position.z += (targetZ - this.activeViewmodel.position.z) * Math.min(1, dt * 16);
-
-      const flash = this.activeViewmodel.userData.muzzleFlash;
+      const vud = this.activeViewmodel.userData;
+      const flash = vud.muzzleFlash;
       if (flash && flash.material.opacity > 0) {
         flash.material.opacity = Math.max(0, flash.material.opacity - dt * 22);
       }
-
-      if (this.activeViewmodel.userData.meleeMesh) {
-        const showHeirloom = !!(p.meleeTimer > 0 || p.holstered);
-        this.activeViewmodel.userData.meleeMesh.visible = showHeirloom;
-        if (p.meleeTimer > 0) {
-          this.activeViewmodel.userData.meleeMesh.rotation.x = -Math.sin(p.meleeTimer * Math.PI * 2) * 1.1;
-        } else if (p.holstered) {
-          this.activeViewmodel.userData.meleeMesh.rotation.y += dt * 4.5;
-          this.activeViewmodel.userData.meleeMesh.position.set(0.0, -0.02, -0.25);
-        }
-      }
       // Hide gun body meshes when holstered so only spinning Heirloom shows!
       this.activeViewmodel.children.forEach(ch => {
-        if (ch !== this.activeViewmodel.userData.meleeMesh && ch !== this.activeViewmodel.userData.healMesh && !ch.userData.gwReplacedByGLB) {
+        if (ch !== vud.meleeMesh && ch !== vud.healMesh && !ch.userData.gwReplacedByGLB && !ch.userData.gwAnimProp) {
           ch.visible = !p.holstered;
         }
       });
-
-      // P1-1: 3D Shield Battery / Medkit First-Person Healing Prop Animation
-      const healMesh = this.activeViewmodel.userData.healMesh;
-      if (healMesh) {
-        const isHealing = p.healTimer > 0;
-        healMesh.visible = isHealing;
-        if (isHealing) {
-          const isMed = p.healingType === 'medkit';
-          if (this.activeViewmodel.userData.healCore) {
-            this.activeViewmodel.userData.healCore.material.color.setHex(isMed ? 0x10b981 : p.healingType === 'phoenix_kit' ? 0xa855f7 : 0x38bdf8);
-          }
-          if (this.activeViewmodel.userData.healRing) {
-            this.activeViewmodel.userData.healRing.rotation.z += dt * 9.5;
-          }
-          healMesh.position.y = -0.04 + Math.sin(this.matchTime * 10) * 0.015;
-          healMesh.rotation.y += dt * 3.2;
-        }
-      }
-
-      // P1-1: 3-Phase Apex Reload Animation (Phase 1: Tilt & Drop Mag -> Phase 2: Insert Fresh Mag -> Phase 3: Bolt Cock)
-      const magMesh = this.activeViewmodel.userData.magMesh;
-      if (wep.reloading) {
-        const totalRld = wep.data.reloadTime || 2.0;
-        const prog = 1 - Math.max(0, Math.min(1, wep.reloadTimer / totalRld));
-        if (prog < 0.38) {
-          // Phase 1: Tilt gun & pull magazine out
-          this.activeViewmodel.rotation.x = -0.28;
-          this.activeViewmodel.rotation.z = 0.42;
-          this.activeViewmodel.rotation.y = 0.15;
-          if (magMesh && !this.activeViewmodel.userData.isRevolver) magMesh.position.y = -0.18 - prog * 0.35;
-        } else if (prog < 0.76) {
-          // Phase 2: Slam fresh magazine up into receiver
-          const p2 = (prog - 0.38) / 0.38;
-          this.activeViewmodel.rotation.x = -0.36 + Math.sin(p2 * Math.PI) * 0.18;
-          this.activeViewmodel.rotation.z = 0.38;
-          this.activeViewmodel.rotation.y = 0.10;
-          if (magMesh && !this.activeViewmodel.userData.isRevolver) magMesh.position.y = -0.30 + p2 * 0.24;
-        } else {
-          // Phase 3: Charging handle / bolt snap forward
-          const p3 = (prog - 0.76) / 0.24;
-          this.activeViewmodel.rotation.x = -0.15 * (1 - p3);
-          this.activeViewmodel.rotation.z = -0.22 * Math.sin(p3 * Math.PI);
-          this.activeViewmodel.rotation.y = 0;
-          if (magMesh && !this.activeViewmodel.userData.isRevolver) magMesh.position.y = -0.06;
-        }
-      } else if (p.healTimer > 0) {
-        this.activeViewmodel.rotation.x = -0.25;
-        this.activeViewmodel.rotation.z = -0.22;
-        this.activeViewmodel.rotation.y = 0.20;
-      } else if (p.inspectTimer > 0) {
-        this.activeViewmodel.rotation.y = Math.sin(p.inspectTimer * 2.6) * 0.85;
-        this.activeViewmodel.rotation.z = Math.cos(p.inspectTimer * 2.6) * 0.35;
-        this.activeViewmodel.rotation.x = 0.15;
-      } else if (p.isSprinting && !p.isADS) {
-        this.activeViewmodel.rotation.y = 0.42;
-        this.activeViewmodel.rotation.x = 0.18;
-        this.activeViewmodel.rotation.z = -0.15;
-      } else {
-        this.activeViewmodel.rotation.x += (0 - this.activeViewmodel.rotation.x) * Math.min(1, dt * 15);
-        this.activeViewmodel.rotation.y += ((p.isADS ? 0 : 0.07) - this.activeViewmodel.rotation.y) * Math.min(1, dt * 15); // slight inward cant at hip shows the support hand
-        this.activeViewmodel.rotation.z += (0 - this.activeViewmodel.rotation.z) * Math.min(1, dt * 15);
+      if (vud.healMesh) vud.healMesh.visible = false; // replaced by ViewAnim's heal hands
+      if (window.ViewAnim) {
+        window.ViewAnim.update(this, p, wep, dt, { inputLen, moveF: moveForward, moveR: moveRight });
       }
     }
 
@@ -3960,6 +4442,7 @@ class GodWarsGame {
     }
 
     let wantsToFire = (this.mouseDown || this.touchFiring) && !p.knocked && !p.skydiving && p.finisherTimer <= 0;
+    if (wantsToFire && p.healTimer > 0) this.cancelHealing(); // shooting interrupts the heal
     if (wantsToFire && p.holstered) {
       p.holstered = false;
     }
@@ -3993,8 +4476,9 @@ class GodWarsGame {
         }
 
         window.SFX.playGunshot(wep.id, 0, wep.isMythicGold);
+        this._tpFired = true;
         if (this.activeViewmodel) {
-          this.activeViewmodel.position.z += 0.042;
+          if (window.ViewAnim) window.ViewAnim.kick(wep); else this.activeViewmodel.position.z += 0.042;
           const mf = this.activeViewmodel.userData.muzzleFlash;
           if (mf) {
             mf.material.opacity = 1.0;
@@ -4469,6 +4953,7 @@ class GodWarsGame {
       }
       this.updateVisualSoundRadar();
       this.updateSmartHealSuggestion();
+      this.updateHudV4Badges();
     }
 
     // BATCH 7: Live Firing Range Accuracy & Headshot Stat Update
@@ -4649,6 +5134,7 @@ class GodWarsGame {
       const cx = w / 2;
       const cy = h / 2;
       const scale = (w * 0.44) / this.world.islandRadius;
+      const mk = idx === 1 ? w / 300 : 1; // HUD v4: marker scale on the hi-res peek map
 
       ctx.clearRect(0, 0, w, h);
 
@@ -4708,9 +5194,12 @@ class GodWarsGame {
         // Names only on the big map (idx 1); the minimap stays clean like Apex.
         if (idx === 1) {
           ctx.fillStyle = '#f8fafc';
-          ctx.font = 'bold 11px sans-serif';
+          ctx.font = `800 ${Math.round(11 * mk)}px Inter, system-ui, sans-serif`;
           ctx.textAlign = 'center';
-          ctx.fillText(poi.name.split(' ')[0], px, py + 3);
+          ctx.shadowColor = 'rgba(0,0,0,0.9)';
+          ctx.shadowBlur = 4 * mk;
+          ctx.fillText(poi.name.split(' ')[0], px, py + 4 * mk);
+          ctx.shadowBlur = 0;
         }
       });
 
@@ -4734,7 +5223,7 @@ class GodWarsGame {
       // Draw Next Safe Zone White Circle (Exact Apex Legends Ring Preview!)
       if (!this.isFiringRange) {
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-        ctx.lineWidth = 1.6;
+        ctx.lineWidth = 1.6 * mk;
         ctx.beginPath();
         ctx.arc(
           cx + this.ringCenter.x * scale,
@@ -4765,18 +5254,26 @@ class GodWarsGame {
         }
       }
 
-      // Draw Current Ragnarok Red Storm Ring
-      ctx.strokeStyle = '#f43f5e';
-      ctx.lineWidth = 2.2;
-      ctx.beginPath();
-      ctx.arc(
-        cx + this.ringCenter.x * scale,
-        cy + this.ringCenter.z * scale,
-        Math.max(2, this.ringRadius * scale),
-        0,
-        Math.PI * 2
-      );
-      ctx.stroke();
+      // Draw Current Ragnarok Red Storm Ring: crimson wash over everything outside it + a bold edge
+      {
+        const rx = cx + this.ringCenter.x * scale, ry = cy + this.ringCenter.z * scale;
+        const rr = Math.max(2, this.ringRadius * scale);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, w, h);
+        ctx.arc(rx, ry, rr, 0, Math.PI * 2, true);
+        ctx.fillStyle = 'rgba(190, 18, 40, 0.34)';
+        ctx.fill('evenodd');
+        ctx.beginPath();
+        ctx.arc(rx, ry, rr, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(20, 0, 4, 0.75)';
+        ctx.lineWidth = 4.6 * mk;
+        ctx.stroke();
+        ctx.strokeStyle = '#ff2d4a';
+        ctx.lineWidth = 2.6 * mk;
+        ctx.stroke();
+        ctx.restore();
+      }
 
       // Draw Allied Squadmates (Green/Cyan Dots) & Detected Enemies (Red Dots)
       const p = this.player;
@@ -4792,7 +5289,7 @@ class GodWarsGame {
         if (b.isAlly) {
           ctx.fillStyle = b.knocked ? '#fbbf24' : '#10b981';
           ctx.beginPath();
-          ctx.arc(cx + b.position.x * scale, cy + b.position.z * scale, idx === 1 ? 5 : 3.5, 0, Math.PI * 2);
+          ctx.arc(cx + b.position.x * scale, cy + b.position.z * scale, idx === 1 ? 5 * mk : 3.5, 0, Math.PI * 2);
           ctx.fill();
           return;
         }
@@ -4800,7 +5297,7 @@ class GodWarsGame {
         if (scanActive || distToPlayer < 48 || b.fireTimer > 0.05) {
           ctx.fillStyle = b.knocked ? '#fbbf24' : '#ef4444';
           ctx.beginPath();
-          ctx.arc(cx + b.position.x * scale, cy + b.position.z * scale, idx === 1 ? 4.5 : 3, 0, Math.PI * 2);
+          ctx.arc(cx + b.position.x * scale, cy + b.position.z * scale, idx === 1 ? 4.5 * mk : 3, 0, Math.PI * 2);
           ctx.fill();
         }
       });
@@ -4811,6 +5308,7 @@ class GodWarsGame {
         ctx.save();
         ctx.translate(px, py);
         ctx.rotate(-p.yaw);
+        if (mk !== 1) ctx.scale(mk, mk);
         ctx.fillStyle = '#38bdf8';
         ctx.beginPath();
         ctx.moveTo(0, -7);
@@ -4965,7 +5463,14 @@ class GodWarsGame {
 
     if (!this.player.alive && !this.isSpectating) {
       const rank = aliveEnemies + 1;
-      this.endMatch(false, rank);
+      // let the death fall + pull-back camera play before the results screen
+      if (this._deathEndPending) return;
+      this._deathEndPending = true;
+      const deadPlayer = this.player;
+      setTimeout(() => {
+        this._deathEndPending = false;
+        if (this.player === deadPlayer && this.matchActive && !this.player.alive && !this.isSpectating) this.endMatch(false, rank);
+      }, 2300);
     } else if (aliveEnemies === 0 && this.player.alive) {
       this.endMatch(true, 1);
     } else if (this.isSpectating && aliveEnemies <= 1) {

@@ -8,10 +8,13 @@
   <meta name="apple-mobile-web-app-title" content="God Wars" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>GOD WARS: SUPREME BATTLE ROYALE — Asgard 3D FPS</title>
-  <link rel="icon" type="image/png" href="assets/icons/favicon.png?v=20261125a" />
-  <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png?v=20261125a" />
-  <link rel="manifest" href="manifest.json?v=20261125a" />
-  <link rel="stylesheet" href="css/style.css?v=20261125a" />
+  <link rel="icon" type="image/png" href="assets/icons/favicon.png?v=20261126a" />
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/icons/apple-touch-icon.png?v=20261126a" />
+  <link rel="manifest" href="manifest.json?v=20261126a" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap" />
+  <link rel="stylesheet" href="css/style.css?v=20261126a" />
 </head>
 <body>
   <!-- Full-Screen 3D WebGL Main Canvas (Renders Both 3D Trio Squad Lobby Stage & 3D Asgard Battle Royale) -->
@@ -20,52 +23,80 @@
   <!-- =====================================================================
        FULL-SCREEN 3D APEX LEGENDS LOBBY SCREEN
        ===================================================================== -->
-  <section id="lobby-screen">
-    <header class="lobby-topbar">
+  <section id="lobby-screen" class="lv4">
+    <!-- LOBBY v4 icon sprite (inline SVG, referenced with <use href="#i-*">) -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+      <defs>
+        <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="currentColor" stroke="none"/></symbol>
+        <symbol id="i-legends" viewBox="0 0 24 24"><path d="M12 3c-3.6 0-6 2.6-6 6v2.5l2 1.5v3l4 3 4-3v-3l2-1.5V9c0-3.4-2.4-6-6-6z"/><path d="M9 11h2M13 11h2"/></symbol>
+        <symbol id="i-loadout" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><path d="M12 2.5v4M12 17.5v4M2.5 12h4M17.5 12h4"/></symbol>
+        <symbol id="i-map" viewBox="0 0 24 24"><path d="M3 6.5l6-2.5 6 2.5 6-2.5v13.5l-6 2.5-6-2.5-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></symbol>
+        <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6.5h9M17 6.5h3M4 12h3M11 12h9M4 17.5h11M19 17.5h1"/><circle cx="15" cy="6.5" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17.5" r="2"/></symbol>
+        <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5.5l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="15.5" r="2.5"/></symbol>
+        <symbol id="i-mute" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5"/></symbol>
+        <symbol id="i-sound" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4.5 4.5 0 010 6M18 6.5a8 8 0 010 11"/></symbol>
+        <symbol id="i-full" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+        <symbol id="i-passive" viewBox="0 0 24 24"><path d="M12 3l7.5 3.2v5.3c0 4.6-3.2 7.9-7.5 9.5-4.3-1.6-7.5-4.9-7.5-9.5V6.2z"/><path d="M9 12l2.2 2.2L15.5 10"/></symbol>
+        <symbol id="i-tactical" viewBox="0 0 24 24"><path d="M13.5 2.5L5 13.5h6l-1 8 8.5-11h-6z"/></symbol>
+        <symbol id="i-ultimate" viewBox="0 0 24 24"><path d="M12 2.5l2.5 6.2 6.7.5-5.1 4.3 1.6 6.5L12 16.5 6.3 20l1.6-6.5-5.1-4.3 6.7-.5z"/></symbol>
+        <symbol id="i-bomb" viewBox="0 0 24 24"><circle cx="10.5" cy="14" r="6.5"/><path d="M15 9.5l2.5-2.5M17 4v1.5M20 7h-1.5M19.3 4.7l-1 1"/></symbol>
+        <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11.2a6.5 6.5 0 0113 0C18.5 15 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.3"/></symbol>
+        <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+        <symbol id="i-monitor" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="12" rx="1.5"/><path d="M8.5 20h7M12 16.5V20"/></symbol>
+        <symbol id="i-pad" viewBox="0 0 24 24"><path d="M7 8h10a4 4 0 014 4l.5 4.5a2.2 2.2 0 01-4 1.4L15.5 16h-7l-2 1.9a2.2 2.2 0 01-4-1.4L3 12a4 4 0 014-4z"/><path d="M8 11v3M6.5 12.5h3"/><circle cx="16" cy="11.5" r=".6" fill="currentColor"/><circle cx="17.5" cy="13.5" r=".6" fill="currentColor"/></symbol>
+        <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 21V4M5 4.5h11l-2 4 2 4H5"/></symbol>
+        <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0112 7.3 4.3 4.3 0 0119.5 10c0 5.4-7.5 10-7.5 10z"/></symbol>
+        <symbol id="i-speed" viewBox="0 0 24 24"><path d="M4 16a8 8 0 1116 0"/><path d="M12 16l4-5"/></symbol>
+        <symbol id="i-gun" viewBox="0 0 24 24"><path d="M3 9h15l2-2h1v4h-4l-1 2H9l-1.5 5H4l1.5-5H3z"/></symbol>
+        <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+        <symbol id="i-rank" viewBox="0 0 24 24"><path d="M12 3l7 4v6c0 4-3 6.8-7 8-4-1.2-7-4-7-8V7z"/><path d="M8.5 11.5L12 9l3.5 2.5M8.5 15L12 12.5l3.5 2.5"/></symbol>
+      </defs>
+    </svg>
+
+    <header class="lobby-topbar lv4-topbar">
       <div class="brand-logo">
-        <img src="assets/icons/logo.png?v=20261125a" alt="God Wars Logo" class="brand-logo-img" />
+        <img src="assets/icons/logo.png?v=20261126a" alt="God Wars Logo" class="brand-logo-img" />
         <div>
           <div class="brand-title">GOD WARS</div>
-          <div class="brand-sub">SUPREME BATTLE ROYALE • ASGARD</div>
+          <div class="brand-sub">ASGARD ROYALE</div>
         </div>
       </div>
 
-      <nav class="lobby-nav">
-        <button class="lobby-tab-btn active" data-target="tab-play">PLAY</button>
-        <button class="lobby-tab-btn" data-target="tab-legends">LEGENDS</button>
-        <button class="lobby-tab-btn" data-target="tab-armory">LOADOUT</button>
-        <button class="lobby-tab-btn" data-target="tab-map">MAP</button>
-        <button class="lobby-tab-btn" data-target="tab-settings">SETTINGS</button>
+      <nav class="lobby-nav lv4-nav">
+        <button class="lobby-tab-btn active" data-target="tab-play"><svg class="lv4-ic"><use href="#i-play"/></svg><span>PLAY</span></button>
+        <button class="lobby-tab-btn" data-target="tab-legends"><svg class="lv4-ic"><use href="#i-legends"/></svg><span>LEGENDS</span></button>
+        <button class="lobby-tab-btn" data-target="tab-armory"><svg class="lv4-ic"><use href="#i-loadout"/></svg><span>LOADOUT</span></button>
+        <button class="lobby-tab-btn" data-target="tab-map"><svg class="lv4-ic"><use href="#i-map"/></svg><span>MAP</span></button>
+        <button class="lobby-tab-btn" data-target="tab-settings"><svg class="lv4-ic"><use href="#i-settings"/></svg><span>SETTINGS</span></button>
       </nav>
 
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <div id="career-rank-badge">⚔️ EINHERJAR SILVER <b>160 RP</b> • 🏆 0 WINS</div>
+      <div class="lv4-top-right">
+        <div id="career-rank-badge" class="lv4-rank"></div>
         <div class="lobby-music-pill">
           <div id="lobby-music-viz"><span></span><span></span><span></span><span></span><span></span><span></span></div>
-          <button id="btn-lobby-music" class="btn-music-toggle" title="Toggle Lobby Music">🎵 ZHU - VILLAIN</button>
-          <input type="range" id="slider-music-volume" min="0" max="1" step="0.05" value="0.55" style="width:58px;accent-color:#fbbf24;" title="Lobby Music Volume" />
+          <button id="btn-lobby-music" class="btn-music-toggle" title="Toggle lobby music" aria-label="Toggle lobby music"><svg class="lv4-ic"><use href="#i-music"/></svg><span class="lv4-music-name">ZHU - VILLAIN</span></button>
+          <input type="range" id="slider-music-volume" min="0" max="1" step="0.05" value="0.55" title="Lobby music volume" aria-label="Lobby music volume" />
         </div>
-        <button id="btn-fullscreen" class="btn-icon" title="Fullscreen Mode" aria-label="Fullscreen">⛶</button>
+        <button id="btn-fullscreen" class="btn-icon" title="Fullscreen" aria-label="Fullscreen"><svg class="lv4-ic"><use href="#i-full"/></svg></button>
       </div>
     </header>
 
-    <!-- TAB 1: APEX LEGENDS "PLAY" FULL-SCREEN 3D TRIO SQUAD STAGE -->
+    <!-- TAB 1: PLAY — 3D squad stage -->
     <div id="tab-play" class="lobby-tab-panel active">
       <div class="stage-squad-tags">
         <div id="stage-tag-ally1" class="stage-nameplate ally">
-          <div id="stage-ally1-name" class="stage-np-title">🎭 ALLY • LOKI</div>
-          </div>
+          <div id="stage-ally1-name" class="stage-np-title">LOKI</div>
+        </div>
         <div class="stage-nameplate">
-          <div id="stage-player-name" class="stage-np-title">⚡ YOU • THOR</div>
-          <div id="stage-player-role" class="stage-np-sub">God of Thunder (Assault)</div>
+          <div id="stage-player-name" class="stage-np-title">THOR</div>
+          <div id="stage-player-role" class="stage-np-sub">Assault</div>
         </div>
         <div id="stage-tag-ally2" class="stage-nameplate ally">
-          <div id="stage-ally2-name" class="stage-np-title">🪽 ALLY • VALKYRIE</div>
+          <div id="stage-ally2-name" class="stage-np-title">VALKYRIE</div>
         </div>
       </div>
 
       <div class="play-bottom-dock">
-        <!-- Bottom-Left Apex Matchmaking & Mode Selector Box -->
         <div class="apex-ready-panel">
           <div class="section-label">MODE</div>
           <div class="mode-selector-row">
@@ -74,6 +105,7 @@
             <button class="mode-pill-btn" data-mode="firing_range">RANGE</button>
             <button class="mode-pill-btn" data-mode="online">ONLINE</button>
           </div>
+          <div id="lv4-mode-desc" class="lv4-mode-desc">3-player squads, 16 contenders</div>
           <div id="online-arena-fields" class="online-arena-fields hidden">
             <input id="online-name" maxlength="14" placeholder="NAMA KAMU" autocomplete="off" aria-label="Nama pemain" />
             <input id="online-room" maxlength="12" placeholder="ROOM" value="ASGARD" autocomplete="off" aria-label="Kode room" />
@@ -83,163 +115,188 @@
           <button id="btn-instant-drop" class="btn-apex-secondary" style="width:100%;">QUICK DROP</button>
         </div>
 
-        <!-- Bottom-Right Quick Hero Switcher & Loadout Summary -->
         <div class="play-quick-hero-panel">
-          <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div class="lv4-qh-head">
             <span class="section-label">LEGEND</span>
-            <span id="lobby-slot1-name" style="font-size:10.5px;color:#fbbf24;font-weight:800;">1: VALHALLA M4A1</span>
-            <span id="lobby-slot2-name" style="font-size:10.5px;color:#38bdf8;font-weight:800;">2: BIFROST P90</span>
+            <span class="lv4-qh-kit"><span id="lobby-slot1-name">VALHALLA M4A1</span><i></i><span id="lobby-slot2-name">BIFROST P90</span></span>
           </div>
           <div id="play-quick-heroes"></div>
           <div class="play-ability-pills">
-            <span id="play-passive-pill">PASSIVE: Mjölnir Static Core</span>
-            <span id="play-tactical-pill">Q: Mjölnir Arc Bolt</span>
-            <span id="play-ult-pill">Z: Bifrost Sky Slam</span>
+            <span id="play-passive-pill">PASSIVE</span>
+            <span id="play-tactical-pill">Q</span>
+            <span id="play-ult-pill">Z</span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- TAB 2: LEGENDS FULL ROSTER & ABILITY DETAILS (WITH 3D HERO CENTER STAGE) -->
+    <!-- TAB 2: LEGENDS -->
     <div id="tab-legends" class="lobby-tab-panel">
-      <div class="legends-left-col">
-        <div class="section-label">SELECT YOUR DEITY (6 LEGENDS)</div>
+      <div class="legends-left-col lv4-glass">
+        <div class="lv4-head">
+          <div class="lv4-title">LEGENDS</div>
+          <div class="lv4-sub">Choose who you play. Each legend has a passive, a tactical (Q) and an ultimate (Z).</div>
+        </div>
         <div id="hero-roster"></div>
       </div>
 
-      <div class="legends-right-col">
-        <span id="info-hero-pantheon" class="pantheon-badge">NORSE • ASGARD</span>
-        <div>
-          <h1 id="info-hero-name">⚡ THOR</h1>
-          <div id="info-hero-title">God of Thunder • Assault</div>
+      <div class="legends-right-col lv4-glass">
+        <div class="lv4-legend-head">
+          <img id="lv4-legend-portrait" alt="" src="assets/ui/hero_thor.webp" />
+          <div>
+            <span id="info-hero-pantheon" class="pantheon-badge">Norse</span>
+            <h1 id="info-hero-name">THOR</h1>
+            <div id="info-hero-title">God of Thunder</div>
+          </div>
         </div>
+        <div id="lv4-hero-stats" class="lv4-hero-stats"></div>
         <div id="info-hero-quote"></div>
         <p id="info-hero-lore"></p>
 
         <div class="ability-card passive">
-          <div class="ability-tag">PASSIVE & HEIRLOOM MELEE [V]</div>
-          <div id="info-passive-name" class="ability-title"></div>
-          <div id="info-passive-desc" class="ability-desc"></div>
+          <span class="lv4-ab-ic"><svg><use href="#i-passive"/></svg></span>
+          <div class="lv4-ab-body">
+            <div class="ability-tag">PASSIVE &amp; MELEE <kbd>V</kbd></div>
+            <div id="info-passive-name" class="ability-title"></div>
+            <div id="info-passive-desc" class="ability-desc"></div>
+          </div>
         </div>
-
         <div class="ability-card tactical">
-          <div class="ability-tag">TACTICAL SKILL [Q / TAP]</div>
-          <div id="info-tactical-name" class="ability-title"></div>
-          <div id="info-tactical-desc" class="ability-desc"></div>
+          <span class="lv4-ab-ic"><svg><use href="#i-tactical"/></svg></span>
+          <div class="lv4-ab-body">
+            <div class="ability-tag">TACTICAL <kbd>Q</kbd></div>
+            <div id="info-tactical-name" class="ability-title"></div>
+            <div id="info-tactical-desc" class="ability-desc"></div>
+          </div>
         </div>
-
         <div class="ability-card ultimate">
-          <div class="ability-tag">ULTIMATE [Z] & MYTHIC FINISHER [E]</div>
-          <div id="info-ult-name" class="ability-title"></div>
-          <div id="info-ult-desc" class="ability-desc"></div>
+          <span class="lv4-ab-ic"><svg><use href="#i-ultimate"/></svg></span>
+          <div class="lv4-ab-body">
+            <div class="ability-tag">ULTIMATE <kbd>Z</kbd></div>
+            <div id="info-ult-name" class="ability-title"></div>
+            <div id="info-ult-desc" class="ability-desc"></div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- TAB 3: DIVINE ARMORY (P90, KRISS, M4A1, UZI, AK47, MAGNUM + 3 GOD BOMBS + WEAPON SKINS) -->
+    <!-- TAB 3: LOADOUT -->
     <div id="tab-armory" class="lobby-tab-panel">
-      <div>
-        <div class="section-label">DIVINE WEAPON FINISH / SKIN (APPLIES TO 3D VIEWMODEL & LOBBY)</div>
-        <div id="armory-skin-row" class="skin-selector-row"></div>
-      </div>
-      <div>
-        <div class="section-label">DIVINE FIREARMS (4 ATTACHMENT SLOTS: BARREL, EXTENDED MAG, OPTIC, HOP-UP)</div>
-        <div id="armory-weapon-grid"></div>
-      </div>
-      <div>
-        <div class="section-label">DIVINE ORDNANCE (SOLAR BOMB, APOLLO FLASHBANG, YGGDRASIL ARC RUNE)</div>
-        <div id="armory-bomb-grid"></div>
+      <div class="lv4-page">
+        <div class="lv4-head lv4-head-row">
+          <div class="lv4-title">LOADOUT</div>
+          <div class="lv4-sub">Pick the 2 weapons and the bomb you start every match with. Tap <b>SLOT 1</b> or <b>SLOT 2</b> on a weapon.</div>
+        </div>
+        <div class="lv4-loadout">
+          <aside id="lv4-kit" class="lv4-kit lv4-glass"></aside>
+          <section class="lv4-browser lv4-glass">
+            <div class="lv4-seg" id="lv4-armory-seg">
+              <button class="active" data-sub="weapons"><svg class="lv4-ic"><use href="#i-gun"/></svg>WEAPONS</button>
+              <button data-sub="bombs"><svg class="lv4-ic"><use href="#i-bomb"/></svg>BOMBS</button>
+              <button data-sub="skins"><svg class="lv4-ic"><use href="#i-ultimate"/></svg>SKINS</button>
+            </div>
+            <div class="lv4-subpanel active" data-sub="weapons"><div id="armory-weapon-grid"></div></div>
+            <div class="lv4-subpanel" data-sub="bombs"><div id="armory-bomb-grid"></div></div>
+            <div class="lv4-subpanel" data-sub="skins">
+              <div class="lv4-hint">Weapon finish applies to your first-person gun and the lobby preview.</div>
+              <div id="armory-skin-row" class="skin-selector-row"></div>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
 
-    <!-- TAB 4: ASGARD ISLAND BATTLE ROYALE MAP POIs -->
+    <!-- TAB 4: MAP -->
     <div id="tab-map" class="lobby-tab-panel">
-      <div class="section-label">ASGARD FLOATING ISLAND • 6 MULTI-STORY ENTERABLE POIs + ZIPLINES + REPLICATORS + SURVEY BEACONS</div>
-      <div class="poi-grid">
-        <div class="poi-card" style="border-color:#fbbf24">
-          <h3>1. VALHALLA CITADEL (CENTER)</h3>
-          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">North & South 2-Story Enterable Royal Palaces, Skybridges, Central Odin Obelisk Altar, 3D Kill Leader Banners, Replicator & Survey Beacon.</p>
+      <div class="lv4-page">
+        <div class="lv4-head lv4-head-row">
+          <div class="lv4-title">MAP</div>
+          <div class="lv4-sub">Island intel. Tap a location to see its loot, then set it as your <b>Quick Drop</b> landing zone.</div>
         </div>
-        <div class="poi-card" style="border-color:#38bdf8">
-          <h3>2. BIFROST OBSERVATORY (SOUTH)</h3>
-          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">Walkable Elevated Rainbow Crystal Bridge, 2-Story Enterable Heimdall Observatory, Rooftop Survey Beacon & Spinning Bifrost Stargate.</p>
-        </div>
-        <div class="poi-card" style="border-color:#f97316">
-          <h3>3. MJÖLNIR DWARVEN FORGE (WEST)</h3>
-          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">Twin 2-Story Smelting Foundries connected by Overhead Skybridge above a Molten Lava Canal, Animated Forge Hammer & Replicator.</p>
-        </div>
-        <div class="poi-card" style="border-color:#10b981">
-          <h3>4. YGGDRASIL SANCTUARY (EAST)</h3>
-          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">Giant World Tree with wrap-around Treehouse Bastion Deck, 2 Ramps, Bifrost Zipline, and 2 Enterable Sanctuary Shrines.</p>
-        </div>
-        <div class="poi-card" style="border-color:#14b8a6">
-          <h3>5. HELHEIM CRYPTS (NORTH-WEST)</h3>
-          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">2-Story Obsidian Keep of Hel flanked by East & West Crypt Bunkers and 6 spinning Emerald Soul Monoliths.</p>
-        </div>
-        <div class="poi-card" style="border-color:#e879f9">
-          <h3>6. VALKYRIE SKY DOCKS (NORTH-EAST)</h3>
-          <p style="font-size:12px;color:#94a3b8;margin-top:4px;">Twin Enterable Aircraft Hangars, elevated Helipad Flight Deck with docked Golden Sky-Skiff, and Replicator.</p>
+        <div class="lv4-mapwrap">
+          <div class="lv4-map-frame lv4-glass">
+            <div id="lv4-map" class="lv4-map">
+              <img src="assets/ui/map_island.webp" alt="Asgard island, top-down" draggable="false" />
+              <svg id="lv4-map-lines" class="lv4-map-lines" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+              <div id="lv4-map-pins"></div>
+              <span class="lv4-compass">N</span>
+            </div>
+          </div>
+          <aside id="lv4-poi-info" class="lv4-poi-info lv4-glass"></aside>
         </div>
       </div>
     </div>
 
-    <!-- TAB 5: MOBILE & GRAPHICS SETTINGS -->
+    <!-- TAB 5: SETTINGS -->
     <div id="tab-settings" class="lobby-tab-panel">
-      <div class="section-label">MOBILE BROWSER & GRAPHICS CONFIGURATION</div>
-      <div class="settings-box">
-        <div class="setting-row">
-          <span>Show Mobile Touch Controls (Joystick & Fire Buttons)</span>
-          <input type="checkbox" id="toggle-mobile-hud" />
+      <div class="lv4-page">
+        <div class="lv4-head lv4-head-row">
+          <div class="lv4-title">SETTINGS</div>
+          <div class="lv4-sub">Changes apply right away and are saved on this device.</div>
         </div>
-        <div class="setting-row">
-          <span>Mobile Auto-Fire When Crosshair Locks Enemy</span>
-          <input type="checkbox" id="toggle-auto-fire" />
-        </div>
-        <div class="setting-row">
-          <span>Aim Assist (Target Slowdown & Lock)</span>
-          <input type="checkbox" id="toggle-aim-assist" checked />
-        </div>
-        <div class="setting-row">
-          <span>Smart Auto-Loot & Auto-Open Doors</span>
-          <input type="checkbox" id="toggle-auto-loot" checked />
-        </div>
-        <div class="setting-row">
-          <span>Visual Sound Radar (Footsteps & Gunfire Arcs)</span>
-          <input type="checkbox" id="toggle-sound-radar" checked />
-        </div>
-        <div class="setting-row">
-          <span>Mobile Gyroscope Aim (Miringkan HP untuk Aim)</span>
-          <input type="checkbox" id="toggle-gyro-aim" />
-        </div>
-        <div class="setting-row">
-          <span>Mobile Haptic Vibration (Getar Tembak & Kill)</span>
-          <input type="checkbox" id="toggle-haptics" checked />
-        </div>
-        <div class="setting-row">
-          <span>Touch Button Scale (<b id="touch-scale-label" style="color:#fbbf24">100%</b>)</span>
-          <input type="range" id="slider-touch-scale" min="0.75" max="1.25" step="0.05" value="1.0" />
-        </div>
-        <div class="setting-row">
-          <span>Touch / Mouse Look Sensitivity</span>
-          <input type="range" id="slider-sensitivity" min="0.4" max="2.5" step="0.1" value="1.0" />
-        </div>
-        <div class="setting-row">
-          <span>Field of View (FOV: <b id="fov-value-label" style="color:#fbbf24">84°</b>)</span>
-          <input type="range" id="slider-fov" min="75" max="110" step="1" value="84" />
-        </div>
-        <div class="setting-row">
-          <span>Graphics Preset (Anti-Lag Mobile / Ultra Shader)</span>
-          <select id="select-quality" style="background:#0f172a;color:#fbbf24;padding:6px 10px;border:1px solid #fbbf24;border-radius:4px;">
-            <option value="mobile">Mobile Performance (Max 60 FPS)</option>
-            <option value="balanced" selected>Balanced HD</option>
-            <option value="ultra">Ultra Asgard High-DPI</option>
-          </select>
-        </div>
-        <div style="font-size:11.5px;color:#94a3b8;line-height:1.55;border-top:1px solid rgba(148,163,184,0.2);padding-top:10px;">
-          <b>COMPLETE CONTROLS GUIDE:</b><br/>
-          • <b>Movement:</b> <b>WASD</b> Move • <b>Shift</b> Sprint • <b>C</b> Slide (Downhill Boost!) • <b>Space</b> Jump / Ledge Mantle Climb / Valkyrie Jetpack / Zipline Super-Jump.<br/>
-          • <b>Combat:</b> <b>Left Click</b> Fire • <b>Right Click</b> ADS Optic / Hold Knockdown Shield • <b>B</b> Toggle Fire Mode (Auto/Burst/Single) • <b>R</b> Reload • <b>1 / 2</b> Swap Weapons • <b>V</b> Heirloom Quick Melee (Kick Doors!) • <b>N</b> 3D Weapon Inspect.<br/>
-          • <b>Abilities & Tactical:</b> <b>Q</b> Tactical Skill • <b>Z</b> Ultimate Skill • <b>G</b> Throw God Bomb • <b>X</b> Cycle Bomb • <b>H</b> Use Heal • <b>4</b> Cycle Heal Item • <b>F / Middle Click</b> Ping • <b>E</b> Open Door / Loot / Ride Zipline / Revive Ally / Execute Finisher / Replicator / Survey Beacon • <b>I / Tab</b> Tactical Backpack & Attachments • <b>M</b> Full Map.
+        <div class="lv4-settings">
+          <nav class="lv4-set-nav lv4-glass" id="lv4-set-nav">
+            <button class="active" data-sec="graphics"><svg class="lv4-ic"><use href="#i-monitor"/></svg>Graphics</button>
+            <button data-sec="controls"><svg class="lv4-ic"><use href="#i-pad"/></svg>Controls</button>
+            <button data-sec="audio"><svg class="lv4-ic"><use href="#i-sound"/></svg>Audio</button>
+            <button data-sec="gameplay"><svg class="lv4-ic"><use href="#i-flag"/></svg>Gameplay</button>
+          </nav>
+          <div class="lv4-set-body lv4-glass">
+            <section class="lv4-set-sec active" data-sec="graphics">
+              <div class="lv4-row lv4-row-col">
+                <div class="lv4-row-top"><span class="lv4-lbl">Graphics quality</span>
+                  <select id="select-quality" class="lv4-select" aria-label="Graphics quality">
+                    <option value="auto">Auto</option>
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="ultra">Ultra</option>
+                  </select>
+                </div>
+                <div class="lv4-seg lv4-seg-q" id="lv4-q-seg">
+                  <button data-q="auto">AUTO</button><button data-q="low">LOW</button><button data-q="medium">MEDIUM</button><button data-q="high">HIGH</button><button data-q="ultra">ULTRA</button>
+                </div>
+                <small id="lv4-q-desc" class="lv4-desc"></small>
+                <div id="lv4-q-readout" class="lv4-readout"></div>
+              </div>
+              <label class="lv4-row"><span class="lv4-lbl">Render scale <b id="lv4-scale-label">100%</b><small>Lower = smoother frame rate, softer image</small></span>
+                <input type="range" id="lv4-render-scale" min="0.5" max="1" step="0.05" value="1" /></label>
+              <div class="lv4-row"><span class="lv4-lbl">Frame rate limit<small>Cap saves battery and heat on phones</small></span>
+                <div class="lv4-seg lv4-seg-sm" id="lv4-fps-seg"><button data-fps="30">30</button><button data-fps="60">60</button><button data-fps="0">MAX</button></div></div>
+              <label class="lv4-row"><span class="lv4-lbl">Field of view <b id="fov-value-label">84°</b></span>
+                <input type="range" id="slider-fov" min="75" max="110" step="1" value="84" /></label>
+            </section>
+
+            <section class="lv4-set-sec" data-sec="controls">
+              <label class="lv4-row"><span class="lv4-lbl">Touch controls<small>Joystick and fire buttons on screen</small></span><input type="checkbox" class="lv4-switch" id="toggle-mobile-hud" /></label>
+              <label class="lv4-row"><span class="lv4-lbl">Look sensitivity</span><input type="range" id="slider-sensitivity" min="0.4" max="2.5" step="0.1" value="1.0" /></label>
+              <label class="lv4-row"><span class="lv4-lbl">Touch button size <b id="touch-scale-label">100%</b></span><input type="range" id="slider-touch-scale" min="0.75" max="1.25" step="0.05" value="1.0" /></label>
+              <label class="lv4-row"><span class="lv4-lbl">Aim assist<small>Slows aim over targets</small></span><input type="checkbox" class="lv4-switch" id="toggle-aim-assist" checked /></label>
+              <label class="lv4-row"><span class="lv4-lbl">Auto-fire on target<small>Touch only</small></span><input type="checkbox" class="lv4-switch" id="toggle-auto-fire" /></label>
+              <label class="lv4-row"><span class="lv4-lbl">Gyro aim<small>Tilt the phone to aim</small></span><input type="checkbox" class="lv4-switch" id="toggle-gyro-aim" /></label>
+              <div class="lv4-keys">
+                <div class="lv4-keys-title">KEYBOARD</div>
+                <span><kbd>WASD</kbd>Move</span><span><kbd>Shift</kbd>Sprint</span><span><kbd>C</kbd>Slide</span><span><kbd>Space</kbd>Jump / climb</span>
+                <span><kbd>LMB</kbd>Fire</span><span><kbd>RMB</kbd>Aim</span><span><kbd>R</kbd>Reload</span><span><kbd>1</kbd><kbd>2</kbd>Weapons</span>
+                <span><kbd>Q</kbd>Tactical</span><span><kbd>Z</kbd>Ultimate</span><span><kbd>G</kbd>Bomb</span><span><kbd>X</kbd>Cycle bomb</span>
+                <span><kbd>H</kbd>Heal</span><span><kbd>4</kbd>Heal type</span><span><kbd>E</kbd>Interact</span><span><kbd>F</kbd>Ping</span>
+                <span><kbd>V</kbd>Melee</span><span><kbd>B</kbd>Fire mode</span><span><kbd>Tab</kbd>Backpack</span><span><kbd>M</kbd>Map</span>
+              </div>
+            </section>
+
+            <section class="lv4-set-sec" data-sec="audio">
+              <label class="lv4-row"><span class="lv4-lbl">Lobby music</span><input type="checkbox" class="lv4-switch" id="lv4-music-on" checked /></label>
+              <label class="lv4-row"><span class="lv4-lbl">Music volume</span><input type="range" id="lv4-music-vol" min="0" max="1" step="0.05" value="0.55" /></label>
+              <label class="lv4-row"><span class="lv4-lbl">Effects volume<small>Guns, footsteps, abilities</small></span><input type="range" id="lv4-sfx-vol" min="0" max="1" step="0.05" value="1" /></label>
+              <label class="lv4-row"><span class="lv4-lbl">Announcer voice</span><input type="checkbox" class="lv4-switch" id="lv4-voice-on" checked /></label>
+            </section>
+
+            <section class="lv4-set-sec" data-sec="gameplay">
+              <label class="lv4-row"><span class="lv4-lbl">Auto-loot &amp; auto-doors<small>Pick up upgrades and open doors when you walk close</small></span><input type="checkbox" class="lv4-switch" id="toggle-auto-loot" checked /></label>
+              <label class="lv4-row"><span class="lv4-lbl">Sound radar<small>Show footsteps and gunfire direction</small></span><input type="checkbox" class="lv4-switch" id="toggle-sound-radar" checked /></label>
+              <label class="lv4-row"><span class="lv4-lbl">Vibration<small>Phone haptics on shots and kills</small></span><input type="checkbox" class="lv4-switch" id="toggle-haptics" checked /></label>
+            </section>
+          </div>
         </div>
       </div>
     </div>
@@ -553,9 +610,9 @@
   <!-- Tactical Backpack & Weapon Attachments Modal [I / Tab] -->
   <div id="inventory-modal" class="modal-overlay hidden">
     <div class="modal-box">
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <h2 style="color:#fbbf24;letter-spacing:1.5px;font-size:18px;">🎒 TACTICAL BACKPACK & WEAPON ATTACHMENTS</h2>
-        <button class="btn-apex-secondary" onclick="window.GAME && window.GAME.toggleInventoryModal()">CLOSE [I / TAB]</button>
+      <div class="iv-head">
+        <h2>BACKPACK</h2>
+        <button class="iv-close" aria-label="Close backpack" title="Close [I / Tab]" onclick="window.GAME && window.GAME.toggleInventoryModal()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg></button>
       </div>
       <div id="inventory-content"></div>
     </div>
@@ -563,11 +620,9 @@
 
   <!-- Full Asgard Tactical Map Modal [M] -->
   <div id="fullmap-modal" class="modal-overlay hidden" onclick="window.GAME && window.GAME.toggleFullMap()">
-    <div class="modal-box" style="max-width:460px;">
-      <h2 style="color:#fbbf24;letter-spacing:1.5px;">ASGARD TACTICAL MAP</h2>
-      <canvas id="fullmap-canvas" width="360" height="360" style="width:100%;max-width:340px;margin:0 auto;border-radius:50%;border:2px solid #fbbf24;"></canvas>
-      <p style="font-size:11px;color:#94a3b8;">Red Circle: Ragnarok Safe Ring • Green Dots: Allied Squadmates • Gold Lines: Bifrost Ziplines • Cyan Squares: Replicators</p>
-      <button class="btn-apex-secondary" style="align-self:center;">CLOSE MAP [M]</button>
+    <div class="modal-box">
+      <canvas id="fullmap-canvas" width="560" height="560"></canvas>
+      <div class="fm-legend"><span class="fm-k storm">storm</span><span class="fm-k next">next ring</span><span class="fm-k you">you</span><span class="fm-k squad">squad</span></div>
     </div>
   </div>
 
@@ -601,9 +656,9 @@
       <div id="match-end-stats"></div>
       <div id="match-xp-progress" class="match-xp-box"></div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:8px;">
-        <button id="btn-play-again" class="btn-apex-play">⚡ PLAY AGAIN</button>
-        <button id="btn-spectate-match" class="btn-apex-secondary">👁️ SPECTATE MATCH</button>
-        <button id="btn-back-lobby" class="btn-apex-secondary">🏛️ RETURN TO LOBBY</button>
+        <button id="btn-play-again" class="btn-apex-play">PLAY AGAIN</button>
+        <button id="btn-spectate-match" class="btn-apex-secondary">SPECTATE</button>
+        <button id="btn-back-lobby" class="btn-apex-secondary">LOBBY</button>
       </div>
     </div>
   </div>
@@ -611,8 +666,8 @@
   <!-- Sleek Asgard Match Loading Overlay with Official GOD WARS Logo -->
   <div id="asgard-loading-overlay" class="hidden">
     <div class="rotate-card" style="max-width:360px;">
-      <img src="assets/icons/logo.png?v=20261125a" alt="God Wars" style="width:96px;height:96px;border-radius:18px;margin-bottom:8px;box-shadow:0 0 24px rgba(249,115,22,0.55);" />
-      <h2 style="font-size:16px;color:#fbbf24;letter-spacing:1.5px;">DEPLOYING TO ASGARD...</h2>
+      <img src="assets/icons/logo.png?v=20261126a" alt="God Wars" style="width:96px;height:96px;border-radius:18px;margin-bottom:8px;box-shadow:0 0 24px rgba(249,115,22,0.55);" />
+      <h2 style="font-size:16px;color:#fbbf24;letter-spacing:1.5px;">DEPLOYING TO ASGARD</h2>
       <p id="loading-status-text" style="font-size:11.5px;color:#94a3b8;margin:6px 0 10px;">Building Sculpted Asgard Island & 6 God Contenders</p>
       <div class="xp-bar-track"><div id="loading-bar-fill" class="xp-bar-fill" style="width:45%"></div></div>
     </div>
@@ -621,7 +676,7 @@
   <!-- Mobile Portrait -> Landscape Prompt Overlay with Official GOD WARS Logo -->
   <div id="rotate-landscape-overlay" class="hidden">
     <div class="rotate-card">
-      <img src="assets/icons/logo.png?v=20261125a" alt="God Wars" style="width:88px;height:88px;border-radius:16px;margin-bottom:6px;box-shadow:0 0 20px rgba(56,189,248,0.45);" />
+      <img src="assets/icons/logo.png?v=20261126a" alt="God Wars" style="width:88px;height:88px;border-radius:16px;margin-bottom:6px;box-shadow:0 0 20px rgba(56,189,248,0.45);" />
       <div class="rotate-phone-icon">📱</div>
       <h2>MIRINGKAN IPHONE KE LANDSCAPE</h2>
       <p>GOD WARS: ASGARD ROYALE didesain khusus layar horizontal (Landscape) agar kontrol 2-jempol & grafik Asgard tampil penuh seperti God Wars Mobile.</p>
@@ -647,6 +702,7 @@
         <label class="setting-row"><span>Auto-Loot & Auto-Doors</span><input type="checkbox" id="qs-auto-loot" checked /></label>
         <label class="setting-row"><span>Visual Sound Radar</span><input type="checkbox" id="qs-sound-radar" checked /></label>
         <label class="setting-row"><span>Gyroscope Aim</span><input type="checkbox" id="qs-gyro" /></label>
+        <label class="setting-row"><span>Graphics Quality</span><select id="qs-quality" class="lv4-select"><option value="auto">Auto</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="ultra">Ultra</option></select></label>
       </div>
       <div style="display:flex;gap:8px;margin-top:12px;justify-content:center;">
         <button id="btn-qs-fullscreen" class="btn-apex-secondary" style="flex:1;">⛶ FULLSCREEN</button>
@@ -665,16 +721,18 @@
   <!-- Local Three.js Engine + GLTFLoader (Blender GLB Assets) + Modular Game Scripts -->
   <script src="js/vendor/three.min.js"></script>
   <script src="js/vendor/GLTFLoader.js"></script>
-  <script src="js/data.js?v=20261125a"></script>
-  <script src="js/audio.js?v=20261125a"></script>
-  <script src="js/models.js?v=20261125a"></script>
-  <script src="js/world.js?v=20261125a"></script>
-  <script src="js/post.js?v=20261125a"></script>
-  <script src="js/batcher.js?v=20261125a"></script>
-  <script src="js/combat.js?v=20261125a"></script>
-  <script src="js/ai.js?v=20261125a"></script>
-  <script src="js/net.js?v=20261125a"></script>
-  <script src="js/main.js?v=20261125a"></script>
+  <script src="js/data.js?v=20261126a"></script>
+  <script src="js/audio.js?v=20261126a"></script>
+  <script src="js/models.js?v=20261126a"></script>
+  <script src="js/anim.js?v=20261126a"></script>
+  <script src="js/world.js?v=20261126a"></script>
+  <script src="js/post.js?v=20261126a"></script>
+  <script src="js/batcher.js?v=20261126a"></script>
+  <script src="js/combat.js?v=20261126a"></script>
+  <script src="js/ai.js?v=20261126a"></script>
+  <script src="js/net.js?v=20261126a"></script>
+  <script src="js/main.js?v=20261126a"></script>
+  <script src="js/lobby.js?v=20261126a"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {

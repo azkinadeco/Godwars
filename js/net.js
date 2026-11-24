@@ -52,6 +52,8 @@
       this.maxShield = (window.GODWARS_DATA.EVO_TIERS[s.st] || { maxShield: 75 }).maxShield;
       this.alive = !!s.a;
       this.anim = s.an || 'Idle';
+      if (s.pi != null) this.pitch = s.pi;
+      if (s.w) this.weaponId = s.w;
       if (s.f) this.fireTimer = 0.2;
     }
     update(dt) {
@@ -72,8 +74,18 @@
       this.mesh.position.copy(this.position);
       this.mesh.visible = this.alive && b.length > 0;
       const ud = this.mesh.userData;
-      if (ud.mixer) ud.mixer.update(dt);
-      if (ud.playAnim) ud.playAnim(this.anim);
+      const an = this.anim || 'Idle';
+      if (this.mesh.visible && window.HeroAnim && window.HeroAnim.drive(this.mesh, {
+        grounded: an !== 'Air', sprint: an === 'Sprint', slide: an === 'Slide', crouch: an === 'Crouch',
+        ads: an === 'ADS', knocked: an === 'Knock', reload: an === 'Reload' ? ((Date.now() % 2000) / 2000) : -1,
+        heal: an === 'Heal' ? 'shield_battery' : null, healT: (Date.now() % 2100) / 2100, melee: -1,
+        aimPitch: this.pitch || 0, weaponId: this.weaponId, fired: this.fireTimer > 0.15 && !this._firedSeen
+      }, dt)) {
+        this._firedSeen = this.fireTimer > 0.15;
+      } else {
+        if (ud.mixer) ud.mixer.update(dt);
+        if (ud.playAnim) ud.playAnim(an === 'Slide' ? 'Slide' : an === 'Idle' || an === 'ADS' ? 'Idle' : 'Run');
+      }
     }
     dispose() {
       if (this.mesh && this.mesh.parent) this.mesh.parent.remove(this.mesh);
@@ -123,9 +135,10 @@
       this._sendTimer = setInterval(() => {
         const G = window.GAME, p = G && G.player;
         if (!p) return;
-        const sp = Math.hypot(p.velocity.x, p.velocity.z);
-        const an = p.isSliding ? 'Slide' : sp > 1.2 ? 'Run' : 'Idle';
-        const w = p.weapons && p.weapons[p.activeWeaponIndex || 0];
+        const wr = p.weapons && p.weapons[p.activeSlot];
+        const an = p.knocked ? 'Knock' : p.isSliding ? 'Slide' : !p.onGround ? 'Air' : p.healTimer > 0 ? 'Heal'
+          : wr && wr.reloading ? 'Reload' : p.isSprinting ? 'Sprint' : p.isCrouching ? 'Crouch' : p.isADS ? 'ADS' : 'Run';
+        const w = p.weapons && p.weapons[p.activeSlot || 0];
         this.send({
           t: 'state', p: [+p.position.x.toFixed(2), +p.position.y.toFixed(2), +p.position.z.toFixed(2)],
           y: +p.yaw.toFixed(3), pi: +p.pitch.toFixed(3), hp: Math.round(p.hp), sh: Math.round(p.shield), st: p.shieldTier,

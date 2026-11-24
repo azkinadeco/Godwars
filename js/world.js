@@ -26,6 +26,7 @@ class AsgardWorld {
   constructor(scene) {
     this.scene = scene;
     this.colliders = [];        // Solid wall/pillar/prop AABBs { minX, maxX, minZ, maxZ, minY, maxY, isClimbable }
+    this.shotBlockers = [];     // Ballistics-only solids (stair treads, overhead arches, rock ellipsoids): stop bullets/grenades/LOS, never block movement
     this.walkableSurfaces = []; // Multi-story floor/roof slabs { minX, maxX, minZ, maxZ, y, thickness }
     this.ramps = [];            // Sloped stairs/ramps { minX, maxX, minZ, maxZ, dir, lowY, highY }
     this.doors = [];            // Interactive Apex Doors
@@ -245,8 +246,11 @@ class AsgardWorld {
       box.setFromObject(m);
       if (box.isEmpty()) return;
       const w = box.max.x - box.min.x, d = box.max.z - box.min.z, h = box.max.y - box.min.y;
-      if (box.min.y > group.position.y + 2.2) return;   // overhead piece: leave the walkway open
       if (h < 0.35 || w < 0.25 || d < 0.25) return;      // trim, decals, flat plates
+      if (box.min.y > group.position.y + 2.2) {          // overhead piece: leave the walkway open, but stop shots
+        if (w * d <= 900) this.shotBlockers.push({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, minY: box.min.y, maxY: box.max.y, fromGLB: true });
+        return;
+      }
       if (w * d > 900) return;                           // giant shells would trap players
       this.colliders.push({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, minY: box.min.y, maxY: box.max.y, isClimbable: h < 3.2, fromGLB: true });
       if (h < 3.2) this.walkableSurfaces.push({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, y: box.max.y, thickness: h });
@@ -321,6 +325,8 @@ class AsgardWorld {
       const stepMesh = new THREE.Mesh(this._worldUV(new THREE.BoxGeometry(sw, dh + 0.15, sd + 0.08), sw, dh + 0.15, sd + 0.08, sx, sz), mat);
       stepMesh.position.set(sx, stepY - (dh + 0.15) / 2, sz);
       group.add(stepMesh);
+      // treads stop bullets/grenades (movement uses the ramp surface instead)
+      this.shotBlockers.push({ minX: sx - sw / 2, maxX: sx + sw / 2, minZ: sz - (sd + 0.08) / 2, maxZ: sz + (sd + 0.08) / 2, minY: stepY - dh - 0.15, maxY: stepY, isStep: true });
     }
     if (rails) {
       // steel handrails on both long sides: sloped tube + end posts
@@ -731,6 +737,9 @@ class AsgardWorld {
       this.scene.add(m);
       const core = rr * 0.62, top = gy + rr * 0.32 + rr * 0.62;
       this.colliders.push({ minX: x - core, maxX: x + core, minZ: z - core, maxZ: z + core, minY: gy - 1, maxY: top, isClimbable: true });
+      // ballistic shell ~ the visible boulder (the movement core above is deliberately smaller)
+      const erx = rr * (1 + 0.075 * ((k + seed) % 2)) * 0.92, ery = rr * 0.95 * 0.8 * 0.95, ecy = gy + rr * 0.32;
+      this.shotBlockers.push({ ell: true, ex: x, ey: ecy, ez: z, rx: erx, ry: ery, rz: erx, minX: x - erx, maxX: x + erx, minZ: z - erx, maxZ: z + erx, minY: ecy - ery, maxY: ecy + ery, isRock: true });
       this.walkableSurfaces.push({ minX: x - core * 0.7, maxX: x + core * 0.7, minZ: z - core * 0.7, maxZ: z + core * 0.7, y: top, thickness: top - gy });
     });
   }
@@ -956,8 +965,15 @@ class AsgardWorld {
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.rockMap = { value: rock.map };
       sh.uniforms.dirtMap = { value: dirt.map };
-      sh.vertexShader = 'attribute vec3 blendW;\nvarying vec3 vBlendW;\n' + sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n  vBlendW = blendW;');
-      sh.fragmentShader = 'uniform sampler2D rockMap;\nuniform sampler2D dirtMap;\nvarying vec3 vBlendW;\n' + sh.fragmentShader.replace('#include <map_fragment>', `
+      // storm: ground outside the current ring (but inside the playable island) is tinted crimson
+      sh.uniforms.uGwRing = this._stormU().uRing;
+      sh.vertexShader = 'attribute vec3 blendW;\nvarying vec3 vBlendW;\nvarying vec2 vGwWP;\n' + sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n  vBlendW = blendW;').replace('#include <begin_vertex>', '#include <begin_vertex>\n  vGwWP = (modelMatrix * vec4(transformed, 1.0)).xz;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <tonemapping_fragment>', `
+        float gwD = length(vGwWP - uGwRing.xy);
+        float gwK = smoothstep(uGwRing.z, uGwRing.z + 12.0, gwD) * (1.0 - smoothstep(uGwRing.w - 4.0, uGwRing.w + 2.0, gwD));
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * vec3(1.05, 0.3, 0.28) + vec3(0.04, 0.0, 0.003), gwK * 0.78);
+        #include <tonemapping_fragment>`);
+      sh.fragmentShader = 'uniform sampler2D rockMap;\nuniform sampler2D dirtMap;\nuniform vec4 uGwRing;\nvarying vec3 vBlendW;\nvarying vec2 vGwWP;\n' + sh.fragmentShader.replace('#include <map_fragment>', `
         vec4 gC = mapTexelToLinear(texture2D(map, vUv));
         vec4 gF = mapTexelToLinear(texture2D(map, vUv * 0.173));
         gC.rgb *= 0.75 + 0.5 * gF.g;                                  // break up tiling with a low-frequency pass
@@ -1875,19 +1891,97 @@ class AsgardWorld {
     });
   }
 
+  /** Shared storm uniforms (wall shader, outside-ground tint on the terrain, screen overlay). */
+  _stormU() {
+    if (!this._stormUniforms) {
+      this._stormUniforms = {
+        uRing: { value: new THREE.Vector4(0, 0, this.islandRadius, this.islandRadius - 3) }, // cx, cz, radius, playable edge
+        uTime: { value: 0 },
+        uLinear: { value: 0 },
+        uStrength: { value: 0 }
+      };
+    }
+    return this._stormUniforms;
+  }
+
+  /**
+   * Ragnarok storm: a 220 m crimson energy curtain on the ring edge. Rising bands + vertical
+   * streaks, grazing-angle (fresnel) build-up so the wall reads as a crisp line from afar while the
+   * part straight ahead stays see-through, foot glow where it meets the ground, alpha fading with
+   * height and when you're right at it. Plus a full-screen storm overlay when the camera is outside.
+   */
   buildStormRing() {
-    const ringGeo = new THREE.CylinderGeometry(1, 1, 140, 64, 1, true);
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xf43f5e,
+    const U = this._stormU();
+    const NOISE = `
+      float gwH(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float gwN(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(gwH(i), gwH(i + vec2(1.0, 0.0)), f.x), mix(gwH(i + vec2(0.0, 1.0)), gwH(i + vec2(1.0, 1.0)), f.x), f.y); }`;
+    const ringMat = new THREE.ShaderMaterial({
+      uniforms: U,
+      vertexShader: `varying vec3 vWP;
+        void main(){ vec4 wp = modelMatrix * vec4(position, 1.0); vWP = wp.xyz; gl_Position = projectionMatrix * viewMatrix * wp; }`,
+      fragmentShader: `uniform vec4 uRing; uniform float uTime; uniform float uLinear; varying vec3 vWP;` + NOISE + `
+        void main(){
+          vec2 rel = vWP.xz - uRing.xy;
+          float arc = atan(rel.y, rel.x) * uRing.z;           // metres along the curtain
+          float y = vWP.y;
+          vec3 V = cameraPosition - vWP; float dist = length(V); V /= max(dist, 1e-3);
+          vec3 N = normalize(vec3(rel.x, 0.0, rel.y));
+          float fres = 1.0 - abs(dot(N, V));
+          float wob = gwN(vec2(arc * 0.035, uTime * 0.25)) * 3.0;
+          float band = pow(0.5 + 0.5 * sin(y * 0.3 - uTime * 2.2 + wob), 5.0);
+          float band2 = pow(0.5 + 0.5 * sin(y * 0.09 - uTime * 1.1 + wob * 0.5), 4.0);
+          float st = smoothstep(0.58, 0.95, gwN(vec2(arc * 0.16, y * 0.012 - uTime * 0.45)));
+          float foot = 1.0 - smoothstep(0.0, 16.0, y);
+          float hFade = 1.0 - smoothstep(12.0, 150.0, y);
+          float nearK = 0.3 + 0.7 * smoothstep(1.5, 22.0, dist);  // walking through it doesn't blind you
+          float farK = 1.0 - 0.25 * smoothstep(260.0, 620.0, dist);
+          float lowK = 1.0 - smoothstep(10.0, 70.0, y);            // grazing build-up only on the lower curtain (no arcs across the sky)
+          float a = (0.17 + 0.3 * fres * fres * lowK + 0.16 * band + 0.1 * band2 + 0.14 * st + 0.26 * foot) * hFade * nearK * farK;
+          vec3 deep = vec3(0.55, 0.02, 0.05), hot = vec3(0.95, 0.13, 0.09);
+          vec3 col = mix(deep, hot, clamp(band * 0.9 + st * 0.45 + foot * 0.35, 0.0, 1.0));
+          if (uLinear > 0.5) {                               // HDR target blends in linear: gamma-decode, tame alpha, let bands bloom
+            col = pow(col, vec3(2.2)) * (1.0 + 0.9 * band + 0.5 * foot);
+            a *= 0.6;
+          }
+          gl_FragColor = vec4(col, clamp(a, 0.0, 0.8));
+        }`,
       transparent: true,
-      opacity: 0.24,
       side: THREE.DoubleSide,
-      depthWrite: false
+      depthWrite: false,
+      fog: false
     });
-    this.ringMesh = new THREE.Mesh(ringGeo, ringMat);
-    this.ringMesh.position.set(0, 65, 0);
+    this.ringMesh = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 220, 160, 1, true), ringMat);
+    this.ringMesh.position.set(0, 100, 0);
     this.ringMesh.scale.set(this.islandRadius, 1, this.islandRadius);
+    this.ringMesh.frustumCulled = false;
+    this.ringMesh.renderOrder = 5;
     this.scene.add(this.ringMesh);
+
+    // screen-space storm overlay (only drawn while the camera is outside the ring)
+    const ovMat = new THREE.ShaderMaterial({
+      uniforms: U,
+      vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`,
+      fragmentShader: `uniform float uTime; uniform float uLinear; uniform float uStrength; varying vec2 vUv;` + NOISE + `
+        void main(){
+          vec2 q = vUv - 0.5;
+          float r = length(q * vec2(1.0, 0.82));
+          float vig = smoothstep(0.18, 0.72, r);
+          float n = gwN(vec2(vUv.x * 5.0 + uTime * 0.35, vUv.y * 3.0 - uTime * 1.1));
+          float streak = smoothstep(0.62, 1.0, gwN(vec2(vUv.x * 46.0, vUv.y * 1.6 + uTime * 2.4)));
+          float pulse = 0.85 + 0.15 * sin(uTime * 5.0);
+          float a = uStrength * (0.2 + 0.58 * vig * (0.65 + 0.35 * n) * pulse + 0.12 * streak * (0.3 + vig));
+          vec3 col = mix(vec3(0.5, 0.0, 0.03), vec3(0.95, 0.12, 0.08), clamp(n * 0.5 + streak * 0.4, 0.0, 1.0));
+          if (uLinear > 0.5) { col = pow(col, vec3(2.2)); a *= 0.85; }
+          gl_FragColor = vec4(col, clamp(a, 0.0, 0.88));
+        }`,
+      transparent: true, depthTest: false, depthWrite: false, fog: false
+    });
+    this.stormOverlay = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), ovMat);
+    this.stormOverlay.frustumCulled = false;
+    this.stormOverlay.renderOrder = 9990;
+    this.stormOverlay.visible = false;
+    this.scene.add(this.stormOverlay);
   }
 
   updateRingVisual(centerX, centerZ, radius, time, dt = 0.016) {
@@ -1895,9 +1989,24 @@ class AsgardWorld {
     this.ringMesh.position.x = centerX;
     this.ringMesh.position.z = centerZ;
     this.ringMesh.scale.set(Math.max(1, radius), 1, Math.max(1, radius));
-    // Linear-space blending (PostFX HDR path) makes a translucent wall read ~3x stronger: compensate.
-    const linK = (window.GW_LINEAR_OUT && window.GW_LINEAR_OUT.value) ? 0.3 : 1;
-    this.ringMesh.material.opacity = (0.2 + Math.sin(time * 3.5) * 0.05) * linK;
+    const U = this._stormU();
+    U.uRing.value.set(centerX, centerZ, Math.max(1, radius), this.islandRadius - 3);
+    U.uTime.value = time;
+    U.uLinear.value = (window.GW_LINEAR_OUT && window.GW_LINEAR_OUT.value) ? 1 : 0;
+    // outside-the-ring screen treatment (camera based, eased) + PostFX heat-haze distortion
+    const cam = window.GAME && window.GAME.camera;
+    let want = 0;
+    if (cam && window.GAME.matchActive !== false) {
+      const out = Math.hypot(cam.position.x - centerX, cam.position.z - centerZ) - radius;
+      want = Math.max(0, Math.min(1, (out + 0.5) / 5));
+    }
+    const k = Math.min(1, dt * 6);
+    U.uStrength.value += (want - U.uStrength.value) * k;
+    if (U.uStrength.value < 0.003) U.uStrength.value = 0;
+    if (this.stormOverlay) this.stormOverlay.visible = U.uStrength.value > 0;
+    window.GW_STORM_FX = window.GW_STORM_FX || { value: 0, time: 0 };
+    window.GW_STORM_FX.value = U.uStrength.value;
+    window.GW_STORM_FX.time = time;
 
     this.jumpPads.forEach(p => {
       p.ring.position.y = 0.4 + Math.sin(time * 4) * 0.12;
@@ -2036,6 +2145,7 @@ class AsgardWorld {
       const box = new THREE.Box3().setFromObject(glb);
       const h = box.max.y - box.min.y;
       Object.assign(res, { minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, minY: box.min.y, maxY: box.max.y, isClimbable: h < 2.4, reserved: false, thin: opts.thin });
+      this._shotGridDirty = true; // the reserve box just grew to the model's real bounds
       if (opts.thin) { // poles: collide only with a slim core
         const cx0 = (box.min.x + box.max.x) / 2, cz0 = (box.min.z + box.max.z) / 2;
         Object.assign(res, { minX: cx0 - 0.25, maxX: cx0 + 0.25, minZ: cz0 - 0.25, maxZ: cz0 + 0.25 });
@@ -2384,6 +2494,140 @@ class AsgardWorld {
     }
     this._instanceGLB('prop_tree_lite', broad);
     this._instanceGLB('prop_pine_tree', pines, !coarse);
+  }
+
+  // =========================================================================
+  // BALLISTIC COLLISION — every solid AABB (walls split around window/door openings, slabs,
+  // roofs, props, trees, rocks) plus ballistics-only blockers, bucketed in a uniform XZ grid.
+  // Rays walk the grid with a 2D DDA and slab-test only the boxes in the cells they cross, so a
+  // shot costs a few dozen box tests instead of ~3000. Windows/doorways are real gaps between
+  // boxes, so bullets, grenades and bot sight pass through them and nothing else.
+  // =========================================================================
+  _buildShotGrid() {
+    const CS = 8;
+    const list = [];
+    for (const c of this.colliders) if (!c.reserved) list.push(c);
+    for (const c of this.shotBlockers) list.push(c);
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const c of list) { if (c.minX < x0) x0 = c.minX; if (c.minZ < z0) z0 = c.minZ; if (c.maxX > x1) x1 = c.maxX; if (c.maxZ > z1) z1 = c.maxZ; }
+    if (!list.length) { x0 = z0 = -1; x1 = z1 = 1; }
+    x0 -= 1; z0 -= 1; x1 += 1; z1 += 1;
+    const nx = Math.max(1, Math.ceil((x1 - x0) / CS)), nz = Math.max(1, Math.ceil((z1 - z0) / CS));
+    const cells = new Array(nx * nz);
+    for (let i = 0; i < list.length; i++) {
+      const c = list[i];
+      const ia = Math.max(0, Math.floor((c.minX - x0) / CS)), ib = Math.min(nx - 1, Math.floor((c.maxX - x0) / CS));
+      const ja = Math.max(0, Math.floor((c.minZ - z0) / CS)), jb = Math.min(nz - 1, Math.floor((c.maxZ - z0) / CS));
+      for (let j = ja; j <= jb; j++) for (let k = ia; k <= ib; k++) {
+        const id = j * nx + k;
+        (cells[id] || (cells[id] = [])).push(i);
+      }
+    }
+    this._sg = { CS, x0, z0, x1: x0 + nx * CS, z1: z0 + nz * CS, nx, nz, cells, list, stamp: new Uint32Array(list.length), sid: 0, len: this.colliders.length, blen: this.shotBlockers.length };
+    this._shotGridDirty = false;
+    return this._sg;
+  }
+
+  /**
+   * First solid hit along o + d*t (d normalised), 0 <= t <= maxT. Boxes that contain the origin
+   * are ignored (a muzzle pressed into cover still fires out of it). Returns t (Infinity on miss);
+   * `out` (optional) receives { c, nx, ny, nz } — the collider and the face normal that was hit.
+   */
+  raycastSolids(ox, oy, oz, dx, dy, dz, maxT, out) {
+    let sg = this._sg;
+    if (!sg || this._shotGridDirty || sg.len !== this.colliders.length || sg.blen !== this.shotBlockers.length) sg = this._buildShotGrid();
+    const CS = sg.CS, nx = sg.nx, nz = sg.nz, list = sg.list, stamp = sg.stamp, cells = sg.cells;
+    const ix = dx !== 0 ? 1 / dx : 1e30, iy = dy !== 0 ? 1 / dy : 1e30, iz = dz !== 0 ? 1 / dz : 1e30;
+    // clip the ray to the grid rectangle (XZ)
+    let tA = 0, tB = maxT;
+    { const a = (sg.x0 - ox) * ix, b = (sg.x1 - ox) * ix; tA = Math.max(tA, Math.min(a, b)); tB = Math.min(tB, Math.max(a, b)); }
+    { const a = (sg.z0 - oz) * iz, b = (sg.z1 - oz) * iz; tA = Math.max(tA, Math.min(a, b)); tB = Math.min(tB, Math.max(a, b)); }
+    if (tA > tB) return Infinity;
+    if (++sg.sid >= 0xffffffff) { stamp.fill(0); sg.sid = 1; }
+    const sid = sg.sid;
+    const px = ox + dx * tA, pz = oz + dz * tA;
+    let cx = Math.min(nx - 1, Math.max(0, Math.floor((px - sg.x0) / CS)));
+    let cz = Math.min(nz - 1, Math.max(0, Math.floor((pz - sg.z0) / CS)));
+    const sx = dx > 0 ? 1 : -1, sz = dz > 0 ? 1 : -1;
+    const tdX = Math.abs(CS * ix), tdZ = Math.abs(CS * iz);
+    let tmX = dx !== 0 ? ((sg.x0 + (cx + (dx > 0 ? 1 : 0)) * CS) - ox) * ix : Infinity;
+    let tmZ = dz !== 0 ? ((sg.z0 + (cz + (dz > 0 ? 1 : 0)) * CS) - oz) * iz : Infinity;
+    let best = maxT, hit = null, axis = 0;
+    for (let guard = 0; guard < 4096; guard++) {
+      const cell = cells[cz * nx + cx];
+      if (cell) {
+        for (let n = 0; n < cell.length; n++) {
+          const id = cell[n];
+          if (stamp[id] === sid) continue;
+          stamp[id] = sid;
+          const c = list[id];
+          if (c.isDoor && !c.active) continue;
+          if (c.ell) {
+            // ellipsoid (rocks): scale into the unit sphere
+            const qx = (ox - c.ex) / c.rx, qy = (oy - c.ey) / c.ry, qz = (oz - c.ez) / c.rz;
+            const vx = dx / c.rx, vy = dy / c.ry, vz = dz / c.rz;
+            const A = vx * vx + vy * vy + vz * vz, B = qx * vx + qy * vy + qz * vz, C = qx * qx + qy * qy + qz * qz - 1;
+            if (C <= 0) continue;
+            const disc = B * B - A * C;
+            if (disc < 0) continue;
+            const t = (-B - Math.sqrt(disc)) / A;
+            if (t >= 0 && t < best) { best = t; hit = c; axis = 3; }
+            continue;
+          }
+          let t1 = (c.minX - ox) * ix, t2 = (c.maxX - ox) * ix;
+          let tn = Math.min(t1, t2), tf = Math.max(t1, t2), ax = 0;
+          t1 = (c.minY - oy) * iy; t2 = (c.maxY - oy) * iy;
+          let a = Math.min(t1, t2), b = Math.max(t1, t2);
+          if (a > tn) { tn = a; ax = 1; }
+          if (b < tf) tf = b;
+          t1 = (c.minZ - oz) * iz; t2 = (c.maxZ - oz) * iz;
+          a = Math.min(t1, t2); b = Math.max(t1, t2);
+          if (a > tn) { tn = a; ax = 2; }
+          if (b < tf) tf = b;
+          if (tf >= tn && tn >= 0 && tn < best) { best = tn; hit = c; axis = ax; }
+        }
+      }
+      const tExit = Math.min(tmX, tmZ);
+      if (best <= tExit || tExit > tB) break;
+      if (tmX < tmZ) { cx += sx; tmX += tdX; if (cx < 0 || cx >= nx) break; }
+      else { cz += sz; tmZ += tdZ; if (cz < 0 || cz >= nz) break; }
+    }
+    if (!hit) return Infinity;
+    if (out) {
+      out.c = hit;
+      if (axis === 3) {
+        const hx = (ox + dx * best - hit.ex) / (hit.rx * hit.rx), hy = (oy + dy * best - hit.ey) / (hit.ry * hit.ry), hz = (oz + dz * best - hit.ez) / (hit.rz * hit.rz);
+        const l = Math.hypot(hx, hy, hz) || 1;
+        out.nx = hx / l; out.ny = hy / l; out.nz = hz / l;
+      } else {
+        out.nx = axis === 0 ? -Math.sign(dx) : 0;
+        out.ny = axis === 1 ? -Math.sign(dy) : 0;
+        out.nz = axis === 2 ? -Math.sign(dz) : 0;
+      }
+    }
+    return best;
+  }
+
+  /** Coarse terrain occlusion along a segment (hills only rise ~11 m; skipped above that). */
+  _terrainBlocks(ax, ay, az, bx, by, bz) {
+    if (!this.terrainHeightAt || (ay > 14 && by > 14)) return false;
+    const len = Math.hypot(bx - ax, by - ay, bz - az);
+    const n = Math.min(60, Math.ceil(len / 3));
+    for (let i = 1; i < n; i++) {
+      const t = i / n, y = ay + (by - ay) * t;
+      if (y > 14) continue;
+      if (y < this.terrainHeightAt(ax + (bx - ax) * t, az + (bz - az) * t) - 0.15) return true;
+    }
+    return false;
+  }
+
+  /** True when nothing solid (walls, slabs, props, rocks, closed doors, terrain) lies between a and b. */
+  segmentClear(a, b, terrain = true) {
+    const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+    const len = Math.hypot(dx, dy, dz);
+    if (len < 0.05) return true;
+    if (this.raycastSolids(a.x, a.y, a.z, dx / len, dy / len, dz / len, len - 0.05) < len - 0.05) return false;
+    return !(terrain && this._terrainBlocks(a.x, a.y, a.z, b.x, b.y, b.z));
   }
 
   // =========================================================================

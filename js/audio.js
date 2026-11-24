@@ -654,3 +654,297 @@ class SoundEngine {
 }
 
 window.SFX = new SoundEngine();
+
+// =====================================================================================
+// Body foley: procedural VOICE grunts (formant synthesis) + Apex-style HEAL item sounds.
+// Everything is synthesized (no samples). Voices: glottal sawtooth + breath noise through a
+// 3-formant bank; per-hero pitch / gender / roughness. Heals: start / scheduled timeline / finish,
+// with cancel support (all scheduled nodes are stopped + a short "abort" blip).
+// =====================================================================================
+Object.assign(SoundEngine.prototype, {
+  _VOICE_HEROES: {
+    thor:     { f0: 104, female: false, rough: 0.35 },
+    zeus:     { f0: 116, female: false, rough: 0.25 },
+    hades:    { f0: 92,  female: false, rough: 0.55 },
+    loki:     { f0: 134, female: false, rough: 0.15 },
+    hela:     { f0: 192, female: true,  rough: 0.35 },
+    valkyrie: { f0: 222, female: true,  rough: 0.15 }
+  },
+  // [F1, F2, F3] male formants (Hz); female voices are scaled ~1.17
+  _VOWELS: {
+    uh:  [640, 1190, 2390],
+    ah:  [790, 1180, 2600],
+    eh:  [560, 1700, 2500],
+    oh:  [560, 860, 2420],
+    hng: [290, 1050, 2300]
+  },
+
+  _voiceCount: 0,
+
+  /**
+   * Synthesize one vocalization.
+   * opts: { f0, female, rough, vowel, vowelTo, dur, contour:[[t01, mult],...], breath, vol, pan, dist, closed }
+   */
+  _vox(opts) {
+    const ctx = this.ctx;
+    if (!ctx || this._voiceCount > 5) return;
+    const t0 = ctx.currentTime + 0.01;
+    const dur = opts.dur || 0.2;
+    const f0 = opts.f0 || 120;
+    const fm = opts.female ? 1.17 : 1.0;
+    const att = Math.max(0, 1 - (opts.dist || 0) / 55);
+    if (att <= 0.02) return;
+    const vol = this.masterVolume * (opts.vol || 0.4) * att * att;
+    this._voiceCount++;
+    setTimeout(() => { this._voiceCount = Math.max(0, this._voiceCount - 1); }, (dur + 0.1) * 1000);
+
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0.0001, t0);
+    out.gain.exponentialRampToValueAtTime(vol, t0 + Math.min(0.035, dur * 0.2));
+    out.gain.setValueAtTime(vol, t0 + dur * 0.55);
+    out.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    // distance: darker + quieter
+    const tone = ctx.createBiquadFilter();
+    tone.type = 'lowpass';
+    tone.frequency.value = (opts.closed ? 1400 : 4200) * (1 - Math.min(0.75, (opts.dist || 0) / 60));
+    tone.connect(out);
+    this._connectSpatial(out, opts.pan || 0);
+
+    // glottal source with pitch contour
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    const c = opts.contour || [[0, 1], [1, 0.9]];
+    osc.frequency.setValueAtTime(f0 * c[0][1], t0);
+    for (let i = 1; i < c.length; i++) osc.frequency.linearRampToValueAtTime(f0 * c[i][1], t0 + dur * c[i][0]);
+    // vibrato / strain jitter
+    const vib = ctx.createOscillator(), vibG = ctx.createGain();
+    vib.frequency.value = 5.5 + Math.random() * 3;
+    vibG.gain.value = f0 * 0.018;
+    vib.connect(vibG); vibG.connect(osc.frequency);
+    const src = ctx.createGain();
+    src.gain.value = 0.6;
+    osc.connect(src);
+    // roughness: amplitude modulation at sub-harmonic rate (vocal fry / growl)
+    const rough = opts.rough || 0;
+    let am = null;
+    if (rough > 0.05) {
+      am = ctx.createOscillator();
+      am.type = 'square';
+      am.frequency.value = f0 * 0.5 * c[0][1];
+      const amG = ctx.createGain();
+      amG.gain.value = 0.32 * rough;
+      am.connect(amG); amG.connect(src.gain);
+    }
+    // breath noise
+    const nz = ctx.createBufferSource();
+    nz.buffer = this._noise();
+    nz.loop = true;
+    const nzF = ctx.createBiquadFilter();
+    nzF.type = 'bandpass'; nzF.frequency.value = 1800; nzF.Q.value = 0.6;
+    const nzG = ctx.createGain();
+    const br = opts.breath == null ? 0.3 : opts.breath;
+    nzG.gain.setValueAtTime(br * 0.9, t0);
+    nzG.gain.linearRampToValueAtTime(br * 0.35, t0 + dur);
+    nz.connect(nzF); nzF.connect(nzG);
+
+    // formant bank
+    const v0 = this._VOWELS[opts.vowel || 'ah'];
+    const v1 = this._VOWELS[opts.vowelTo || opts.vowel || 'ah'];
+    const gains = opts.closed ? [1.0, 0.25, 0.1] : [1.0, 0.6, 0.32];
+    for (let i = 0; i < 3; i++) {
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(v0[i] * fm, t0);
+      bp.frequency.linearRampToValueAtTime(v1[i] * fm, t0 + dur * 0.85);
+      bp.Q.value = [6, 9, 11][i];
+      const g = ctx.createGain();
+      g.gain.value = gains[i] * [3.2, 3.6, 3.6][i];
+      src.connect(bp); nzG.connect(bp);
+      bp.connect(g); g.connect(tone);
+    }
+    osc.start(t0); vib.start(t0); nz.start(t0, Math.random() * 0.5);
+    if (am) am.start(t0);
+    const tEnd = t0 + dur + 0.05;
+    osc.stop(tEnd); vib.stop(tEnd); nz.stop(tEnd);
+    if (am) am.stop(tEnd);
+  },
+
+  /**
+   * kind: 'jump' | 'land' | 'hurt' | 'hurtBig' | 'knock' | 'death' | 'effort'
+   * opts: { hero, pan, dist, vol, seed }  (seed varies the pitch per bot)
+   */
+  playVoice(kind, opts = {}) {
+    if (!this.enabled) return;
+    this.init();
+    if (!this.ctx) return;
+    const H = this._VOICE_HEROES[opts.hero] || this._VOICE_HEROES.thor;
+    const seed = opts.seed || 0;
+    const f0 = H.f0 * (1 + (((seed * 37) % 11) - 5) * 0.012) * (0.96 + Math.random() * 0.08);
+    const base = { f0, female: H.female, rough: H.rough, pan: opts.pan || 0, dist: opts.dist || 0 };
+    const vm = opts.vol == null ? 1 : opts.vol;
+    const r = Math.random();
+    switch (kind) {
+      case 'jump':
+        this._vox({ ...base, vowel: r < 0.5 ? 'uh' : 'hng', vowelTo: 'uh', closed: r >= 0.5, dur: 0.13 + r * 0.05,
+          contour: [[0, 1.0], [0.35, 1.12], [1, 0.92]], breath: 0.45, rough: H.rough * 0.3, vol: 0.26 * vm });
+        break;
+      case 'land':
+        this._vox({ ...base, vowel: 'hng', vowelTo: 'uh', closed: true, dur: 0.2 + r * 0.06,
+          contour: [[0, 0.95], [0.3, 1.02], [1, 0.8]], breath: 0.55, rough: H.rough * 0.8 + 0.15, vol: 0.4 * vm });
+        break;
+      case 'effort':
+        this._vox({ ...base, vowel: 'ah', vowelTo: 'uh', dur: 0.14, contour: [[0, 1.08], [1, 0.95]], breath: 0.6, vol: 0.3 * vm });
+        break;
+      case 'hurt':
+        this._vox({ ...base, vowel: r < 0.5 ? 'ah' : 'uh', vowelTo: 'uh', dur: 0.17 + r * 0.1,
+          contour: [[0, 1.25], [0.25, 1.42], [1, 1.02]], breath: 0.35, rough: H.rough + 0.1, vol: 0.5 * vm });
+        break;
+      case 'hurtBig':
+        this._vox({ ...base, vowel: 'ah', vowelTo: 'oh', dur: 0.36 + r * 0.1,
+          contour: [[0, 1.3], [0.2, 1.55], [0.7, 1.2], [1, 0.95]], breath: 0.3, rough: H.rough + 0.3, vol: 0.6 * vm });
+        break;
+      case 'knock':
+        this._vox({ ...base, vowel: 'ah', vowelTo: 'uh', dur: 0.95 + r * 0.2,
+          contour: [[0, 1.3], [0.12, 1.62], [0.45, 1.38], [0.85, 1.0], [1, 0.78]], breath: 0.32, rough: H.rough + 0.4, vol: 0.72 * vm });
+        break;
+      case 'death':
+        this._vox({ ...base, vowel: 'ah', vowelTo: 'oh', dur: 1.1 + r * 0.2,
+          contour: [[0, 1.45], [0.1, 1.7], [0.5, 1.25], [0.9, 0.8], [1, 0.6]], breath: 0.4, rough: H.rough + 0.45, vol: 0.75 * vm });
+        break;
+    }
+  },
+
+  // ------------------------------------------------------------------ heal item foley
+  // Small helpers that schedule on the audio clock and register nodes on a handle for cancel.
+  _hTone(h, t, { type = 'sine', from = 400, to = null, dur = 0.2, vol = 0.2, attack = 0.01, pan = 0, ramp = 'exp' }) {
+    const ctx = this.ctx, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(from, t);
+    if (to) (ramp === 'lin' ? o.frequency.linearRampToValueAtTime(to, t + dur) : o.frequency.exponentialRampToValueAtTime(to, t + dur));
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(h.bus);
+    o.start(t); o.stop(t + dur + 0.03);
+    h.nodes.push(o);
+    return o;
+  },
+  _hNoise(h, t, { type = 'bandpass', freq = 2000, to = null, q = 1, dur = 0.1, vol = 0.2, attack = 0.005 }) {
+    const ctx = this.ctx, s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    s.buffer = this._noise(); s.loop = true;
+    f.type = type; f.frequency.setValueAtTime(freq, t); f.Q.value = q;
+    if (to) f.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(h.bus);
+    s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.03);
+    h.nodes.push(s);
+  },
+  _hClick(h, t, freq = 3200, vol = 0.3) {
+    this._hNoise(h, t, { type: 'bandpass', freq, q: 3, dur: 0.025, vol, attack: 0.001 });
+    this._hTone(h, t, { type: 'square', from: freq * 0.35, to: freq * 0.2, dur: 0.03, vol: vol * 0.35, attack: 0.001 });
+  },
+
+  /** Start the full heal foley timeline. Returns a handle for healCancel(). */
+  healStart(type, castTime = 2, opts = {}) {
+    if (!this.enabled) return null;
+    this.init();
+    if (!this.ctx) return null;
+    const ctx = this.ctx;
+    const h = { nodes: [], bus: ctx.createGain(), type, done: false };
+    const att = Math.max(0, 1 - (opts.dist || 0) / 40);
+    h.bus.gain.value = this.masterVolume * (opts.vol == null ? 1 : opts.vol) * att;
+    this._connectSpatial(h.bus, opts.pan || 0);
+    const t = ctx.currentTime + 0.01, T = castTime;
+    if (type === 'shield_battery' || type === 'shield_cell') {
+      const big = type === 'shield_battery';
+      // pull from pouch: cloth rustle + case clack
+      this._hNoise(h, t, { freq: 900, to: 2400, q: 0.7, dur: 0.18, vol: 0.12, attack: 0.04 });
+      this._hClick(h, t + T * (big ? 0.2 : 0.15), 2400, 0.22);
+      // crack / slot into the arm device: two-stage click + zap
+      const tc = t + T * (big ? 0.38 : 0.3);
+      this._hClick(h, tc, 3800, 0.35);
+      this._hClick(h, tc + 0.06, 2600, 0.3);
+      this._hNoise(h, tc + 0.02, { type: 'highpass', freq: 3000, q: 0.5, dur: 0.12, vol: 0.12 });
+      this._hTone(h, tc + 0.02, { type: 'sawtooth', from: 1400, to: 300, dur: 0.12, vol: 0.08 });
+      // rising electric charge hum (loop body)
+      const t1 = tc + 0.08, t2 = t + T * 0.93;
+      const hum = ctx.createOscillator(), hum2 = ctx.createOscillator(), hg = ctx.createGain(), hf = ctx.createBiquadFilter();
+      hum.type = 'sawtooth'; hum2.type = 'square';
+      hum.frequency.setValueAtTime(big ? 110 : 160, t1);
+      hum.frequency.exponentialRampToValueAtTime(big ? 520 : 600, t2);
+      hum2.frequency.setValueAtTime(big ? 221 : 322, t1);
+      hum2.frequency.exponentialRampToValueAtTime(big ? 1046 : 1210, t2);
+      hf.type = 'bandpass'; hf.Q.value = 2.2;
+      hf.frequency.setValueAtTime(500, t1); hf.frequency.exponentialRampToValueAtTime(3200, t2);
+      hg.gain.setValueAtTime(0.0001, t1);
+      hg.gain.exponentialRampToValueAtTime(big ? 0.14 : 0.1, t1 + 0.12);
+      hg.gain.setValueAtTime(big ? 0.14 : 0.1, t2 - 0.05);
+      hg.gain.exponentialRampToValueAtTime(0.0001, t2 + 0.06);
+      // tremolo crackle
+      const lfo = ctx.createOscillator(), lg = ctx.createGain();
+      lfo.frequency.setValueAtTime(9, t1); lfo.frequency.linearRampToValueAtTime(26, t2);
+      lg.gain.value = 0.05;
+      lfo.connect(lg); lg.connect(hg.gain);
+      hum.connect(hf); hum2.connect(hf); hf.connect(hg); hg.connect(h.bus);
+      [hum, hum2, lfo].forEach(o => { o.start(t1); o.stop(t2 + 0.1); h.nodes.push(o); });
+      // static fizz over the charge
+      this._hNoise(h, t1, { type: 'highpass', freq: 5200, q: 0.4, dur: t2 - t1, vol: 0.035, attack: 0.2 });
+      // finish: bright confirm chime + eject clack
+      this._hTone(h, t2, { type: 'sine', from: big ? 1320 : 1560, to: big ? 1980 : 2340, dur: 0.22, vol: 0.12, ramp: 'lin' });
+      this._hTone(h, t2 + 0.05, { type: 'triangle', from: big ? 2640 : 3120, dur: 0.18, vol: 0.06 });
+      this._hClick(h, t2 + 0.03, 1800, 0.18);
+    } else if (type === 'syringe') {
+      this._hClick(h, t + T * 0.12, 4200, 0.22);            // cap off
+      this._hNoise(h, t + T * 0.12, { freq: 6000, q: 1, dur: 0.05, vol: 0.08 });
+      const ti = t + T * 0.38;                               // needle in: soft tick
+      this._hClick(h, ti, 5200, 0.16);
+      // plunger hiss + pneumatic injection
+      this._hNoise(h, ti + 0.05, { type: 'bandpass', freq: 3500, to: 7000, q: 1.4, dur: T * 0.38, vol: 0.13, attack: 0.04 });
+      this._hTone(h, ti + 0.05, { type: 'sine', from: 180, to: 120, dur: T * 0.38, vol: 0.05, attack: 0.05 });
+      this._hClick(h, t + T * 0.82, 3000, 0.2);             // plunger bottom-out
+      this._hTone(h, t + T * 0.92, { type: 'sine', from: 880, to: 1320, dur: 0.16, vol: 0.08, ramp: 'lin' });
+    } else { // medkit / phoenix_kit
+      const gold = type === 'phoenix_kit';
+      // zipper: a train of tiny ticks with rising pitch
+      const tz = t + T * 0.12, zd = T * 0.16;
+      for (let i = 0; i < 14; i++) this._hNoise(h, tz + (i / 14) * zd, { freq: 2200 + i * 160, q: 4, dur: 0.018, vol: 0.09, attack: 0.001 });
+      // velcro rip
+      this._hNoise(h, tz + zd + 0.02, { type: 'bandpass', freq: 1800, to: 4200, q: 0.8, dur: 0.22, vol: 0.2, attack: 0.01 });
+      for (let i = 0; i < 10; i++) this._hNoise(h, tz + zd + 0.03 + i * 0.019, { freq: 2500 + Math.random() * 1500, q: 2, dur: 0.014, vol: 0.1, attack: 0.001 });
+      // spray hisses (3 bursts) + bandage cloth wraps
+      const ts = t + T * 0.45;
+      for (let i = 0; i < 3; i++) {
+        this._hNoise(h, ts + i * T * 0.13, { type: 'highpass', freq: 4000, q: 0.5, dur: T * 0.1, vol: 0.12, attack: 0.02 });
+        this._hNoise(h, ts + i * T * 0.13 + T * 0.05, { freq: 700, to: 1500, q: 0.6, dur: 0.12, vol: 0.07, attack: 0.03 });
+      }
+      if (gold) this._hTone(h, ts, { type: 'sine', from: 440, to: 880, dur: T * 0.45, vol: 0.05, attack: 0.2, ramp: 'lin' });
+      // close + confirm
+      this._hClick(h, t + T * 0.9, 1600, 0.2);
+      this._hTone(h, t + T * 0.93, { type: 'sine', from: gold ? 990 : 784, to: gold ? 1480 : 1175, dur: 0.2, vol: 0.1, ramp: 'lin' });
+    }
+    return h;
+  },
+
+  /** Interrupt a running heal: kill every scheduled node and play a short abort blip. */
+  healCancel(h) {
+    if (!h || h.done || !this.ctx) return;
+    h.done = true;
+    const now = this.ctx.currentTime;
+    h.nodes.forEach(n => { try { n.stop(now + 0.01); } catch (e) {} });
+    try {
+      h.bus.gain.cancelScheduledValues(now);
+      h.bus.gain.setValueAtTime(h.bus.gain.value, now);
+      h.bus.gain.linearRampToValueAtTime(0, now + 0.03);
+    } catch (e) {}
+    const c = { nodes: [], bus: this.ctx.createGain() };
+    c.bus.gain.value = this.masterVolume;
+    c.bus.connect(this.ctx.destination);
+    this._hTone(c, now + 0.02, { type: 'square', from: 520, to: 180, dur: 0.12, vol: 0.06 });
+    this._hNoise(c, now + 0.02, { freq: 1200, to: 500, q: 0.8, dur: 0.1, vol: 0.08 });
+  },
+
+  /** Heal completed: the confirm chime is already on the timeline; mark the handle done. */
+  healFinish(h) { if (h) h.done = true; }
+});

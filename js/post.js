@@ -39,7 +39,7 @@
     uniform sampler2D tScene; uniform sampler2D tBloomA; uniform sampler2D tBloomB;
     uniform float uExposure; uniform float uBloom; uniform float uSat; uniform float uContrast;
     uniform float uVignette; uniform vec3 uShadowTint; uniform vec3 uHighTint; uniform vec2 uTexel;
-    uniform float uSharpen;
+    uniform float uSharpen; uniform float uStorm; uniform float uTime;
     varying vec2 vUv;
     vec3 RRTAndODTFit(vec3 v){ vec3 a = v*(v+0.0245786)-0.000090537; vec3 b = v*(0.983729*v+0.4329510)+0.238081; return a/b; }
     vec3 ACES(vec3 color){
@@ -53,10 +53,22 @@
     vec3 toSRGB(vec3 c){ return mix(c * 12.92, 1.055 * pow(c, vec3(1.0/2.4)) - 0.055, step(0.0031308, c)); }
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main(){
-      vec3 hdr = texture2D(tScene, vUv).rgb;
+      // storm heat-haze: edge-weighted UV wobble + slight chromatic split while outside the ring
+      vec2 uv = vUv;
+      vec3 hdr;
+      if (uStorm > 0.001) {
+        vec2 sq = vUv - 0.5;
+        float se = 0.35 + smoothstep(0.05, 0.6, length(sq));
+        vec2 w = vec2(sin(vUv.y * 41.0 + uTime * 5.3) + 0.5 * sin(vUv.y * 97.0 - uTime * 7.1), cos(vUv.x * 33.0 + uTime * 4.4));
+        uv = vUv + w * (0.0035 * uStorm * se);
+        vec2 ca = sq * 0.006 * uStorm;
+        hdr = vec3(texture2D(tScene, uv + ca).r, texture2D(tScene, uv).g, texture2D(tScene, uv - ca).b);
+      } else {
+        hdr = texture2D(tScene, uv).rgb;
+      }
       // light unsharp mask (recovers crispness lost to MSAA resolve / low DPR)
-      vec3 nb = texture2D(tScene, vUv + vec2(uTexel.x, 0.0)).rgb + texture2D(tScene, vUv - vec2(uTexel.x, 0.0)).rgb
-              + texture2D(tScene, vUv + vec2(0.0, uTexel.y)).rgb + texture2D(tScene, vUv - vec2(0.0, uTexel.y)).rgb;
+      vec3 nb = texture2D(tScene, uv + vec2(uTexel.x, 0.0)).rgb + texture2D(tScene, uv - vec2(uTexel.x, 0.0)).rgb
+              + texture2D(tScene, uv + vec2(0.0, uTexel.y)).rgb + texture2D(tScene, uv - vec2(0.0, uTexel.y)).rgb;
       hdr = max(hdr + (hdr - nb * 0.25) * uSharpen, 0.0);
       vec3 bloom = texture2D(tBloomA, vUv).rgb * 0.6 + texture2D(tBloomB, vUv).rgb * 0.8;
       hdr += bloom * uBloom;
@@ -106,6 +118,7 @@
         tScene: { value: null }, tBloomA: { value: null }, tBloomB: { value: null },
         uExposure: { value: 1 }, uBloom: { value: 0.5 }, uSat: { value: 1.1 }, uContrast: { value: 1.06 },
         uVignette: { value: 0.3 }, uSharpen: { value: 0.18 }, uTexel: { value: new THREE.Vector2() },
+        uStorm: { value: 0 }, uTime: { value: 0 },
         uShadowTint: { value: new THREE.Vector3(0.97, 1.0, 1.05) },
         uHighTint: { value: new THREE.Vector3(1.012, 1.0, 0.988) }
       });
@@ -176,6 +189,9 @@
       cu.uContrast.value = P.contrast;
       cu.uVignette.value = P.vignette;
       cu.uSharpen.value = P.sharpen;
+      const sf = window.GW_STORM_FX;
+      cu.uStorm.value = (sf && window.GAME && scene === window.GAME.scene) ? sf.value : 0;
+      cu.uTime.value = sf ? sf.time : 0;
       cu.uTexel.value.set(1 / this.w, 1 / this.h);
       this._pass(this.compMat, null);
     }

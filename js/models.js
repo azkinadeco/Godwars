@@ -1250,11 +1250,14 @@ window.ModelFactory = {
       rightArm,
       torso,
       core,
-      kdShield
+      kdShield,
+      heroId
     };
 
     const defaultWep = h.defaultWeapons ? h.defaultWeapons[0] : 'm4a1';
     const gun = this.createWeaponModel(defaultWep, heroId, false);
+    root.userData.gun = gun;             // js/anim.js re-parents & drives it (two-hand IK hold)
+    root.userData.gunWeaponId = defaultWep;
     gun.scale.set(1.15, 1.15, 1.15);
     gun.position.set(0.46, 1.12, 0.38);
     root.add(gun);
@@ -1284,6 +1287,7 @@ window.ModelFactory = {
         // Measure the hand in the IDLE pose (rest pose is an A-pose; measuring there left the gun vertical).
         // The mixer is created right after this callback, so defer one frame and pose it explicitly.
         const seat = () => {
+          if (root.userData.gwRig) return; // procedural rig (js/anim.js) owns the weapon now
           const ud = root.userData, mixer = ud && ud.mixer;
           if (mixer) {
             const idle = ud.actions && (ud.actions.Idle || Object.values(ud.actions)[0]);

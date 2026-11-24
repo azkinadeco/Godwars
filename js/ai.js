@@ -483,18 +483,15 @@ class AIContender {
   }
 
   hasLineOfSight(origin, targetPos) {
-    const diff = targetPos.clone().sub(origin);
-    const dist = diff.length();
+    // Same ballistic grid as bullets: walls/slabs/props/rocks/closed doors/hills block sight,
+    // window and doorway gaps don't. Stops 0.6 m short so the target's own cover lip doesn't count.
+    const W = this.game.world;
+    const dx = targetPos.x - origin.x, dy = targetPos.y - origin.y, dz = targetPos.z - origin.z;
+    const dist = Math.hypot(dx, dy, dz);
     if (dist < 1.5) return true;
-    const ray = new THREE.Ray(origin, diff.normalize());
-    const pt = new THREE.Vector3();
-    for (const c of this.game.world.colliders) {
-      if (c.isDoor && !c.active) continue;
-      if (ray.intersectBox(new THREE.Box3(new THREE.Vector3(c.minX, c.minY, c.minZ), new THREE.Vector3(c.maxX, c.maxY, c.maxZ)), pt)) {
-        if (origin.distanceTo(pt) < dist - 0.6) return false;
-      }
-    }
-    return true;
+    const reach = dist - 0.6;
+    if (W.raycastSolids(origin.x, origin.y, origin.z, dx / dist, dy / dist, dz / dist, reach) < reach) return false;
+    return !W._terrainBlocks(origin.x, origin.y, origin.z, targetPos.x, targetPos.y, targetPos.z);
   }
 
   findKnockedTeammate() {
